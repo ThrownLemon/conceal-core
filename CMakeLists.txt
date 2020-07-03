@@ -183,6 +183,12 @@ message(STATUS "Setting FPU Flags for ARM Processors")
 
 endif(ARM)
 
+# Check if we're on FreeBSD so we can exclude the local miniupnpc (it should be installed from ports instead)
+# CMAKE_SYSTEM_NAME checks are commonly known, but specifically taken from libsdl's CMakeLists
+if(CMAKE_SYSTEM_NAME MATCHES "kFreeBSD.*|FreeBSD")
+  set(FREEBSD TRUE)
+endif()
+
 set(STATIC ${MSVC} CACHE BOOL "Link libraries statically")
 
 if(MSVC)
@@ -258,7 +264,9 @@ include_directories(SYSTEM ${Boost_INCLUDE_DIRS})
 if(MINGW)
   set(Boost_LIBRARIES "${Boost_LIBRARIES};ws2_32;mswsock")
 elseif(APPLE)
-  set(Boost_LIBRARIES "${Boost_LIBRARIES}")
+	set(Boost_LIBRARIES "${Boost_LIBRARIES}")
+elseif(FREEBSD)
+  set(EXTRA_LIBRARIES execinfo)
 elseif(NOT MSVC)
   set(Boost_LIBRARIES "${Boost_LIBRARIES};rt")
 endif()
