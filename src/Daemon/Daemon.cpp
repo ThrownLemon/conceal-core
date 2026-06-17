@@ -7,6 +7,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "version.h"
+#include "pq_ring_sig.h"
 
 #include <boost/filesystem.hpp>
 #include <boost/program_options.hpp>
@@ -90,6 +91,7 @@ JsonValue buildLoggerConfiguration(Level level, const std::string& logfile) {
 
 int main(int argc, char* argv[])
 {
+  std::cout << "[PQ] ccx-pqc post-quantum module linked; scheme_id=0x" << std::hex << ccx_pq_scheme_id() << std::dec << std::endl;
 
 #ifdef _WIN32
   _CrtSetDbgFlag ( _CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF );

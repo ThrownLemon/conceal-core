@@ -227,4 +227,14 @@ if(MINGW AND STATIC)
 endif()
 
 add_subdirectory(external)
+# --- Post-quantum crypto module (ccx-pqc, Rust C-ABI) — testnet PoC (CIP-0001) ---
+set(CCX_PQC_DIR ${CMAKE_SOURCE_DIR}/pqc/ccx-pqc)
+set(CCX_PQC_LIB ${CCX_PQC_DIR}/target/release/libccx_pqc.a)
+set(CCX_PQC_INCLUDE ${CMAKE_SOURCE_DIR}/pqc/include)
+add_custom_command(OUTPUT ${CCX_PQC_LIB}
+  COMMAND cargo build --release
+  WORKING_DIRECTORY ${CCX_PQC_DIR}
+  COMMENT "Building ccx-pqc (post-quantum crypto module, Rust)" VERBATIM)
+add_custom_target(ccx_pqc DEPENDS ${CCX_PQC_LIB})
+
 add_subdirectory(src)
