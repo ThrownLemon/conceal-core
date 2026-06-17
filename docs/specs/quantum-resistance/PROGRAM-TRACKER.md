@@ -24,7 +24,7 @@ Single source of truth for decisions + tasks. **Owner key:** TEAM (Conceal core/
 | ID | Task | Owner | Status | Notes |
 |---|---|---|---|---|
 | B1 | **Level-2 integration spike** — v2 variable-length serialize + validate in a modified `conceald` | ME | ☐ | surfaces every fixed-size landmine; produces first KATs |
-| B2 | **FFI proof-of-concept** — Rust static lib ↔ cbindgen ↔ CMake ↔ C++ test, in our build | ME | ☐ | de-risks the librustzcash seam before committing |
+| B2 | **FFI proof-of-concept** — Rust static lib ↔ C ABI ↔ C++ test, in our build | ME | ☑ | **proven on WSL** (Rust sha3 crate → C ABI → C++ links + runs, rc=0). Next: cargo↔CMake wiring + swap sha3 → ml-dsa/ml-kem |
 | B3 | `IRingSignature` C-ABI header (keygen/sign/verify/nullifier) | ME draft → DEV | ☐ | the swappable-backend interface |
 | B4 | KAT / test-vector framework | ME | ☐ | deterministic; spec+impl agree byte-for-byte |
 | B5 | Wire-size + storage model (done; refine per chosen params) | ME | ◐ | `wire-size-calc.py` |
