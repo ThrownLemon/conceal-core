@@ -23,7 +23,7 @@ Single source of truth for decisions + tasks. **Owner key:** TEAM (Conceal core/
 ## B. Grounding / build — ME (buildable now, on WSL)
 | ID | Task | Owner | Status | Notes |
 |---|---|---|---|---|
-| B1 | Level-2: (a) v2 serialize/deserialize round-trip; (b) consensus-validation in `conceald` | ME | ◐ | **(a) DONE** — `spike/pqc` round-trips, sizes match calc. **(b) deferred** (consensus code; after §13 decisions) |
+| B1 | Level-2: (a) v2 serialize/validate lifecycle; (b) integrate into `conceald` consensus | ME | ◐ | **(a) DONE** — `pqc/v2-impl`: full build→sign→serialize→verify→double-spend works standalone w/ real crypto module. **(b) deferred** (consensus code; after §13 + wire-format review) |
 | B2 | **FFI proof-of-concept** — Rust static lib ↔ C ABI ↔ C++ test, in our build | ME | ☑ | **proven on WSL** (Rust sha3 crate → C ABI → C++ links + runs, rc=0). Next: cargo↔CMake wiring + swap sha3 → ml-dsa/ml-kem |
 | B3 | `IRingSignature` C-ABI header (keygen/sign/verify/nullifier) | ME draft → DEV | ☑ | **drafted** `interfaces/pq_ring_sig.h` — two-call var-len pattern; finalize at audit |
 | B4 | KAT / test-vector framework | ME | ◐ | **drafted** `kat-framework.md`; serialization KATs doable now; crypto KATs → scheme |
@@ -52,8 +52,9 @@ Single source of truth for decisions + tasks. **Owner key:** TEAM (Conceal core/
 | E4 | Exchange / integrator coordination (new address format, dual addresses) | TEAM | ☐ | |
 | E5 | **Hardware-wallet PQ support** assessment | TEAM | ☐ | Ledger/Trezor lattice support is immature — real dependency |
 
-## Spike branch
-Code grounding on **`pqc/v2-spike`** (separate from this docs branch): Rust PQ crypto via C-ABI FFI, cargo↔CMake, v2 serialization round-trip. See `spike/pqc/README.md`.
+## Code branches (separate from this docs branch)
+- **`pqc/v2-spike`** — grounding: FFI seam, real ML-KEM/ML-DSA, cargo↔CMake, v2 serialization round-trip.
+- **`pqc/v2-impl`** — foundation: `ccx-pqc` crypto module (C-ABI; real ML-KEM-768 + ML-DSA; **stub** ring-sig w/ `H(pubkey)` nullifier) + standalone **v2 tx lifecycle** (build→serialize→verify→double-spend). Real lattice ring-sig (C1) slots in behind the same ABI. See `pqc/README.md`.
 
 ## Critical path (what actually gates mainnet)
 Decisions (A) → Grounding (B, me, now) → **Audited Rust crypto (C1) → Audit (P1) → Testnet (P3)** → mainnet. Everything in B/E is parallelizable now; **C1 + P1 are the long pole** (months, money, external).
