@@ -1,0 +1,15 @@
+[package]
+name = "ccx-pqc"
+version = "0.1.0"
+edition = "2021"
+description = "Conceal post-quantum crypto module (C-ABI). Real ML-KEM/ML-DSA; ring-sig is an INSECURE STUB pending the audited lattice backend."
+
+[lib]
+name = "ccx_pqc"
+crate-type = ["staticlib"]
+
+[dependencies]
+sha3 = "0.10"
+pqcrypto-kyber = "0.8"
+pqcrypto-dilithium = "0.5"
+pqcrypto-traits = "0.3"
