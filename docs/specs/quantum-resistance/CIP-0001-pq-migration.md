@@ -109,9 +109,18 @@ Unchanged. Grover gives only a √ speedup on Keccak/CryptoNight; 256-bit output
 - Unit + integration tests; fuzzing of the v2 deserializer; ASan/UBSan; **constant-time review** of the signing path.
 - **Long-running testnet** + bug bounty before mainnet activation; activation kill-switch if a flaw is found before `UPGRADE_HEIGHT_V9`.
 
-## 12. Reference implementation & audit
-- Swappable `IRingSignature` backend (§5.3); chosen scheme integrated; not in-house-from-scratch crypto.
-- **Independent cryptographic audit** of (a) the scheme adaptation/parameters and (b) the constant-time implementation — **gating mainnet**.
+## 12. Implementation language, reference implementation & audit
+
+### 12.1 Language: Rust crypto module + C-ABI FFI (the `librustzcash` model)
+- The new PQ crypto (ring signature, stealth KEM, nullifier, deposit signature) is implemented in **Rust**, compiled to a **static library with a C ABI** (header via `cbindgen`), and linked into the **unchanged C++11 `conceald`** across the FFI boundary. Rationale: memory safety on consensus-critical crypto (eliminates the C/C++ bug class that = silent theft/forks); a maturing Rust PQ ecosystem (`ml-kem`, `ml-dsa`, `pqcrypto`, `subtle` for constant-time); and the proven precedent of **Zcash's `librustzcash` called from C++ `zcashd`** — the same C++-chain-plus-Rust-crypto situation.
+- The **swappable `IRingSignature` backend (§5.3) is defined at the C-ABI seam** — backends (MatRiCT-Au lineage, etc.) sit behind one stable header.
+- **Build integration:** `cargo` builds the static lib; CMake invokes it and links the archive + generated header into the existing C++ targets. `[DECISION NEEDED: cargo↔CMake wiring; MSRV; vendoring/offline build for reproducibility]`
+- **Scope guard (hard rule):** Rust is **only** the crypto module + its FFI shim. The daemon, P2P, RPC, serialization, and wallet stay **C++11** (per repo policy — do not rewrite `conceald` in Rust).
+- **Crate reality:** ML-KEM / ML-DSA / Falcon have solid Rust crates (covers stealth + deposits). A production lattice **linkable ring signature** (MatRiCT-Au) has **no shippable Rust crate** → it is **new implementation work** (clean, constant-time) — which is required regardless of language, since the research C is unaudited and not constant-time. `[DECISION NEEDED: build vs commission vs port the ring-sig crate]`
+
+### 12.2 Reference implementation & audit
+- Chosen scheme integrated behind the FFI backend; **never in-house-from-scratch crypto on mainnet.**
+- **Independent cryptographic audit** of (a) the scheme adaptation/parameters and (b) the constant-time Rust implementation + the FFI boundary — **gating mainnet activation.**
 
 ## 13. Open decisions register
 1. Final ring-sig scheme + parameters (post-audit). Lead: MatRiCT-Au lineage.
@@ -125,6 +134,7 @@ Unchanged. Grover gives only a √ speedup on Keccak/CryptoNight; 256-bit output
 9. `UPGRADE_HEIGHT_V9`, `H_deprecate`, legacy-fund migration deadline.
 10. Deposit PQ signature (ML-DSA vs Falcon).
 11. L1 vs L2 (amount privacy) — baseline = L1; L2 deferred (Appendix A).
+12. Language **= Rust crypto module + C-ABI FFI (decided, §12)**; open: cargo↔CMake wiring, MSRV, and **build-vs-commission-vs-port** the lattice ring-sig crate (no shippable Rust crate exists).
 
 ## Appendix A — L2: confidential amounts (optional, deferred)
 Hiding amounts post-quantum = **lattice commitments + lattice range proofs** (full lattice RingCT; MatRiCT-Au provides this natively). Cost: ~doubles tx size (~120 KB/tx vs ~18–40 KB for L1). **`Bulletproofs`/`Bulletproofs+` MUST NOT be used — discrete-log-based, Shor-broken.** Not required for quantum resistance; a separate privacy-feature decision. If adopted, replaces plaintext amounts with commitments and adds a balance proof to §6.3 (Σ checked in zero-knowledge instead of directly).
