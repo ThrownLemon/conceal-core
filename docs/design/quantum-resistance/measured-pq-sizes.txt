@@ -1,0 +1,117 @@
+=== PQC benchmark on Linux 6.18.33.1-microsoft-standard-WSL2 x86_64 @ 2026-06-16T10:40:55Z ===
+cores=16 ram=54Gi
+
+## liboqs base primitive sizes (ground truth)
+liboqs cloned: 11681ba
+SIGNATURES (pk / sk / signature bytes):
+  ML-DSA-44                    pk=  1312  sk=  2560  SIG=   2420 B
+  ML-DSA-65                    pk=  1952  sk=  4032  SIG=   3309 B
+  ML-DSA-87                    pk=  2592  sk=  4896  SIG=   4627 B
+  Falcon-512                   pk=   897  sk=  1281  SIG=    752 B
+  Falcon-1024                  pk=  1793  sk=  2305  SIG=   1462 B
+  SPHINCS+-SHA2-128f-simple    (unavailable)
+  SPHINCS+-SHA2-128s-simple    (unavailable)
+  SPHINCS+-SHA2-256f-simple    (unavailable)
+KEMs (pk / sk / ciphertext / shared-secret bytes):
+  ML-KEM-512                   pk=   800  sk=  1632  ct=   768  ss=32
+  ML-KEM-768                   pk=  1184  sk=  2400  ct=  1088  ss=32
+  ML-KEM-1024                  pk=  1568  sk=  3168  ct=  1568  ss=32
+
+  Ed25519 (current Conceal)    pk=    32  sk=    64  SIG=     64 B
+  -> naive PQ ring = ring_size x SIG; ring>=6 today. e.g. ML-DSA-44 x 6 ~= 14.6 KB/input (vs 6x64=384 B today).
+
+## Reference implementations (best-effort inspection)
+  [abelian] https://github.com/pqabelian/abec  (cloned)
+    --- README.md (head) ---
+    # abec
+    
+    A full node abel implementation written in Go (golang)
+    grep scheme/params: 
+  [abelian2] https://github.com/cryptoblk/Abelian  (cloned)
+    --- README.md (head) ---
+    # Abelian [![Build Status](https://travis-ci.com/CryptoBLK/Abelian.svg?branch=master)](https://travis-ci.com/CryptoBLK/Abelian)
+    
+    Copyright (c) 2019 The Abelian Project.  
+    Portions Copyright (c) 2014-2019 The Monero Project.  
+    Portions Copyright (c) 2012-2013 The Cryptonote developers.
+    
+    ## Development resources
+    
+    - Web: [www.abelianfoundation.org](https://www.abelianfoundation.org)
+    - Mail: [info@abelianfoundation.org](mailto:info@abelianfoundation.org)
+    - GitLab: [https://gitlab.com/abeliancoin/abelian](https://gitlab.com/abeliancoin/abelian)
+    
+    ## Introduction
+    
+    Abelian is a cryptocurrency platform, which aims to achieve both privacy and accountability using post-quantum cryptographic techniques. Traditional cryptocurrencies use pseudonyms and achieve limited anonymity as transactions on the cryptocurrency platforms are traceable. Some `privacy coins’ achieve a higher level of anonymity by making transactions on their platforms untraceable. Furthermore, those privacy coins also strive to hide the amount in each transaction. Accountability means that users can choose to allow a third party, such as a regulatory body, to trace their transactions and access information regarding the amount of each transaction, while at the same time, ensure that their transactions remain anonymous and untraceable to the rest of the platform.  
+    
+    The Abelian platform is developing and adopting well-studied cryptographic algorithms with their security being based on hard problems such as Learning With Errors (LWE), which are as hard to solve as several worst-case lattice problems, and are not known to have any efficient solution in quantum computing. The Abelian research and development group is also building new lattice-based cryptographic primitives for enhancing the efficiency, privacy and security of the Abelian cryptocurrency platform. Led by Dr. Duncan Wong, the R&D group consists of scholars from Shanghai JiaoTong University, Nanyang Technological University, University of Wollongong, and experienced Crypto & Blockchain developers from CryptoBLK.
+    
+    **Privacy:** In Abelian, proven technologies including linkable ring signature, cryptographic commitment scheme, and zero-knowledge proof are incorporated into the design to offer users uncompromising privacy. Abelian is focusing on providing quantum-resistance and privacy with optional accountability.
+    
+    **Accountability:** Abelian will apply a cryptographic primitive called verifiable encryption to enable and abide by regulations, such as AML and taxation policies, in the design to solve concerns from enterprises. Abelian aims to develop a post-quantum anonymous digital signature that can support optional accountability. The system allows a user to produce a digital signature that is fully anonymous to the public but can be traced by a designated authority (or a combination of several authorities) chosen by the signer. Different authorities could be designated by a signer for different types of transactions. It allows an authority to passively monitor transactions under its supervision while maintaining user privacy against other players in the system.
+    
+    **Quantum-safe:** The privacy and accountability features of Abelian are built on Lattice-based cryptography, which enables post-quantum security. When combined with a compatible stealth address mechanism that has been developed in the project, the system will ensure security, anonymity and efficient wallet management for Abelian coin in the post-quantum era.  
+    
+    More information on the project can be found on the website and in the whitepaper.  
+    
+    Abelian is an open source project, and we encourage contributions from anyone with something to offer. For more information on contributing, please contact info@abelianfoundation.org
+    
+    ## About this project
+    
+    This is the core implementation of Abelian. It is open source and completely free to use without restrictions, except for those specified in the license agreement below. There are no restrictions on anyone creating an alternative implementation of Abelian that uses the protocol and network in a compatible manner.
+    
+    As with many development projects, the repository on GitLab is considered to be the "staging" area for the latest changes. Before changes are merged into that branch on the main repository, they are tested by individual developers in their own branches, submitted as a pull request, and then subsequently tested by contributors who focus on testing and code reviews. That having been said, the repository should be carefully considered before using it in a production environment, unless there is a patch in the repository for a particular show-stopping issue you are experiencing. It is generally a better idea to use a tagged release for stability.
+    
+    **Anyone is welcome to contribute to Abelian's codebase!** If you have a fix or code change, feel free to submit it as a pull request directly to the "master" branch. In cases where the change is relatively small or does not affect other parts of the codebase it may be merged in immediately by any one of the collaborators. On the other hand, if the change is particularly large or complex, it is expected that it will be discussed at length either well in advance of the pull request being submitted, or even directly on the pull request.
+    
+    ## License
+    
+    See [LICENSE](LICENSE).
+    
+    grep scheme/params: Dilithium Lattice dilithium lattice ring signature 
+  [raptor] https://github.com/zhenfeizhang/raptor  (cloned)
+    --- README.md (head) ---
+    Raptor: a lattice based (linkable) ring signature
+    ===========
+    Raptor signature and Reference Code
+    
+    Contacts:
+    
+    * Zhenfei Zhang
+    
+    Contacts may be reached by sending mail to lastnamefirstname at gmail
+    
+    
+    
+    Project Overview
+    ================
+    
+    ![](logo/f22.png)
+    
+    Raptor (F-22) gets its name from its main building block: [Falcon](https://falcon-sign.info/) signature.
+    It is the next generation of Falcon (F-16) featured with a stealth mode.
+    
+    
+    The Raptor cryptography system consists of two component:
+    
+    * lattice-based ring signature;
+    * lattice-based one time linkable ring signature.
+    
+    Status of this code
+    -----
+    * Prototype
+    * non-audited (__use at your own risk!!!__)
+    * may use the following improvements:
+      * signature size compression
+      * more efficient discrete Gaussian sampler
+      * replace Karatsuba with NTT
+      * supporting Falcon-1024
+      * removing redundancy
+      * strip out NIST wrapper
+      * unify the PRNG, XOF, hash, etc
+    
+    FAQ
+    grep scheme/params: Falcon Lattice Raptor Ring Signature falcon lattice ring signature 
+
+=== DONE ===

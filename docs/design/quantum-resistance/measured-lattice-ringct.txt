@@ -1,0 +1,18 @@
+# pqringct (Lattice RingCT v2.0) — real full-tx, ring sweep, WSL 2026-06-16
+ringSize	gen_ms	verify_ms	size_bytes	bytes_per_member	status
+2	833.6	305.9	525246	262623	ok
+4	843.0	468.2	823860	205965	ok
+8	1054.5	775.2	1421084	177635	ok
+16	2210.4	1407.8	2615532	163470	ok
+64	5567.1	5178.7	9782220	152847	ok
+256	23031.7	20265.6	38448982	150191	ok
+
+# pqringctx (MatRiCT+ era) — witness size approx, ring sweep
+ringSize	witness_bytes	bytes_per_member
+2	524454	262227
+4	781886	195471
+8	1296750	162093
+16	2326478	145404
+64	8504846	132888
+256	33218326	129759
+1024	132072214	128976
