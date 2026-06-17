@@ -12,7 +12,7 @@ Single source of truth for decisions + tasks. **Owner key:** TEAM (Conceal core/
 | D3 | PQ address format + version prefix | ME draft → TEAM | ☐ | dual address during hybrid |
 | D4 | ML-KEM param + view-tag length (stealth) | TEAM | ☐ | ML-KEM-768 default |
 | D5 | Nullifier construction (serial / H(pk)) | TEAM+EXT | ☐ | must map to spent-set index |
-| D6 | v2 TLV wire layout (exact bytes) | ME draft → DEV | ☐ | feeds Level-2 spike |
+| D6 | v2 TLV wire layout (exact bytes) | ME draft → DEV | ◐ | **drafted** `wire-format-v2.md`; finalize tags/view-tag/canonicalization w/ DEV |
 | D7 | `MINIMUM_MIXIN_V2` (target ring size) | TEAM | ☐ | L1 "exceed" — e.g. ring 16/64 |
 | D8 | New `MAX_TX_SIZE` / `FUSION_TX_MAX_SIZE` / block-zone + fusion redesign | TEAM (ME models) | ☐ | current 99KB/30KB/100KB all too small |
 | D9 | `UPGRADE_HEIGHT_V9`, `H_deprecate`, migration deadline | TEAM | ☐ | HNDL policy for un-migrated funds |
@@ -25,7 +25,7 @@ Single source of truth for decisions + tasks. **Owner key:** TEAM (Conceal core/
 |---|---|---|---|---|
 | B1 | **Level-2 integration spike** — v2 variable-length serialize + validate in a modified `conceald` | ME | ☐ | surfaces every fixed-size landmine; produces first KATs |
 | B2 | **FFI proof-of-concept** — Rust static lib ↔ C ABI ↔ C++ test, in our build | ME | ☑ | **proven on WSL** (Rust sha3 crate → C ABI → C++ links + runs, rc=0). Next: cargo↔CMake wiring + swap sha3 → ml-dsa/ml-kem |
-| B3 | `IRingSignature` C-ABI header (keygen/sign/verify/nullifier) | ME draft → DEV | ☐ | the swappable-backend interface |
+| B3 | `IRingSignature` C-ABI header (keygen/sign/verify/nullifier) | ME draft → DEV | ☑ | **drafted** `interfaces/pq_ring_sig.h` — two-call var-len pattern; finalize at audit |
 | B4 | KAT / test-vector framework | ME | ☐ | deterministic; spec+impl agree byte-for-byte |
 | B5 | Wire-size + storage model (done; refine per chosen params) | ME | ◐ | `wire-size-calc.py` |
 
