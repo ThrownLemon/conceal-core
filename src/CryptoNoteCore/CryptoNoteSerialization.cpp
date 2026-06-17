@@ -46,6 +46,7 @@ size_t getSignaturesCount(const TransactionInput& input) {
     size_t operator()(const BaseInput &) const { return 0; }
     size_t operator()(const KeyInput &txin) const { return txin.outputIndexes.size(); }
     size_t operator()(const MultisignatureInput& txin) const { return txin.signatureCount; }
+    size_t operator()(const PqKeyInput& ) const { return 0; }
   };
 
   return boost::apply_visitor(txin_signature_size_visitor(), input);
@@ -58,6 +59,8 @@ struct BinaryVariantTagGetter : boost::static_visitor<uint8_t>
   uint8_t operator()(const cn::MultisignatureInput &) const { return 0x3; }
   uint8_t operator()(const cn::KeyOutput &) const { return 0x2; }
   uint8_t operator()(const cn::MultisignatureOutput &) const { return 0x3; }
+  uint8_t operator()(const cn::PqKeyInput &) const { return 0x4; }
+  uint8_t operator()(const cn::PqKeyOutput &) const { return 0x4; }
   uint8_t operator()(const cn::Transaction &) const { return 0xcc; }
   uint8_t operator()(const cn::Block &) const { return 0xbb; }
 };
@@ -92,6 +95,12 @@ void getVariantValue(cn::ISerializer& serializer, uint8_t tag, cn::TransactionIn
     in = v;
     break;
   }
+  case 0x4: {
+    cn::PqKeyInput v;
+    serializer(v, "value");
+    in = v;
+    break;
+  }
   default:
     throw serialization_error("Unknown variant tag");
   }
@@ -107,6 +116,12 @@ void getVariantValue(cn::ISerializer& serializer, uint8_t tag, cn::TransactionOu
   }
   case 0x3: {
     cn::MultisignatureOutput v;
+    serializer(v, "data");
+    out = v;
+    break;
+  }
+  case 0x4: {
+    cn::PqKeyOutput v;
     serializer(v, "data");
     out = v;
     break;
@@ -183,7 +198,7 @@ namespace cn {
 void serialize(TransactionPrefix& txP, ISerializer& serializer) {
   serializer(txP.version, "version");
 
-  if (TRANSACTION_VERSION_2 < txP.version) {
+  if (TRANSACTION_VERSION_3 < txP.version) {
     throw serialization_error("Wrong transaction version");
   }
 
@@ -268,6 +283,18 @@ void serialize(MultisignatureInput& multisignature, ISerializer& serializer) {
   serializer(multisignature.signatureCount, "signatures");
   serializer(multisignature.outputIndex, "outputIndex");
   serializer(multisignature.term, "term");
+}
+
+void serialize(PqKeyInput& in, ISerializer& serializer) {
+  serializer(in.amount, "amount");
+  serializeVarintVector(in.outputIndexes, serializer, "key_offsets");
+  serializeAsBinary(in.nullifier, "nullifier", serializer);
+  serializeAsBinary(in.ringSig, "ringsig", serializer);
+}
+
+void serialize(PqKeyOutput& out, ISerializer& serializer) {
+  serializeAsBinary(out.key, "key", serializer);
+  serializeAsBinary(out.kemCt, "kem", serializer);
 }
 
 

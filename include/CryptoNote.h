@@ -40,9 +40,21 @@ struct MultisignatureOutput {
   uint32_t term;
 };
 
-typedef boost::variant<BaseInput, KeyInput, MultisignatureInput> TransactionInput;
+struct PqKeyInput {
+  uint64_t amount;
+  std::vector<uint32_t> outputIndexes;
+  std::vector<uint8_t> nullifier;   // PQ serial number / key-image equivalent
+  std::vector<uint8_t> ringSig;     // PQ linkable ring signature (one proof per input)
+};
 
-typedef boost::variant<KeyOutput, MultisignatureOutput> TransactionOutputTarget;
+struct PqKeyOutput {
+  std::vector<uint8_t> key;         // PQ one-time public key (variable length)
+  std::vector<uint8_t> kemCt;       // ML-KEM ciphertext (stealth shared secret)
+};
+
+typedef boost::variant<BaseInput, KeyInput, MultisignatureInput, PqKeyInput> TransactionInput;
+
+typedef boost::variant<KeyOutput, MultisignatureOutput, PqKeyOutput> TransactionOutputTarget;
 
 struct TransactionOutput {
   uint64_t amount;

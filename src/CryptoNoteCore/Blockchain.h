@@ -436,6 +436,12 @@ namespace cn
 
   public:
     check_tx_outputs_visitor(const Transaction &tx, uint32_t height, uint64_t amount, const Currency &currency, std::string &error) : m_tx(tx), m_height(height), m_amount(amount), m_currency(currency), m_error(error) {}
+    bool operator()(const PqKeyOutput &out) const
+    {
+      if (m_amount == 0) { m_error = "zero amount output"; return false; }
+      if (out.key.empty()) { m_error = "PQ output with empty key"; return false; }
+      return true;
+    }
     bool operator()(const KeyOutput &out) const
     {
       if (m_amount == 0)
