@@ -31,3 +31,6 @@ pqcrypto-traits = "0.3"
 # pqcrypto-dilithium's RNG-based keypair() cannot do.
 ml-dsa = "0.0.4"
 rand_core = "0.6"
+# Wallet-file at-rest KDF (CIP-0001 Q2 §1b): Argon2id (RFC 9106) replaces the unsalted single-pass
+# cn_slow_hash_v0 wallet KDF. Same RustCrypto family as the AEAD above. Client-side only (no fork).
+argon2 = "0.5"

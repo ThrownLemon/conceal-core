@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <ctime>
 #include <cassert>
+#include <cstring>
 #include <numeric>
 #include <random>
 #include <set>
@@ -705,7 +706,7 @@ namespace cn
     }
   }
 
-  void WalletGreen::saveWalletCache(ContainerStorage &storage, const crypto::chacha8_key &key, WalletSaveLevel saveLevel, const std::string &extra)
+  void WalletGreen::saveWalletCache(ContainerStorage &storage, const crypto::chacha8_key &key, uint8_t version, const WalletKdfHeader *kdfHeader, WalletSaveLevel saveLevel, const std::string &extra)
   {
     m_logger(INFO) << "Saving cache...";
 
@@ -752,7 +753,11 @@ namespace cn
         const_cast<std::string &>(extra),
         m_transactionSoftLockTime);
     s.save(containerStream, saveLevel);
-    encryptAndSaveContainerData(storage, key, containerData.data(), containerData.size());
+    // Persist the suffix in the caller-selected container format. For v7 the (key, kdfHeader) pair
+    // must be consistent: the header's salt/cost produced `key`. The caller owns that invariant.
+    encryptAndSaveContainerData(storage, key, version,
+                                version >= WalletSerializerV2::AEAD_KDF_VERSION ? kdfHeader : nullptr,
+                                containerData.data(), containerData.size());
     storage.flush();
 
     m_extra = extra;
@@ -807,11 +812,22 @@ namespace cn
     prefix->version = WalletSerializerV2::SERIALIZATION_VERSION;
     prefix->nextIv = crypto::rand<crypto::chacha8_iv>();
 
-    crypto::cn_context cnContext;
-    crypto::generate_chacha8_key(cnContext, password, m_key);
+    // New wallets use the v7 format: Argon2id (fresh salt + default cost) derives the container key,
+    // and the suffix container is XChaCha20-Poly1305 AEAD. The KDF header travels with the wallet so
+    // the key can be re-derived from the password on next open.
+    m_walletFormatVersion = WalletSerializerV2::SERIALIZATION_VERSION;
+    m_kdfHeader = WalletKdf::makeHeader();
+    m_key = deriveContainerKey(password, m_walletFormatVersion);
 
     uint64_t creationTimestamp = time(nullptr);
     prefix->encryptedViewKeys = encryptKeyPair(viewPublicKey, viewSecretKey, creationTimestamp, m_key, prefix->nextIv);
+
+    // Persist an initial suffix carrying the KDF header so a freshly-created wallet is self-describing
+    // even before its first cache save (loadContainerStorage reads the header from the suffix).
+    {
+      BinaryArray empty;
+      encryptAndSaveContainerData(newStorage, m_key, m_walletFormatVersion, &m_kdfHeader, empty.data(), empty.size());
+    }
 
     newStorage.flush();
     m_containerStorage.swap(newStorage);
@@ -842,7 +858,13 @@ namespace cn
 
     try
     {
-      saveWalletCache(m_containerStorage, m_key, saveLevel, extra);
+      // Migrate-on-save: a wallet opened in the legacy chacha8/cn_slow_hash format (<v7) is upgraded
+      // to the Argon2id + AEAD format here, transparently, before the cache is written. After this the
+      // file is v7 and stays v7. No data loss, no user friction (strategy: load-only legacy support).
+      migrateToAeadFormatIfNeeded();
+      saveWalletCache(m_containerStorage, m_key, m_walletFormatVersion,
+                      m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION ? &m_kdfHeader : nullptr,
+                      saveLevel, extra);
     }
     catch (const std::exception &e)
     {
@@ -918,23 +940,37 @@ namespace cn
         }
       });
 
+      // Export in the wallet's current (v7) container format. Migrate first so a legacy wallet is
+      // exported as Argon2id + AEAD rather than the deprecated chacha8 format.
+      migrateToAeadFormatIfNeeded();
+
       ContainerStorage newStorage(path, FileMappedVectorOpenMode::CREATE, m_containerStorage.prefixSize());
       storageCreated = true;
 
+      const uint8_t exportVersion = m_walletFormatVersion;
       chacha8_key newStorageKey;
+      WalletKdfHeader exportHeader;
+      const WalletKdfHeader *exportHeaderPtr = nullptr;
       if (encrypt)
       {
         newStorageKey = m_key;
+        exportHeader = m_kdfHeader;
+        exportHeaderPtr = &exportHeader;
       }
       else
       {
-        cn_context cnContext;
-        generate_chacha8_key(cnContext, "", newStorageKey);
+        // Unencrypted export = empty password. Still v7: a fresh Argon2id header derives the key from
+        // the empty password so the exported file opens with an empty password.
+        exportHeader = WalletKdf::makeHeader();
+        newStorageKey = WalletKdf::deriveKey("", exportHeader);
+        exportHeaderPtr = &exportHeader;
       }
 
       copyContainerStoragePrefix(m_containerStorage, m_key, newStorage, newStorageKey);
       copyContainerStorageKeys(m_containerStorage, m_key, newStorage, newStorageKey);
-      saveWalletCache(newStorage, newStorageKey, saveLevel, extra);
+      // copyContainerStoragePrefix copies the source version byte; it is already v7 after migration.
+      reinterpret_cast<ContainerStoragePrefix *>(newStorage.prefix())->version = exportVersion;
+      saveWalletCache(newStorage, newStorageKey, exportVersion, exportHeaderPtr, saveLevel, extra);
 
       failExitHandler.cancel();
 
@@ -988,6 +1024,12 @@ namespace cn
     ContainerStoragePrefix *prefix = reinterpret_cast<ContainerStoragePrefix *>(m_containerStorage.prefix());
     prefix->version = WalletSerializerV2::SERIALIZATION_VERSION;
     prefix->nextIv = crypto::randomChachaIV();
+    // Converting a pre-v6 wallet: write the new container in the v7 (Argon2id + AEAD) format. The old
+    // m_key (legacy KDF) decrypted the source above; from here on the new container uses an Argon2id
+    // key derived from a fresh header.
+    m_walletFormatVersion = WalletSerializerV2::SERIALIZATION_VERSION;
+    m_kdfHeader = WalletKdf::makeHeader();
+    m_key = deriveContainerKey(m_password, m_walletFormatVersion);
     uint64_t creationTimestamp = time(nullptr);
     prefix->encryptedViewKeys = encryptKeyPair(m_viewPublicKey, m_viewSecretKey, creationTimestamp);
     for (const auto &spendKeys : m_walletsContainer.get<RandomAccessIndex>())
@@ -995,7 +1037,7 @@ namespace cn
       m_containerStorage.push_back(encryptKeyPair(spendKeys.spendPublicKey, spendKeys.spendSecretKey, spendKeys.creationTimestamp));
       incNextIv();
     }
-    saveWalletCache(m_containerStorage, m_key, WalletSaveLevel::SAVE_ALL, "");
+    saveWalletCache(m_containerStorage, m_key, m_walletFormatVersion, &m_kdfHeader, WalletSaveLevel::SAVE_ALL, "");
     boost::filesystem::rename(path, bakPath);
     std::error_code ec;
     m_containerStorage.rename(path, ec);
@@ -1019,10 +1061,64 @@ namespace cn
     incIv(prefix->nextIv);
   }
 
-  void WalletGreen::loadAndDecryptContainerData(ContainerStorage &storage, const crypto::chacha8_key &key, BinaryArray &containerData)
+  crypto::chacha8_key WalletGreen::deriveContainerKey(const std::string &password, uint8_t version) const
+  {
+    if (version >= WalletSerializerV2::AEAD_KDF_VERSION)
+    {
+      // Argon2id (salt + tunable cost from the wallet's KDF header).
+      return WalletKdf::deriveKey(password, m_kdfHeader);
+    }
+    // Legacy unsalted single-pass cn_slow_hash_v0 KDF (kept only to open old wallets).
+    crypto::cn_context cnContext;
+    crypto::chacha8_key key;
+    crypto::generate_chacha8_key(cnContext, password, key);
+    return key;
+  }
+
+  WalletKdfHeader WalletGreen::readKdfHeader(const ContainerStorage &storage)
+  {
+    // The Argon2id KDF header is stored, plaintext, at the very start of the (v7) container suffix.
+    if (storage.suffixSize() < sizeof(WalletKdfHeader))
+    {
+      throw std::runtime_error("readKdfHeader: container suffix too small to hold a KDF header");
+    }
+    WalletKdfHeader header;
+    std::memcpy(&header, storage.suffix(), sizeof(header));
+    if (!WalletKdf::isValidHeader(header))
+    {
+      throw std::runtime_error("readKdfHeader: missing/invalid Argon2id KDF header in container");
+    }
+    return header;
+  }
+
+  void WalletGreen::loadAndDecryptContainerData(ContainerStorage &storage, const crypto::chacha8_key &key, uint8_t version, BinaryArray &containerData)
   {
     common::MemoryInputStream suffixStream(storage.suffix(), storage.suffixSize());
     BinaryInputStreamSerializer suffixSerializer(suffixStream);
+
+    if (version >= WalletSerializerV2::AEAD_KDF_VERSION)
+    {
+      // v7+: the suffix is [kdfHeader][aeadNonce][XChaCha20-Poly1305 sealed container]. The KDF
+      // header is plaintext (salt/cost are not secret); the AEAD tag authenticates the container, so
+      // a tampered/corrupted/wrong-key suffix fails to open rather than decrypting to garbage.
+      WalletKdfHeader header;
+      suffixSerializer.binary(&header, sizeof(header), "kdfHeader");
+      BinaryArray nonce;
+      BinaryArray sealed;
+      suffixSerializer(nonce, "aeadNonce");
+      suffixSerializer(sealed, "aeadContainer");
+
+      std::vector<uint8_t> plaintext;
+      if (!WalletKdf::aeadOpen(key, nonce, sealed.data(), sealed.size(), plaintext))
+      {
+        // Authenticated-decryption failure: wrong password, tamper, or corruption.
+        throw std::system_error(make_error_code(error::WRONG_PASSWORD), "Wallet container authentication failed");
+      }
+      containerData.assign(plaintext.begin(), plaintext.end());
+      return;
+    }
+
+    // Legacy (<=v6): unauthenticated chacha8 + 8-byte IV.
     crypto::chacha8_iv suffixIv;
     BinaryArray encryptedContainer;
     suffixSerializer(suffixIv, "suffixIv");
@@ -1037,7 +1133,7 @@ namespace cn
     assert(m_containerStorage.isOpened());
 
     BinaryArray contanerData;
-    loadAndDecryptContainerData(m_containerStorage, m_key, contanerData);
+    loadAndDecryptContainerData(m_containerStorage, m_key, m_walletFormatVersion, contanerData);
 
     WalletSerializerV2 s(
         *this,
@@ -1074,6 +1170,17 @@ namespace cn
       const ContainerStoragePrefix *prefix = reinterpret_cast<ContainerStoragePrefix *>(m_containerStorage.prefix());
       assert(prefix->version >= WalletSerializerV2::MIN_VERSION);
 
+      // Record the on-disk format and, for the v7 (Argon2id + AEAD) format, read the KDF header from
+      // the suffix and re-derive the container key with Argon2id. m_key was provisionally set with the
+      // legacy KDF in load(); for a v7 wallet it MUST be replaced with the Argon2id-derived key here,
+      // before the prefix view keys (and later the AEAD suffix) are decrypted with it.
+      m_walletFormatVersion = prefix->version;
+      if (m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION)
+      {
+        m_kdfHeader = readKdfHeader(m_containerStorage);
+        m_key = deriveContainerKey(m_password, m_walletFormatVersion);
+      }
+
       uint64_t creationTimestamp;
       decryptKeyPair(prefix->encryptedViewKeys, m_viewPublicKey, m_viewSecretKey, creationTimestamp);
       throwIfKeysMissmatch(m_viewSecretKey, m_viewPublicKey, "Restored view public key doesn't correspond to secret key");
@@ -1094,8 +1201,35 @@ namespace cn
     }
   }
 
-  void WalletGreen::encryptAndSaveContainerData(ContainerStorage &storage, const crypto::chacha8_key &key, const void *containerData, size_t containerDataSize)
+  void WalletGreen::encryptAndSaveContainerData(ContainerStorage &storage, const crypto::chacha8_key &key, uint8_t version, const WalletKdfHeader *kdfHeader, const void *containerData, size_t containerDataSize)
   {
+    if (version >= WalletSerializerV2::AEAD_KDF_VERSION)
+    {
+      // v7+: [kdfHeader][fresh random aeadNonce][XChaCha20-Poly1305 sealed container]. A fresh nonce
+      // per save (XChaCha's 192-bit nonce makes random selection collision-safe) plus the Poly1305
+      // tag give authenticated at-rest encryption. The header carries the salt/cost so the key can
+      // be re-derived on next open; it MUST match the header used to derive `key`.
+      if (kdfHeader == nullptr || !WalletKdf::isValidHeader(*kdfHeader))
+      {
+        throw std::runtime_error("encryptAndSaveContainerData: v7 save requires a valid KDF header");
+      }
+      std::vector<uint8_t> nonce = WalletKdf::randomNonce();
+      std::vector<uint8_t> sealed = WalletKdf::aeadSeal(key, nonce,
+                                                        reinterpret_cast<const uint8_t *>(containerData), containerDataSize);
+
+      std::string suffix;
+      common::StringOutputStream suffixStream(suffix);
+      BinaryOutputStreamSerializer suffixSerializer(suffixStream);
+      suffixSerializer.binary(const_cast<WalletKdfHeader *>(kdfHeader), sizeof(*kdfHeader), "kdfHeader");
+      suffixSerializer(nonce, "aeadNonce");
+      suffixSerializer(sealed, "aeadContainer");
+
+      storage.resizeSuffix(suffix.size());
+      std::copy(suffix.begin(), suffix.end(), storage.suffix());
+      return;
+    }
+
+    // Legacy (<=v6): unauthenticated chacha8 + IV chain.
     ContainerStoragePrefix *prefix = reinterpret_cast<ContainerStoragePrefix *>(storage.prefix());
 
     crypto::chacha8_iv suffixIv = prefix->nextIv;
@@ -1143,8 +1277,12 @@ namespace cn
 
     stopBlockchainSynchronizer();
 
+    // Provisional legacy key — loadContainerStorage() re-derives it with Argon2id for a v7 wallet.
+    // m_password is set here (rather than only at the end of load()) because loadContainerStorage()
+    // needs it to run the Argon2id KDF for the new format.
     crypto::cn_context cnContext;
     generate_chacha8_key(cnContext, password, m_key);
+    m_password = password;
 
     std::ifstream walletFileStream(path, std::ios_base::binary);
     int version = walletFileStream.peek();
@@ -1194,7 +1332,11 @@ namespace cn
 
           if (!addedSpendKeys.empty() || !deletedSpendKeys.empty())
           {
-            saveWalletCache(m_containerStorage, m_key, WalletSaveLevel::SAVE_ALL, extra);
+            // Re-save the cache in the wallet's current format (a full migrate-on-save happens on the
+            // next explicit save(); here we only rewrite the suffix consistently with m_key).
+            saveWalletCache(m_containerStorage, m_key, m_walletFormatVersion,
+                            m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION ? &m_kdfHeader : nullptr,
+                            WalletSaveLevel::SAVE_ALL, extra);
           }
         }
         catch (const std::exception &e)
@@ -1373,25 +1515,71 @@ namespace cn
       return;
     }
 
-    crypto::cn_context cnContext;
-    crypto::chacha8_key newKey;
-    crypto::generate_chacha8_key(cnContext, newPassword, newKey);
+    // Changing the password also upgrades a legacy wallet to the v7 (Argon2id + AEAD) format.
+    migrateToAeadFormatIfNeeded();
 
-    m_containerStorage.atomicUpdate([this, newKey](ContainerStorage &newStorage)
+    // Rekey: draw a FRESH KDF header (new salt) for the new password and derive the new key with
+    // Argon2id. Both the prefix records and the whole AEAD suffix are re-encrypted under it, so every
+    // at-rest secret (including any PQ section in the container cache) is re-sealed under the new key.
+    const uint8_t version = m_walletFormatVersion;
+    WalletKdfHeader newHeader = WalletKdf::makeHeader();
+    crypto::chacha8_key newKey = WalletKdf::deriveKey(newPassword, newHeader);
+
+    m_containerStorage.atomicUpdate([this, newKey, version, &newHeader](ContainerStorage &newStorage)
                                     {
     copyContainerStoragePrefix(m_containerStorage, m_key, newStorage, newKey);
     copyContainerStorageKeys(m_containerStorage, m_key, newStorage, newKey);
 
     if (m_containerStorage.suffixSize() > 0) {
       BinaryArray containerData;
-      loadAndDecryptContainerData(m_containerStorage, m_key, containerData);
-      encryptAndSaveContainerData(newStorage, newKey, containerData.data(), containerData.size());
+      loadAndDecryptContainerData(m_containerStorage, m_key, version, containerData);
+      encryptAndSaveContainerData(newStorage, newKey, version, &newHeader, containerData.data(), containerData.size());
     } });
 
     m_key = newKey;
+    m_kdfHeader = newHeader;
     m_password = newPassword;
 
     m_logger(INFO, BRIGHT_WHITE) << "Container password changed";
+  }
+
+  void WalletGreen::migrateToAeadFormatIfNeeded()
+  {
+    if (m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION)
+    {
+      return; // already v7+
+    }
+
+    m_logger(INFO, BRIGHT_WHITE) << "Migrating wallet to Argon2id + AEAD container format (v"
+                                 << static_cast<int>(WalletSerializerV2::SERIALIZATION_VERSION) << ")";
+
+    // Derive the new Argon2id container key (fresh salt) and re-key the prefix view keys + every spend
+    // record from the legacy chacha8 key onto it, then re-seal the suffix container as AEAD and bump
+    // the on-disk container version. Mirrors changePassword's atomicUpdate (prefix size is unchanged).
+    WalletKdfHeader newHeader = WalletKdf::makeHeader();
+    crypto::chacha8_key newKey = WalletKdf::deriveKey(m_password, newHeader);
+    const uint8_t oldVersion = m_walletFormatVersion;
+    const uint8_t newVersion = WalletSerializerV2::SERIALIZATION_VERSION;
+
+    m_containerStorage.atomicUpdate([this, newKey, oldVersion, newVersion, &newHeader](ContainerStorage &newStorage)
+                                    {
+    copyContainerStoragePrefix(m_containerStorage, m_key, newStorage, newKey);
+    copyContainerStorageKeys(m_containerStorage, m_key, newStorage, newKey);
+
+    // copyContainerStoragePrefix copies the old version byte; bump it to the AEAD version.
+    reinterpret_cast<ContainerStoragePrefix *>(newStorage.prefix())->version = newVersion;
+
+    BinaryArray containerData; // empty if the legacy wallet had no cache suffix yet
+    if (m_containerStorage.suffixSize() > 0) {
+      loadAndDecryptContainerData(m_containerStorage, m_key, oldVersion, containerData);
+    }
+    encryptAndSaveContainerData(newStorage, newKey, newVersion, &newHeader, containerData.data(), containerData.size()); });
+
+    m_key = newKey;
+    m_kdfHeader = newHeader;
+    m_walletFormatVersion = newVersion;
+
+    m_logger(INFO, BRIGHT_WHITE) << "Wallet container migrated to Argon2id + AEAD format";
   }
 
   size_t WalletGreen::getAddressCount() const

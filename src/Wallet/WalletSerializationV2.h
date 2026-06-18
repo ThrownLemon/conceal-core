@@ -54,7 +54,12 @@ public:
   std::unordered_set<crypto::PublicKey>& deletedKeys();
 
   static const uint8_t MIN_VERSION = 6;
-  static const uint8_t SERIALIZATION_VERSION = 6;
+  // Version 6: legacy chacha8 container, cn_slow_hash_v0(password) KDF (unsalted, single pass).
+  // Version 7: Argon2id KDF (salt + tunable cost, stored in a header) + XChaCha20-Poly1305 AEAD
+  //   container suffix (CIP-0001 Q2 §1b). v6 wallets still load (MIN_VERSION=6) and are migrated to
+  //   v7 on the next save. The decrypted container/cache layout is otherwise unchanged.
+  static const uint8_t SERIALIZATION_VERSION = 7;
+  static const uint8_t AEAD_KDF_VERSION = 7; // first container version using Argon2id + AEAD suffix
 
 private:
   void loadKeyListAndBanalces(cn::ISerializer& serializer, bool saveCache);
