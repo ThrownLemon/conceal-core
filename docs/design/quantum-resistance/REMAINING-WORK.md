@@ -4,36 +4,26 @@ Branch: `pqc/testnet-poc` (fork `ThrownLemon/conceal-core`). Status as of the mu
 The working PoC + its hardening are committed; this file tracks what is left and how to pick it up
 cleanly in a fresh session.
 
-## In flight (background agents)
+## MERGED into `pqc/testnet-poc` (done — `make -j12` green, `ctest -R UnitTests` 100%)
 
-- **Bug fix + 2 small fixes** (independent of variant tags): the non-deterministic crash when
-  `f_block_json`/`gettransactions` serialize a RELOADED PQ block (ASAN root-cause), the
-  money-conservation check in `pushBlock` for v3 txs, and `catch_unwind` on the Rust FFI. Commits
-  land directly on `pqc/testnet-poc`.
-- **Messages → ML-KEM-768** (blueprint `messages-mlkem.md`): new tx-extra **tag 0x06**
-  (`tx_extra_pq_message`), message-domain KEM in `ccx-pqc`, send/scan glue, unit tests. On a separate
-  worktree branch — review + merge carefully (shares `CryptoNoteSerialization.cpp`, `CryptoNoteConfig.h`).
+- **Bug fix + 2 small fixes** — the "reload crash" was a **pre-existing, non-PQ** null-deref in
+  `gettransactions` on a malformed hash (fixed); + a v3 money-conservation check on the block-import
+  path (Codex/GLM review caught + fixed a CRITICAL output-sum-overflow bypass); + uniform
+  `catch_unwind` guards on every panicking Rust FFI entry point (incl. the new message + multisig fns).
+- **Messages → ML-KEM-768** (tag `0x06`) **+ ChaCha20-Poly1305 AEAD** — real authenticated encryption
+  (tampering any byte now fails), beyond the legacy chacha8 owner-test. Send/scan glue + unit tests.
+- **Deposits → ML-DSA-65** (tag `0x5`, `UPGRADE_HEIGHT_V9`) — faithful PQ analogue of the Ed25519
+  deposit path; interest/lock/reorg semantics byte-identical; +11 tests. **GATE BEFORE ANY PR to
+  development/master:** the required pre-PR triple review + a line-by-line human read of the
+  interest-minting / reorg money paths (money-critical; tested + agent-reviewed, not yet human-reviewed).
 
-## Queued — do SEQUENTIALLY (shared core files; coordinate tags)
+## Still queued (sequential; shared core files)
 
-These all edit `include/CryptoNote.h` (variants), `CryptoNoteSerialization.cpp` (tags), and
-`CryptoNoteConfig.h`. Do one at a time, rebasing on the prior, to avoid conflicts. **Pre-assigned
-identifiers so they never collide:**
+Assigned-tag table (so future work never collides): PQ key in/out = variant `0x4`; messages = tx-extra
+`0x06`; deposits = variant `0x5` + `BLOCK_MAJOR_VERSION_9`/`UPGRADE_HEIGHT_V9`; wallet = `ccxpq`/`ccxh`
+address prefixes. (`0x4`/`0x06`/`0x5` are now in the tree.)
 
-| Work | tx-input/output variant tag | tx-extra tag | block major / upgrade height | address prefix |
-|---|---|---|---|---|
-| (existing) PQ key in/out | 0x4 | — | testnet v1 (PoC) | — |
-| Messages (in flight) | — | 0x06 | — | (uses KEM pubkey, step 4) |
-| **Deposits → ML-DSA** | **0x5** | — | **BLOCK_MAJOR_VERSION_9 / UPGRADE_HEIGHT_V9** | — |
-| **Wallet / address v2** | — | — | — | **`ccxpq` / `ccxh` prefixes** |
-
-1. **Deposits → ML-DSA-65** — blueprint `deposits-mldsa.md` (high feasibility, ~15 files). Add
-   `PqMultisigInput`/`PqMultisigOutput` (variant tag **0x5**), an `m_pqMultisigOutputs` index (mirror
-   of `m_multisignatureOutputs`), `check_pq_multisig` (port of `validateInput(MultisignatureInput)`
-   with ML-DSA m-of-n via new `ccx_pq_multisig_sign/verify` FFI), term/interest reused unchanged.
-   **Money-critical** — the blueprint flags CRITICAL interest-minting + reorg-symmetry risks; bind
-   `input.term == output.term`, mirror the reorg push/pop, and pre-PR review the interest path.
-2. **Wallet / address v2** — blueprint `wallet-address-v2.md` (medium; **BLOCKER**: deterministic
+1. **Wallet / address v2** — blueprint `wallet-address-v2.md` (medium; **BLOCKER**: deterministic
    ML-KEM keygen from the mnemonic seed is unbuilt — `kyber768::keypair()` is RNG-based; needs a
    FIPS-203 `KeyGen(d,z)` crate path). Address carries the **1184-byte ML-KEM pubkey only** (NOT the
    4096-byte ring-sig key, which is per-output/derived). Adds the `get_pq_outputs` RPC to replace the
