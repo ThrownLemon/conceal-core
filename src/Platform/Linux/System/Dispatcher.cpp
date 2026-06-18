@@ -182,7 +182,12 @@ void Dispatcher::dispatch() {
       if(((event.events & (EPOLLIN | EPOLLOUT)) != 0) && contextPair->readContext == nullptr && contextPair->writeContext == nullptr) {
         uint64_t buf;
         auto transferred = read(remoteSpawnEvent, &buf, sizeof buf);
-        if(transferred == -1) {
+        // The remoteSpawnEvent is a level-triggered, O_NONBLOCK eventfd that is drained from
+        // both dispatch() and yield(). When the same readiness is observed by two epoll_wait
+        // calls, the second read() finds the counter already at 0 and returns EAGAIN/EWOULDBLOCK
+        // (errno 11). That is benign here (the queued procedures are still drained under the
+        // mutex below), so treat it as "already drained" instead of aborting the process.
+        if(transferred == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
             throw std::runtime_error("Dispatcher::dispatch, read(remoteSpawnEvent) failed, " + lastErrorMessage());
         }
 
@@ -311,7 +316,10 @@ void Dispatcher::yield() {
         if(((events[i].events & (EPOLLIN | EPOLLOUT)) != 0) && contextPair->readContext == nullptr && contextPair->writeContext == nullptr) {
           uint64_t buf;
           auto transferred = read(remoteSpawnEvent, &buf, sizeof buf);
-          if(transferred == -1) {
+          // See dispatch(): a concurrent drain of the nonblocking remoteSpawnEvent eventfd can
+          // make this read() return EAGAIN/EWOULDBLOCK. That is benign (procedures are drained
+          // under the mutex below), so do not abort the process on it.
+          if(transferred == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
             throw std::runtime_error("Dispatcher::dispatch, read(remoteSpawnEvent) failed, " + lastErrorMessage());
           }
 
