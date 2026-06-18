@@ -15,8 +15,6 @@
 #include "CoreRpcServerCommandsDefinitions.h"
 #include "crypto/crypto.h"                    // crypto::rand<T> (CSPRNG; NOT std::mt19937)
 
-#include "pq_testnet_kem_keypair.h"           // PQ_TESTNET_KEM_SK (testnet KEM secret)
-
 namespace cn
 {
   namespace
@@ -50,6 +48,7 @@ namespace cn
                         uint64_t amount,
                         uint64_t fee,
                         uint32_t ringSize,
+                        const std::vector<std::vector<uint8_t>>& candidateKemSecretKeys,
                         const std::vector<uint8_t>& recipientKemPubKey,
                         std::string& outTxHashHex,
                         std::string& outStatus,
@@ -64,6 +63,23 @@ namespace cn
     {
       err = "ring size " + std::to_string(ringSize) + " out of bounds [" +
             std::to_string(cn::PQ_MIN_RING_SIZE) + "," + std::to_string(cn::PQ_MAX_RING_SIZE) + "]";
+      return false;
+    }
+
+    // ---- candidate KEM secrets: need at least one non-empty key to scan a signer -----------------
+    // Filter out empty entries up front so the per-signer loop below never wastes an attempt on one.
+    std::vector<std::vector<uint8_t>> kemSecrets;
+    kemSecrets.reserve(candidateKemSecretKeys.size());
+    for (const auto& sk : candidateKemSecretKeys)
+    {
+      if (!sk.empty())
+      {
+        kemSecrets.push_back(sk);
+      }
+    }
+    if (kemSecrets.empty())
+    {
+      err = "no candidate KEM secret keys supplied";
       return false;
     }
 
@@ -165,12 +181,12 @@ namespace cn
           }
         }
 
-        // Assemble the spend request from the chosen slots.
+        // Assemble the spend request from the chosen slots. The ring + signer do not depend on the
+        // KEM secret, so build them once; only sreq.kemSecretKey varies across candidates below.
         cn::PqSpendRequest sreq;
         sreq.amount = amount;
         sreq.fee = fee;
         sreq.signerGlobalIndex = spendable[signerSlot].global_index;
-        sreq.kemSecretKey.assign(cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK));
         sreq.recipientKemPubKey = recipientKemPubKey;
 
         bool malformed = false;
@@ -202,11 +218,25 @@ namespace cn
           continue;
         }
 
-        // ---- build + sign the transaction (all crypto happens inside the shared builder) ---------
+        // ---- build + sign: try each candidate KEM secret for this signer ------------------------
+        // A wrong secret makes the builder's KEM scan fail ("output not ours"), so fall through to
+        // the next candidate. The signer output belongs to exactly one of them (the fixed testnet
+        // key for coinbase outputs, or the wallet's own seed-derived key for received outputs).
         cn::Transaction tx;
-        if (!cn::buildPqSpendTransaction(sreq, tx, err))
+        bool built = false;
+        for (size_t c = 0; c < kemSecrets.size(); ++c)
         {
-          // Build failed (e.g. signer not ours / already-spent class) — try a different signer.
+          sreq.kemSecretKey = kemSecrets[c];
+          if (cn::buildPqSpendTransaction(sreq, tx, err))
+          {
+            built = true;
+            break;
+          }
+          // else: this candidate did not own the signer (scan failed) — try the next candidate.
+        }
+        if (!built)
+        {
+          // No candidate owned this signer (already-spent class / not ours) — try a different signer.
           continue;
         }
 
