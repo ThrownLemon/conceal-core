@@ -17,6 +17,8 @@ use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
 use rand_core::{OsRng, RngCore};
+use sha3::digest::{ExtendableOutput, Update, XofReader};
+use sha3::Shake256;
 
 /// XChaCha20-Poly1305 key length.
 pub const KEY_BYTES: usize = 32;
@@ -24,6 +26,15 @@ pub const KEY_BYTES: usize = 32;
 pub const NONCE_BYTES: usize = 24;
 /// Poly1305 authentication tag length appended by seal().
 pub const TAG_BYTES: usize = 16;
+/// Prefix-MAC tag length (32) — the keyed SHAKE256 tag authenticating the v8 wallet container prefix.
+pub const PREFIX_MAC_BYTES: usize = 32;
+
+/// Domain string for deriving the prefix-MAC subkey from the Argon2id master key. Distinct from the
+/// AEAD encryption use of the master key (the master key is fed RAW to XChaCha20-Poly1305), so the
+/// MAC subkey is cryptographically independent of the encryption key.
+const PREFIX_MAC_KEY_DOMAIN: &[u8] = b"ccx-wallet-prefix-mac-key-v1";
+/// Domain string bound into the keyed-MAC sponge itself (KMAC-style domain separation).
+const PREFIX_MAC_TAG_DOMAIN: &[u8] = b"ccx-wallet-prefix-mac-v1";
 
 /// Fill `out` with cryptographically-secure random bytes from the OS CSPRNG.
 ///
@@ -82,6 +93,49 @@ pub fn aead_open(key: &[u8; KEY_BYTES], nonce: &[u8; NONCE_BYTES], sealed: &[u8]
     cipher.decrypt(XNonce::from_slice(nonce), sealed).ok()
 }
 
+/// Compute the 32-byte keyed MAC over the wallet container `prefix` bytes (v8 wallet-file format,
+/// hardening item W11). `master_key` is the 32-byte Argon2id-derived container key.
+///
+/// Construction (a standard keyed-sponge MAC — NOT a hand-rolled novel scheme):
+///   * `mac_key = SHAKE256("ccx-wallet-prefix-mac-key-v1" || master_key)[0..32]` — a subkey
+///     domain-separated from the AEAD encryption use of `master_key`, so the MAC key is independent
+///     of the encryption key.
+///   * `tag = SHAKE256("ccx-wallet-prefix-mac-v1" || mac_key || prefix)[0..32]` — a keyed-prefix
+///     SHAKE256 MAC. The sponge (Keccak) construction is immune to length-extension, so a keyed
+///     prefix is a sound MAC (unlike Merkle–Damgård SHA-2). Same SHAKE256 KDF family the PQ message
+///     AEAD and the deterministic PQ keygen already use.
+///
+/// The caller stores `tag` INSIDE the AEAD-sealed suffix (so the tag is itself confidential and
+/// authenticated) and re-verifies it against the live prefix on open, detecting prefix
+/// tamper/rollback that the suffix AEAD alone cannot see.
+pub fn prefix_mac(master_key: &[u8; KEY_BYTES], prefix: &[u8]) -> [u8; PREFIX_MAC_BYTES] {
+    let mut mac_key = [0u8; KEY_BYTES];
+    {
+        let mut x = Shake256::default();
+        Update::update(&mut x, PREFIX_MAC_KEY_DOMAIN);
+        Update::update(&mut x, master_key);
+        x.finalize_xof().read(&mut mac_key);
+    }
+
+    let mut tag = [0u8; PREFIX_MAC_BYTES];
+    {
+        let mut x = Shake256::default();
+        Update::update(&mut x, PREFIX_MAC_TAG_DOMAIN);
+        Update::update(&mut x, &mac_key);
+        Update::update(&mut x, prefix);
+        x.finalize_xof().read(&mut tag);
+    }
+    // Wipe the derived MAC subkey before returning — it is sensitive (deriving it again needs the
+    // master key, but a lingering copy is needless exposure). Volatile writes + a compiler fence so
+    // the dead store cannot be optimised away. (No `zeroize` crate dependency added; this keeps the
+    // Cargo manifest/lock unchanged.)
+    for b in mac_key.iter_mut() {
+        unsafe { core::ptr::write_volatile(b, 0u8); }
+    }
+    core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
+    tag
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -136,5 +190,47 @@ mod tests {
         assert!(argon2id_derive(b"pw", &[0u8; 16], T_MEM, 0, T_PAR).is_none());
         // salt too short -> None.
         assert!(argon2id_derive(b"pw", &[0u8; 4], T_MEM, T_ITERS, T_PAR).is_none());
+    }
+
+    #[test]
+    fn prefix_mac_is_deterministic_key_and_message_sensitive() {
+        let key_a = [0x11u8; KEY_BYTES];
+        let key_b = [0x22u8; KEY_BYTES];
+        let prefix = b"container prefix: version || nextIv || encrypted view+spend records";
+
+        let t1 = prefix_mac(&key_a, prefix);
+        let t2 = prefix_mac(&key_a, prefix);
+        assert_eq!(t1, t2, "same key+prefix must reproduce the tag");
+        assert_eq!(t1.len(), PREFIX_MAC_BYTES);
+
+        // different key -> different tag
+        let t3 = prefix_mac(&key_b, prefix);
+        assert_ne!(t1, t3, "different key must change the tag");
+
+        // flip one prefix byte -> different tag
+        let mut tampered = prefix.to_vec();
+        tampered[0] ^= 0x01;
+        let t4 = prefix_mac(&key_a, &tampered);
+        assert_ne!(t1, t4, "tampered prefix must change the tag");
+
+        // empty prefix still yields a tag (defensive — should never happen in practice)
+        let _ = prefix_mac(&key_a, &[]);
+    }
+
+    #[test]
+    fn prefix_mac_subkey_is_independent_of_encryption_use() {
+        // The MAC subkey is domain-separated from the raw key used for AEAD encryption, so the tag
+        // must differ from a naive SHAKE256 of the raw key over the same message (sanity: the domain
+        // separation actually takes effect).
+        let key = [0x5au8; KEY_BYTES];
+        let prefix = b"abc";
+        let tag = prefix_mac(&key, prefix);
+
+        let mut naive = [0u8; PREFIX_MAC_BYTES];
+        let mut x = Shake256::default();
+        Update::update(&mut x, &key[..]);
+        Update::update(&mut x, &prefix[..]);
+        x.finalize_xof().read(&mut naive);
+        assert_ne!(tag, naive, "domain-separated MAC must not equal a raw keyed hash");
     }
 }

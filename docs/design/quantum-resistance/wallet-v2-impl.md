@@ -23,7 +23,9 @@ consensus, no fork.
 ### What was built
 
 **New container format version 7** (`WalletSerializationV2.h`: `SERIALIZATION_VERSION = 7`,
-`AEAD_KDF_VERSION = 7`, `MIN_VERSION` stays 6 so v6 wallets still open):
+`AEAD_KDF_VERSION = 7`, `MIN_VERSION` stays 6 so v6 wallets still open). *(Superseded by container
+format **v8**, which adds prefix authentication — see the W11 section below. `SERIALIZATION_VERSION`
+is now 8; v7 wallets still load and migrate-on-save to v8.)*
 
 - **KDF → Argon2id** (RFC 9106) with a random 16-byte per-wallet salt and tunable
   memory/time/parallelism cost (default 64 MiB / 3 passes / 1 lane), all stored in a versioned
@@ -191,7 +193,7 @@ Four independent reviews (Codex, Gemini, GLM, CodeRabbit) ran against this branc
 | **W8** | `WalletKdfHeader` cost fields were native-endian uint32 → platform-endian wallet file. | **FIXED.** Cost fields are now explicit little-endian `uint8_t[4]` with `putLe32`/`getLe32`; on-disk format is endian-independent. |
 | **W9** | Old password-derived key not wiped after `changePassword`. | **FIXED.** `secureZero` (volatile store) wipes `m_key` before reassignment. (Best-effort; not mlock-hardened.) |
 | **W10** | CR claimed `pq_ring_sig.h` declares `ccx_pq_wallet_crypto_selftest` but Rust exports `ccx_wallet_crypto_selftest`. | **NO-OP (false positive).** Verified: header and Rust both use `ccx_wallet_crypto_selftest`; the names already match. |
-| **W11** | The wallet PREFIX (view keys + per-wallet spend records) is still **unauthenticated chacha8** even in v7 — only the suffix container is AEAD. | **DOCUMENTED (deferred, by reviewer's instruction).** See below. |
+| **W11** | The wallet PREFIX (view keys + per-wallet spend records) is still **unauthenticated chacha8** even in v7 — only the suffix container is AEAD. | **FIXED (container format v8).** A 32-byte keyed MAC over the prefix is stored inside the AEAD suffix and verified on open; a prefix tamper/rollback now fails the load. See below. |
 
 ### W3 residual note (atomicity)
 
@@ -200,23 +202,133 @@ The v7 `save()`, `changePassword`, and `migrateToAeadFormatIfNeeded` paths now a
 intact. The legacy (≤v6) `save()` path is unchanged (it was never AEAD, so a torn write was already
 recoverable by re-sync). No known brick-on-crash remains for v7.
 
-### W11 — known v7 limitation: the container PREFIX is not authenticated
+### W11 — container format v8: the prefix is now authenticated (IMPLEMENTED)
 
-In v7 the **suffix** (the serialized cache + PQ section) is XChaCha20-Poly1305 AEAD, but the
-**prefix** — `ContainerStoragePrefix` = `{version, nextIv, encryptedViewKeys}` plus the per-wallet
-`EncryptedWalletRecord` spend keys — is still **8-round chacha8 keyed by the Argon2id key, with no
-MAC**. Consequence: an attacker with write access to the wallet file can **tamper or roll back the
-prefix** (e.g. swap in old/forged encrypted view/spend key records) and it will **not be detected**
-by an authentication tag; detection relies only on the downstream `throwIfKeysMissmatch`
-(pub/priv consistency) check, which catches random corruption but not a structurally-valid
-substitution. The salt/cost header lives in the AEAD suffix and IS authenticated, but the prefix key
-material is not.
+**The v7 gap.** In v7 the **suffix** (the serialized cache + PQ section) is XChaCha20-Poly1305 AEAD,
+but the **prefix** — `ContainerStoragePrefix` = `{version, nextIv, encryptedViewKeys}` plus the
+per-wallet `EncryptedWalletRecord` spend keys — was **8-round chacha8 keyed by the Argon2id key, with
+no MAC**. An attacker with write access to the wallet file could **tamper or roll back the prefix**
+(e.g. swap in old/forged encrypted view/spend key records) and it would **not be detected** by an
+authentication tag; detection relied only on the downstream `throwIfKeysMissmatch` (pub/priv
+consistency) check, which catches random corruption but not a structurally-valid substitution or a
+change to a non-key prefix field (e.g. `nextIv`).
 
-**Why deferred:** authenticating the prefix means either (a) moving the view/spend key records out of
-the fixed-size `EncryptedWalletRecord` mmap prefix into the AEAD suffix (a larger container-format
-change + migration), or (b) adding a separate prefix MAC field — both change the on-disk layout that
-the `FileMappedVector` open path depends on. Recommended follow-up: in a v8 format, AEAD-wrap the
-entire container (prefix + suffix) under the Argon2id key with a single tag, or store an HMAC of the
-prefix in the authenticated suffix and verify it on open before trusting any prefix key. Until then,
-treat the wallet file as confidential-and-integrity-protected **for the cache** but only
-confidential **for the prefix keys** (rollback/tamper of the prefix is undetectable).
+**The v8 fix.** Container format **version 8** (`WalletSerializationV2.h`:
+`SERIALIZATION_VERSION = 8`, `PREFIX_MAC_VERSION = 8`; `AEAD_KDF_VERSION` stays 7) authenticates the
+prefix:
+
+- **Sealed-plaintext layout** (inside the XChaCha20-Poly1305 suffix):
+  `[ V8_SEAL_MAGIC "CCXWV08" (7) ][ sealedVersion (1) ][ prefix MAC (32) ][ container data ]`.
+  The magic, the canonical `sealedVersion`, and the tag all live **inside** the AEAD (confidential **and**
+  Poly1305-authenticated).
+- **On save** (`encryptAndSaveContainerData`, v8 branch): after the prefix + every spend record are
+  written into the (temp) container, the **32-byte keyed MAC over the prefix bytes** is computed and the
+  full v8 seal header is prepended to the container plaintext before AEAD-sealing.
+  The bytes MAC'd (`gatherContainerPrefixBytes`) are exactly the unauthenticated prefix layer:
+  `storage.prefix()` (version ‖ nextIv ‖ encrypted view keys) ‖ an 8-byte little-endian record count
+  ‖ every `EncryptedWalletRecord` (spend keys). Framing the record count makes an inserted/removed
+  record unambiguous (rollback/truncation detection).
+- **On load** (`loadAndDecryptContainerData`, v8 branch): after the suffix AEAD-opens, a container is
+  recognised as v8 by the **authenticated magic** (not the attacker-writable prefix version byte). The
+  MAC is **recomputed over the LIVE prefix** on disk and **constant-time compared**
+  (`constantTimeEquals`, with a `volatile` accumulator). A mismatch throws
+  `"wallet prefix authentication failed (possible tamper/rollback)"` and aborts the load — the wallet
+  never trusts an unauthenticated/substituted prefix.
+- **Authenticate-before-parse (fail closed).** `loadContainerStorage` calls
+  `verifyPrefixAuthentication` immediately after key derivation — it opens + authenticates the suffix,
+  enforces the downgrade guard, and verifies the prefix MAC **before** any prefix byte is run through
+  the chacha8 decryptor / the WalletSerializerV2 parser (so attacker-controlled prefix bytes are never
+  parsed on a failed authentication).
+- **Downgrade guard (M1).** The MAC gate is **not** keyed off the writable prefix version byte. The
+  authenticated `sealedVersion` must be ≥ `PREFIX_MAC_VERSION` **and equal to the on-disk prefix
+  version byte**; a container carrying the v8 magic is always validated. So flipping the prefix version
+  8→7 to route the load through the v7 (no-MAC) path is rejected — the v8 magic inside the suffix still
+  identifies it as v8, and the version mismatch fails the load (it cannot silently skip prefix auth).
+- **Brick-on-close fix (H1).** The mmap'd prefix is mutated (incNextIv / push_back / erase) **outside**
+  an explicit save, and `close()`'s `msync` writes the dirty prefix page to disk. To keep disk-prefix ≡
+  MAC'd-prefix at all times: `initWithKeys` advances `nextIv` to its final value **before** sealing (so
+  the MAC binds the post-increment value); `createAddress`/`createAddressList`/`deleteAddress` call
+  `resealPrefixMacIfNeeded()` after the mutation (re-sealing the suffix over the new prefix and
+  flushing). A `loadWalletCache` empty-body guard lets a created-but-never-saved wallet (whose sealed
+  body is empty) reopen cleanly instead of failing the cache parse. Net effect: creating a wallet, or
+  adding/removing an address, then exiting **without** an explicit `save()` no longer bricks the wallet.
+- **Version-after-rename ordering (Codex).** The v7→v8 in-memory version bump is a **pure query**
+  (`pendingWriteVersion()`); `m_walletFormatVersion` is committed to the new value **only after** the
+  durable `atomicUpdate`+rename (or in-place flush) succeeds — so a mid-write throw never leaves the
+  live object believing it is v8 while the on-disk file is still v7 (which would make a later
+  `changePassword` read a non-existent v8 seal and false-fail).
+
+**MAC primitive + key derivation.** No hand-rolled MAC. The tag is a **keyed SHAKE256 (KMAC-style)**
+computed in the existing `ccx-pqc` Rust module (`walletcrypto::prefix_mac`, exposed via the
+`ccx_wallet_prefix_mac` C ABI; C++ wrapper `WalletKdf::prefixMac`), reusing the same `sha3::Shake256`
+KDF family the PQ message AEAD and the deterministic PQ keygen already use:
+
+```
+mac_key = SHAKE256("ccx-wallet-prefix-mac-key-v1" || master_key)[0..32]   // subkey, domain-separated
+tag     = SHAKE256("ccx-wallet-prefix-mac-v1"     || mac_key || prefix)[0..32]
+```
+
+The subkey is **domain-separated from the AEAD encryption use** of the Argon2id master key (which is
+fed raw to XChaCha20-Poly1305), so the MAC key is cryptographically independent of the encryption key.
+SHAKE256's sponge construction is immune to length-extension, so a keyed-prefix MAC is sound (unlike a
+Merkle–Damgård SHA-2 keyed prefix).
+
+**Backward compatibility & migration.** The on-disk **prefix encoding is unchanged** from v7 — only an
+authentication tag is added *inside the sealed suffix* and the version byte becomes 8 — so the
+`FileMappedVector` open path is untouched. v6 (legacy) wallets migrate straight to v8 via
+`migrateToAeadFormatIfNeeded` (which now targets `SERIALIZATION_VERSION = 8`). v7 wallets load via the
+existing AEAD path (no prefix MAC checked) and **migrate-on-save to v8** via
+`upgradeToPrefixMacVersionIfNeeded()` — a *no-rekey* in-memory version bump (v7 and v8 share the same
+Argon2id key, KDF header and AEAD suffix cipher), called from `save()`, `changePassword`, and
+`exportWallet`; the MAC is computed and stamped on the next seal. `changePassword` reads the OLD suffix
+with its on-disk version and writes the NEW suffix as v8, recomputing the prefix MAC under the new key.
+All v8 writes go through the existing `atomicUpdate` (durable temp-file + rename), so migrate-on-save
+cannot brick an existing wallet.
+
+**Tests** (`tests/UnitTests/TestWalletKdf.cpp` + new `tests/UnitTests/TestWalletPrefixMac.cpp`, both run
+under `ctest -R UnitTests`; Rust `walletcrypto::tests`):
+
+- `WalletKdf.prefixMac*` — tag is deterministic, key-sensitive, and changes on any prefix byte flip;
+  empty-prefix is stable. Rust `prefix_mac_is_deterministic_key_and_message_sensitive` and
+  `prefix_mac_subkey_is_independent_of_encryption_use` cover the primitive + domain separation.
+- `WalletKdfContainer.migrateV7PayloadToV8ThenOpens` / `v8PrefixTamperIsDetectedButV7CannotSee` —
+  container-analogue of the v7→v8 re-seal: a migrated v8 container round-trips, a post-migration prefix
+  tamper is rejected, and the v7 suffix-only AEAD demonstrably could NOT see that change.
+- `WalletPrefixMac.*` (real `WalletGreen` over a temp file): a fresh wallet is **v8 on disk**; v8
+  save→load round-trips; flipping a prefix `nextIv` byte (which the key-consistency check does NOT
+  cover) **fails the load**; an 8-byte prefix tamper sweep is all detected; suffix tamper still fails
+  (regression guard that v8 did not weaken the suffix AEAD); `changePassword` re-stores the prefix MAC
+  so the new password loads, the old fails, and a post-rekey prefix tamper is still caught.
+- **H1 brick-on-close regression tests:** `initThenCloseWithoutSaveReopens`,
+  `createAddressThenCloseWithoutSaveReopens`, `createAddressListThenCloseWithoutSaveReopens`,
+  `deleteAddressThenCloseWithoutSaveReopens` — each mutates the wallet then `shutdown()`s with **no**
+  `save()`, and asserts the reopen loads cleanly with the expected keys/addresses. (These reproduced
+  the brick before the fix.)
+- **M1 downgrade test:** `versionDowngradeIsRejected` — flips the on-disk prefix version byte 8→7 and
+  asserts the load throws (the authenticated v8 seal magic + sealed-version check reject it instead of
+  skipping prefix auth).
+
+`ctest -R UnitTests` → **100% passed** (0 failed, ~67 s); the targeted wallet filter
+`--gtest_filter=WalletKdf.*:WalletKdfContainer.*:WalletPrefixMac.*` → **37/37 passed**. Rust
+`walletcrypto::tests` → **5/5**. The Rust `ccx_wallet_crypto_selftest` (through the C ABI) also
+exercises the prefix MAC (deterministic + prefix-sensitive + key-sensitive) and returns ok=1.
+
+### W11 hygiene + residual notes
+
+- **`master_key` reuse (raw for XChaCha20 AND as the prefix-MAC subkey source) — sound, kept.** The
+  Argon2id container key is fed raw to XChaCha20-Poly1305 (suffix AEAD) and is also the input to the
+  SHAKE256 derivation of the **separate** prefix-MAC subkey
+  (`mac_key = SHAKE256("ccx-wallet-prefix-mac-key-v1" ‖ master_key)`). Three independent reviewers
+  (Gemini, Codex, GLM) confirmed this cross-primitive reuse is **not exploitable**: the MAC subkey is
+  domain-separated and computationally independent of the encryption key (recovering one from the other
+  would break SHAKE256), so the AEAD keystream/tag and the MAC tag cannot interfere. A fully separate
+  KDF-split of the master key into (enc-key, mac-key) would be marginally cleaner hygiene but is **not**
+  required for soundness; the domain-separated subkey is the chosen, vetted construction. The derived
+  `mac_key` and the FFI's local key copy are volatile-wiped after use.
+- **Residual (out of scope): full-file replacement rollback.** The prefix MAC is *per-container* — it
+  binds the prefix to the suffix of the **same** wallet file. It does **not** defend against an attacker
+  replacing the **entire** wallet file (prefix **and** suffix together) with an earlier **same-password,
+  same-salt** backup of that wallet: such a whole-file rollback is internally self-consistent (its own
+  prefix MAC verifies), so it loads silently. Defending against this needs an external anti-rollback
+  anchor (a monotonic counter / version pin outside the file, or a server-side balance check), which is
+  out of scope for an at-rest container MAC. Documented here as a known residual.

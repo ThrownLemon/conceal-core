@@ -886,9 +886,39 @@ pub extern "C" fn ccx_wallet_aead_open(
     })
 }
 
+/// Prefix-MAC tag size (32) — the keyed SHAKE256 tag authenticating the v8 wallet-file prefix.
+#[no_mangle] pub extern "C" fn ccx_wallet_prefix_mac_bytes() -> usize { walletcrypto::PREFIX_MAC_BYTES }
+
+/// Compute the 32-byte keyed prefix MAC over `prefix` under the 32-byte Argon2id `key` (v8 wallet
+/// file hardening, W11). Writes exactly 32 bytes to `tag_out`. Returns 0 on success, negative on
+/// bad args. The tag is stored inside the AEAD suffix and re-verified against the live prefix on
+/// open so a prefix tamper/rollback is detected. See walletcrypto::prefix_mac for the construction.
+#[no_mangle]
+pub extern "C" fn ccx_wallet_prefix_mac(
+    key: *const u8, key_len: usize,
+    prefix: *const u8, prefix_len: usize,
+    tag_out: *mut u8, tag_cap: usize,
+) -> i32 {
+    ffi_guard(-99, || {
+        if key.is_null() || tag_out.is_null() { return -1; }
+        if prefix.is_null() && prefix_len != 0 { return -1; }
+        if key_len < walletcrypto::KEY_BYTES { return -2; }
+        if tag_cap < walletcrypto::PREFIX_MAC_BYTES { return -2; }
+        let mut k = [0u8; 32]; k.copy_from_slice(unsafe { std::slice::from_raw_parts(key, walletcrypto::KEY_BYTES) });
+        let pfx = if prefix_len == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(prefix, prefix_len) } };
+        let tag = walletcrypto::prefix_mac(&k, pfx);
+        unsafe { std::ptr::copy_nonoverlapping(tag.as_ptr(), tag_out, walletcrypto::PREFIX_MAC_BYTES); }
+        // Wipe the local copy of the master key (volatile + fence so it is not optimised out).
+        for b in k.iter_mut() { unsafe { core::ptr::write_volatile(b, 0u8); } }
+        core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
+        0
+    })
+}
+
 /// Selftest: Argon2id derive is reproducible + salt-sensitive; AEAD seal->open round-trips; any
-/// tamper / wrong key / wrong nonce makes open fail. ok=1 means all checks passed. Exercises the
-/// wallet at-rest crypto through the same C ABI the wallet uses.
+/// tamper / wrong key / wrong nonce makes open fail; the prefix MAC is deterministic and detects a
+/// prefix tamper / wrong key. ok=1 means all checks passed. Exercises the wallet at-rest crypto
+/// through the same C ABI the wallet uses.
 #[no_mangle]
 pub extern "C" fn ccx_wallet_crypto_selftest() -> CcxPqSizes {
     ffi_guard(CCX_SIZES_PANIC, || {
@@ -926,7 +956,25 @@ pub extern "C" fn ccx_wallet_crypto_selftest() -> CcxPqSizes {
         // wrong key (wrong password) -> open must reject
         let wrong_rejected = ccx_wallet_aead_open(key3.as_ptr(), kb, nonce.as_ptr(), nb, sealed.as_ptr(), sealed_len, tmp.as_mut_ptr(), tmp.len(), &mut tl) != 0;
 
-        let ok = (reproducible && salt_sensitive && open_ok && tamper_rejected && wrong_rejected) as i32;
+        // prefix MAC: deterministic for the same key+prefix, changes on a tampered prefix and on a
+        // different key. Exercises the W11 v8 prefix-authentication primitive through the C ABI.
+        let pmb = walletcrypto::PREFIX_MAC_BYTES;
+        let prefix = b"ccx wallet container prefix selftest bytes";
+        let mut tag = vec![0u8; pmb];
+        let mut tag2 = vec![0u8; pmb];
+        if ccx_wallet_prefix_mac(key.as_ptr(), kb, prefix.as_ptr(), prefix.len(), tag.as_mut_ptr(), pmb) != 0 { return fail; }
+        if ccx_wallet_prefix_mac(key.as_ptr(), kb, prefix.as_ptr(), prefix.len(), tag2.as_mut_ptr(), pmb) != 0 { return fail; }
+        let mac_reproducible = tag == tag2;
+        let mut bad_prefix = prefix.to_vec(); bad_prefix[0] ^= 0x01;
+        let mut tag_tampered = vec![0u8; pmb];
+        if ccx_wallet_prefix_mac(key.as_ptr(), kb, bad_prefix.as_ptr(), bad_prefix.len(), tag_tampered.as_mut_ptr(), pmb) != 0 { return fail; }
+        let mac_prefix_sensitive = tag != tag_tampered;
+        let mut tag_wrong_key = vec![0u8; pmb];
+        if ccx_wallet_prefix_mac(key3.as_ptr(), kb, prefix.as_ptr(), prefix.len(), tag_wrong_key.as_mut_ptr(), pmb) != 0 { return fail; }
+        let mac_key_sensitive = tag != tag_wrong_key;
+
+        let ok = (reproducible && salt_sensitive && open_ok && tamper_rejected && wrong_rejected
+            && mac_reproducible && mac_prefix_sensitive && mac_key_sensitive) as i32;
         CcxPqSizes { pk: kb, sk: nb, ct_or_sig: tb, ss: 0, ok }
     })
 }

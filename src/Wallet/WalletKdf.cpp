@@ -187,4 +187,24 @@ namespace cn
     csprngBytes(nonce.data(), nonce.size());
     return nonce;
   }
+
+  size_t WalletKdf::prefixMacBytes()
+  {
+    return ccx_wallet_prefix_mac_bytes();
+  }
+
+  std::vector<uint8_t> WalletKdf::prefixMac(const crypto::chacha8_key &key,
+                                            const uint8_t *prefix, size_t prefixSize)
+  {
+    std::vector<uint8_t> tag(prefixMacBytes());
+    const int32_t rc = ccx_wallet_prefix_mac(
+        key.data, sizeof(key.data),
+        prefix, prefixSize,
+        tag.data(), tag.size());
+    if (rc != 0)
+    {
+      throw std::runtime_error("WalletKdf: prefix MAC computation failed (rc=" + std::to_string(rc) + ")");
+    }
+    return tag;
+  }
 } // namespace cn
