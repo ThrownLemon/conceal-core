@@ -185,6 +185,25 @@ void serializePqMultisigArray(std::vector<std::vector<uint8_t>>& items, cn::ISer
 length `== ccx_pq_multisig_pubkey_bytes()`. `check_pq_multisig` re-checks the key length at the verify
 boundary so a corrupt index can never reach the FFI with a wrong-length buffer.
 
+### Coinbase height-gate (review finding — FIXED)
+The Codex pre-PR review found a HIGH issue: the per-tx height gate in `pushBlock` only iterates the
+non-coinbase `transactions[i]`, so a hand-crafted pre-V9 **coinbase** could mint a `PqMultisigOutput`
+deposit cell (spendable after V9). Fixed by also gating `blockData.baseTransaction` before it is pushed:
+
+```cpp
+    // HEIGHT GATE (CIP-0001 UPGRADE_HEIGHT_V9) for the COINBASE: the per-tx gate below only covers
+    // non-coinbase transactions, so guard the miner tx here too — otherwise a hand-crafted pre-V9
+    // coinbase could mint a PqMultisigOutput deposit cell that becomes spendable after V9. ...
+    if (transactionContainsPqMultisig(blockData.baseTransaction) &&
+        static_cast<uint32_t>(m_blocks.size()) < m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9))
+    {
+      ... bvc.m_verification_failed = true; return false;
+    }
+```
+A genuine coinbase never carries one (`constructMinerTx` emits only KeyOutput/PqKeyOutput), so this
+only rejects malicious blocks. Codex confirmed interest-minting, reorg symmetry, signing hash,
+deposit-lock/double-spend, and DoS bounds are all clean.
+
 ### Mixed-input `tx.signatures` alignment
 `getSignaturesCount(PqMultisigInput) == 0` (inline sigs), and the switch branch advances `inputIndex`
 exactly like `PqKeyInput`, so a mixed `KeyInput + PqMultisigInput` tx reads the correct signature slot.

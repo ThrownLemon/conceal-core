@@ -2968,6 +2968,20 @@ namespace cn
       return false;
     }
 
+    // HEIGHT GATE (CIP-0001 UPGRADE_HEIGHT_V9) for the COINBASE: the per-tx gate below only covers
+    // non-coinbase transactions, so guard the miner tx here too — otherwise a hand-crafted pre-V9
+    // coinbase could mint a PqMultisigOutput deposit cell that becomes spendable after V9. A genuine
+    // coinbase never carries one (constructMinerTx emits only KeyOutput/PqKeyOutput), so this only
+    // rejects malicious blocks. Never apply retroactively.
+    if (transactionContainsPqMultisig(blockData.baseTransaction) &&
+        static_cast<uint32_t>(m_blocks.size()) < m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9))
+    {
+      logger(INFO, BRIGHT_WHITE) << "Block " << blockHash << " coinbase contains a PQ deposit output before height "
+                                 << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9);
+      bvc.m_verification_failed = true;
+      return false;
+    }
+
     crypto::Hash minerTransactionHash = getObjectHash(blockData.baseTransaction);
 
     BlockEntry block;
