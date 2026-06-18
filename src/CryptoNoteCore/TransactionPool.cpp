@@ -541,6 +541,7 @@ namespace cn
       m_transactions.clear();
       m_spent_key_images.clear();
       m_spentOutputs.clear();
+      m_spent_pq_nullifiers.clear();
 
       m_paymentIdIndex.clear();
       m_timestampIndex.clear();
@@ -621,6 +622,7 @@ namespace cn
 
     KV_MEMBER(m_spent_key_images);
     KV_MEMBER(m_spentOutputs);
+    KV_MEMBER(m_spent_pq_nullifiers);
     KV_MEMBER(m_recentlyDeletedTransactions);
   }
 
@@ -745,6 +747,16 @@ namespace cn
           m_spentOutputs.erase(output);
         }
       }
+      else if (in.type() == typeid(PqKeyInput))
+      {
+        if (!keptByBlock)
+        {
+          const auto &pqin = boost::get<PqKeyInput>(in);
+          std::string nfk(pqin.nullifier.begin(), pqin.nullifier.end());
+          assert(m_spent_pq_nullifiers.count(nfk));
+          m_spent_pq_nullifiers.erase(nfk);
+        }
+      }
     }
 
     return true;
@@ -785,6 +797,16 @@ namespace cn
           assert(r.second);
         }
       }
+      else if (in.type() == typeid(PqKeyInput))
+      {
+        if (!keptByBlock)
+        {
+          const auto &pqin = boost::get<PqKeyInput>(in);
+          auto r = m_spent_pq_nullifiers.insert(std::string(pqin.nullifier.begin(), pqin.nullifier.end()));
+          (void)r;
+          assert(r.second);
+        }
+      }
     }
 
     return true;
@@ -807,6 +829,14 @@ namespace cn
       {
         const auto &msig = boost::get<MultisignatureInput>(in);
         if (m_spentOutputs.count(GlobalOutput(msig.amount, msig.outputIndex)))
+        {
+          return true;
+        }
+      }
+      else if (in.type() == typeid(PqKeyInput))
+      {
+        const auto &pqin = boost::get<PqKeyInput>(in);
+        if (m_spent_pq_nullifiers.count(std::string(pqin.nullifier.begin(), pqin.nullifier.end())))
         {
           return true;
         }

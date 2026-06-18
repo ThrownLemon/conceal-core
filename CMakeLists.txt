@@ -245,6 +245,7 @@ endif()
 add_custom_command(OUTPUT ${CCX_PQC_LIB}
   COMMAND ${CARGO_EXECUTABLE} build --release
   WORKING_DIRECTORY ${CCX_PQC_DIR}
+  DEPENDS ${CCX_PQC_DIR}/src/lib.rs ${CCX_PQC_DIR}/Cargo.toml
   COMMENT "Building ccx-pqc (post-quantum crypto module, Rust)" VERBATIM)
 add_custom_target(ccx_pqc DEPENDS ${CCX_PQC_LIB})
 

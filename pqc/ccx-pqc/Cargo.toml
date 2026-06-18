@@ -13,3 +13,8 @@ sha3 = "0.10"
 pqcrypto-kyber = "0.8"
 pqcrypto-dilithium = "0.5"
 pqcrypto-traits = "0.3"
+# Seedable (deterministic) ML-DSA for the real linkable-signature backend: the daemon stores the
+# public key on-chain and the injector must re-derive the SAME keypair from a shared seed, which
+# pqcrypto-dilithium's RNG-based keypair() cannot do.
+ml-dsa = "0.0.4"
+rand_core = "0.6"

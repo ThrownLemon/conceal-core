@@ -195,6 +195,9 @@ namespace cn {
     mutable std::recursive_mutex m_transactions_lock;
     key_images_container m_spent_key_images;
     GlobalOutputsContainer m_spentOutputs;
+    // In-pool post-quantum nullifiers (CIP-0001): rejects two unconfirmed PQ txs sharing a spend
+    // tag. Keyed byte-identically to Blockchain::m_spent_pq_nullifiers (std::string of the bytes).
+    std::set<std::string> m_spent_pq_nullifiers;
 
     std::string m_config_folder;
     cn::ITransactionValidator& m_validator;
