@@ -85,10 +85,15 @@ human money-path review.
 | 16 (`PQ_MAX_RING_SIZE`) | **~111.7 KB** | **EXCEEDS the max tx size** |
 
 **Finding:** a single max-ring (n=16) PQ input does not fit inside one transaction under the current
-size limit, and even an n=8 multi-input tx blows the block reward zone quickly. Mainnet must either
-(a) cap PQ ring size lower (e.g. 8) and/or cap PQ inputs/tx, (b) raise the tx/block size limits (with
-the bandwidth/storage consequences below), or (c) adopt a **logarithmic-proof** scheme (MatRiCT-style)
-so signature size doesn't grow linearly in the ring. This is the dominant scaling problem.
+size limit, and even an n=8 multi-input tx blows the block reward zone quickly. The signature is
+**linear** in ring size — this is a *deliberate design choice*, not an oversight: we picked a simple,
+auditable AOS/LSAG-over-module-lattice construction. **Logarithmic-proof schemes (the MatRiCT family)
+were evaluated and ruled out** — they exist only on paper with *no public, production-grade, audited
+implementation*, so porting one would mean shipping unaudited research-paper crypto (more audit
+surface, not less — the opposite of what a money-critical migration wants). So, until/unless an audited
+compact scheme ships (§7), the only realistic levers for the linear-size problem are: **(a) cap PQ ring
+size lower (e.g. 8 → ~62 KB fits), and/or (b) raise the tx/block size limits** (with the bandwidth/
+storage consequences below). This is the dominant scaling problem and it has no free fix.
 
 ### 3.4 Throughput / storage / fee impact (first-order)
 
@@ -112,7 +117,7 @@ so signature size doesn't grow linearly in the ring. This is the dominant scalin
 |---|---|---|---|
 | **Ring-sig trust** | bespoke, **unaudited**, heuristic K=L=6 | parameter-calibrated (lattice estimator) + **professional audit**, or port an audited compact scheme | money + anonymity rest on it; a soundness/parameter error = forgery or de-anonymisation |
 | **Ring-sig timing** | NTT-fast but **not constant-time** | constant-time modular arithmetic [in progress] | secret-dependent branches/division leak the key via timing |
-| **Ring-sig size** | linear in ring (n·6.1 KB) | logarithmic-proof scheme *or* low ring cap + size-limit policy | linear growth breaks tx/block size + fee economics (§3.3) |
+| **Ring-sig size** | linear in ring (n·6.1 KB), by design | lower ring cap + tx/block size policy (log-proof schemes ruled out — no audited impl) | linear growth breaks tx/block size + fee economics (§3.3) |
 | **Testnet KEM identity** | ONE fixed `PQ_TESTNET_KEM` keypair ("Option B") for all coinbase/scan | per-recipient ML-KEM keys only (already built for wallet↔wallet) | a shared key gives zero recipient privacy; the fixed key is a demo bootstrap |
 | **Activation** | `TESTNET_UPGRADE_HEIGHT_V9 = 80`, testnet difficulty pinned | a mainnet `UPGRADE_HEIGHT_*` set far in the future + coordinated fork + voting | consensus change; must not split the live chain |
 | **Deposits (ML-DSA)** | tested + agent-reviewed | **human line-by-line review** of interest-minting / reorg money paths | money-critical; standardised primitive but custom integration |
@@ -161,7 +166,8 @@ threat that is likely years out — that trades a future probabilistic risk for 
    (key-recovery) instances; replace the heuristic K=L=6 with a justified set.
 3. **Ring-sig audit** — professional cryptographic review of the AOS/LSAG-over-module-lattice
    construction *and* the implementation. The hard blocker; external.
-4. **Size/economics** — decide ring-size cap + tx/block limits, or adopt a log-proof scheme.
+4. **Size/economics** — decide ring-size cap + tx/block limits. (Logarithmic-proof schemes that would
+   break linear growth are **ruled out** for now — no audited implementation exists, §3.3/§7.)
 5. **Human money-path review** — ML-DSA deposit interest/reorg paths; the consensus PQ-input validator.
 6. **Per-recipient keys end-to-end** — retire the Option-B fixed testnet KEM key (wallet↔wallet path
    already does this).
@@ -178,6 +184,24 @@ threat that is likely years out — that trades a future probabilistic risk for 
   consensus improvement; it can ship to users ahead of any chain change.
 - **Hybrid period.** Mainnet activation should run classical + PQ in parallel (hybrid addresses already
   prototyped: `ccxh`) so users migrate before classical is deprecated, never a hard cutover.
+- **The signature backend is swappable — a genuine hedge, but a socket, not a supply.** The PQ ring
+  sig sits behind a stable C ABI (`pq_ring_sig.h`: `keygen`/`sign`/`verify`/`nullifier` + dynamic size
+  queries; the C++ side never hardcodes sizes). So *any* conforming backend drops in and the daemon
+  retests against it — which is exactly why we could re-parameterise and harden our own scheme freely,
+  and why a future audited scheme would integrate in days, not months. **Two caveats on "just drop in
+  MatRiCT-Au":** (1) *it doesn't exist as code* — MatRiCT/MatRiCT-Au are papers with no public,
+  production-grade, audited implementation; the slot makes integration cheap but doesn't conjure a
+  backend into being (someone must port the paper — the very unaudited-research-crypto risk we're
+  avoiding). (2) *it's a different shape* — MatRiCT is **RingCT** (amount-hiding via commitments +
+  range/balance proofs), not a ring *signature*; Conceal has **plaintext amounts** today, so adopting
+  it is a whole value-model migration, not a backend swap, and the current signature-shaped ABI
+  wouldn't carry it without redesign. The clean drop-in would be a *sublinear linkable ring **signature***
+  (Calamari/SMILE/DualRing-style) with a recoverable nullifier — but an **audited** one with those exact
+  properties doesn't exist yet either. Swappability is real and worth keeping; it's gated on a
+  conforming, audited backend *existing*.
 - **The lattice ring sig is the whole risk.** Every other piece is either standardised or client-side.
-  If an audited compact lattice ring/RingCT (e.g. a production MatRiCT-Au) becomes available, **porting
-  it is strictly preferable to trusting funds to a bespoke construction** — and would also fix §3.3.
+  Compact **logarithmic**-proof schemes (MatRiCT family) that would also solve the linear-size problem
+  (§3.3) are **ruled out today** — none has a public, production-grade, *audited* implementation, and
+  porting unaudited research crypto is the opposite of de-risking. **If** an audited compact lattice
+  ring/RingCT ever ships, porting it would be strictly preferable to trusting funds to a bespoke linear
+  construction (and would fix §3.3) — but that is a *future contingency, not a current option.*

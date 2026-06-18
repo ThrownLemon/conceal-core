@@ -68,5 +68,12 @@ see [`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md); for the accepted-lim
    path already does this).
 5. RustCrypto PQ crates to 1.0 / FIPS-validated.
 
-**Known flaky** (pre-existing, non-PQ; under investigation): an intermittent `System`-dispatcher abort
-(`read(remoteSpawnEvent) EAGAIN`) + a rare `UnitTests` segfault that passes on re-run.
+**Flaky crashes — root-caused + fixed** (ASan; `docs/reviews/flaky-crash-analysis.md`). The
+intermittent `System`-dispatcher abort (`read(remoteSpawnEvent) EAGAIN`, drained-eventfd double-read →
+unconditional throw) is fixed in `Platform/Linux/System/Dispatcher.cpp`; the flaky `UnitTests` segfault
+was a deterministic heap-use-after-free in `WalletGreen::deleteAddress` (freed `multi_index` iterator),
+fixed. 109/109 System + 1029 `UnitTests` green under ASan. **Remaining (diagnosed, human-review):** a
+WalletLegacy deposit-test detached-thread `std::ref`-to-freed-stream flake (touches money code);
+TestPqDeposits.cpp static-member ODR-use breaks sanitizer/`-O1` UnitTests links. (TSan is unusable on
+this binary — the `ucontext` green-thread runtime desyncs its fiber shadow, which is why these races
+escaped detection for so long.)
