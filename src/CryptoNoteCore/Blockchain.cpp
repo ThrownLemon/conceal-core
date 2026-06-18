@@ -2918,6 +2918,25 @@ namespace cn
       return false;
     }
 
+    // Roll back the spent-key / PQ-nullifier entries inserted for inputs [0, upTo).
+    // Must dispatch on input type: a mixed tx may hold both KeyInput and PqKeyInput,
+    // so a blind boost::get<KeyInput> on a prior input would throw.
+    auto rollbackSpentInputs = [&](size_t upTo) {
+      for (size_t j = 0; j < upTo; ++j)
+      {
+        const auto &prev = transaction.tx.inputs[j];
+        if (prev.type() == typeid(KeyInput))
+        {
+          m_spent_keys.erase(::boost::get<KeyInput>(prev).keyImage);
+        }
+        else if (prev.type() == typeid(PqKeyInput))
+        {
+          const std::vector<uint8_t> &nf = ::boost::get<PqKeyInput>(prev).nullifier;
+          m_spent_pq_nullifiers.erase(std::string(nf.begin(), nf.end()));
+        }
+      }
+    };
+
     for (size_t i = 0; i < transaction.tx.inputs.size(); ++i)
     {
       if (transaction.tx.inputs[i].type() == typeid(KeyInput))
@@ -2927,10 +2946,7 @@ namespace cn
         {
           logger(ERROR, BRIGHT_RED) << "Double spending transaction was pushed to blockchain.";
 
-          for (size_t j = 0; j < i; ++j)
-          {
-            m_spent_keys.erase(::boost::get<KeyInput>(transaction.tx.inputs[i - 1 - j]).keyImage);
-          }
+          rollbackSpentInputs(i);
 
           m_transactionMap.erase(transactionHash);
           return false;
@@ -2939,10 +2955,24 @@ namespace cn
       else if (transaction.tx.inputs[i].type() == typeid(PqKeyInput))
       {
         const std::vector<uint8_t>& pqnf = ::boost::get<PqKeyInput>(transaction.tx.inputs[i]).nullifier;
+        // Bound the key length before it enters the nullifier set (memory-DoS guard).
+        if (pqnf.size() != cn::PQ_NULLIFIER_SIZE)
+        {
+          logger(ERROR, BRIGHT_RED) << "PQ nullifier has invalid length " << pqnf.size()
+                                    << " (expected " << cn::PQ_NULLIFIER_SIZE << ").";
+
+          rollbackSpentInputs(i);
+
+          m_transactionMap.erase(transactionHash);
+          return false;
+        }
         std::string pqnfk(pqnf.begin(), pqnf.end());
         if (!m_spent_pq_nullifiers.insert(std::make_pair(pqnfk, block.height)).second)
         {
           logger(ERROR, BRIGHT_RED) << "Double spending PQ nullifier pushed to blockchain.";
+
+          rollbackSpentInputs(i);
+
           m_transactionMap.erase(transactionHash);
           return false;
         }
@@ -3031,6 +3061,43 @@ namespace cn
           m_outputs.erase(amountOutputs);
         }
       }
+      else if (output.target.type() == typeid(PqKeyOutput))
+      {
+        auto amountOutputs = m_pqOutputs.find(output.amount);
+        if (amountOutputs == m_pqOutputs.end())
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - cannot find specific amount in PQ outputs map.";
+
+          continue;
+        }
+
+        if (amountOutputs->second.empty())
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - PQ output array for specific amount is empty.";
+
+          continue;
+        }
+
+        if (amountOutputs->second.back().first.block != transactionIndex.block || amountOutputs->second.back().first.transaction != transactionIndex.transaction)
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - invalid PQ transaction index.";
+
+          continue;
+        }
+
+        if (amountOutputs->second.back().second != transaction.outputs.size() - 1 - outputIndex)
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - invalid PQ output index.";
+
+          continue;
+        }
+
+        amountOutputs->second.pop_back();
+        if (amountOutputs->second.empty())
+        {
+          m_pqOutputs.erase(amountOutputs);
+        }
+      }
       else if (output.target.type() == typeid(MultisignatureOutput))
       {
         auto amountOutputs = m_multisignatureOutputs.find(output.amount);
@@ -3085,6 +3152,15 @@ namespace cn
         if (count != 1)
         {
           logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - cannot find spent key.";
+        }
+      }
+      else if (input.type() == typeid(PqKeyInput))
+      {
+        const std::vector<uint8_t> &nf = ::boost::get<PqKeyInput>(input).nullifier;
+        size_t count = m_spent_pq_nullifiers.erase(std::string(nf.begin(), nf.end()));
+        if (count != 1)
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - cannot find spent PQ nullifier.";
         }
       }
       else if (input.type() == typeid(MultisignatureInput))

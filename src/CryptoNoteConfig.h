@@ -160,6 +160,7 @@ namespace cn
 	const uint8_t TRANSACTION_VERSION_1 = 1;
 	const uint8_t TRANSACTION_VERSION_2 = 2;
 		const uint8_t TRANSACTION_VERSION_3 = 3; /* PQ transactions (CIP-0001) */
+	const size_t  PQ_NULLIFIER_SIZE = 32;       /* ccx-pq nullifier length (bytes); bounds m_spent_pq_nullifiers keys */
 	const uint8_t BLOCK_MAJOR_VERSION_1 = 1; // (Consensus I)
 	const uint8_t BLOCK_MAJOR_VERSION_2 = 2; // (Consensus II)
 	const uint8_t BLOCK_MAJOR_VERSION_3 = 3; // (Consensus III)
