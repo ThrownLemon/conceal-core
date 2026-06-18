@@ -243,6 +243,29 @@ Rust selftest (`ccx_pq_multisig_selftest`) also runs in isolation (ok=1).
 
 ---
 
+## 3a. Pre-PR review outcomes (CodeRabbit + Codex + GLM)
+
+- **CodeRabbit** (`coderabbit review --plain -t all`): **no findings**.
+- **Codex** (critical pass on interest/reorg/signing-hash/lock/DoS): one **HIGH** — the coinbase
+  height-gate gap (fixed, §2 "Coinbase height-gate"). Explicitly confirmed CLEAN: interest minting,
+  reorg index symmetry, signing hash + mixed-input alignment, deposit-lock/double-spend, DoS bounds.
+- **GLM** (`openrouter/z-ai/glm-5`): all 5 critical paths **CORRECT** (term binding, reorg symmetry,
+  signing-hash self-reference, deposit-lock + double-spend parity, serialization DoS bounds). One
+  valid hygiene finding — the block-template builder (`TransactionPool.cpp` `BlockTemplate`) shared the
+  `(amount, outputIndex)` keyspace between PQ and Ed25519 deposit cells; **fixed** by giving it a
+  separate `m_usedPqDeposits` set (a same-numbered cell in both indexes would otherwise have benignly
+  deferred one tx to a later block template — never a consensus error). GLM's two other notes were
+  false positives (the `m_spentPqDeposits`/`m_spentOutputs` separation it then calls correct, and a
+  misread of the pre-existing Ed25519 `isUsed=false` line as an addition — verified pre-existing in
+  the base commit).
+
+> **Build status of the two post-review fixes (coinbase gate + block-template set):** the WSL build
+> host became unreachable (Tailscale SSH re-auth required, interactive) after the main build, so these
+> two small follow-up edits are **not yet recompiled on the remote**. Both use only already-compiled
+> symbols (`transactionContainsPqMultisig`, `upgradeHeight`, a new `std::set` of the existing type).
+> Re-run `make -j4 CryptoNoteCore UnitTests` + `ctest -R UnitTests` once the host is reachable to
+> confirm. The pre-fix tree (everything except these two edits) built clean and passed 1007/1007.
+
 ## 4. Deferred / follow-up (precisely scoped)
 
 - **Chain-level CoreTests for PQ deposits** (spend after lock, reject early withdrawal at `term-1`,

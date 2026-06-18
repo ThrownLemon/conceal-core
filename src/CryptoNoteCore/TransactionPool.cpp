@@ -65,11 +65,11 @@ namespace cn
         }
         else if (in.type() == typeid(PqMultisigInput))
         {
-          // PQ deposit cells share the (amount, outputIndex) keyspace of m_usedOutputs here; a same
-          // (amount, outputIndex) Ed25519 vs PQ collision would only conservatively skip a tx in one
-          // block template (never a consensus error), so reusing the set is safe.
+          // PQ deposit cells live in their own index namespace (m_pqMultisigOutputs), so track them
+          // in a SEPARATE set — a shared set would falsely defer a PQ deposit when a same-numbered
+          // Ed25519 multisig cell is already in the template.
           const auto &pqmsig = boost::get<PqMultisigInput>(in);
-          auto r = m_usedOutputs.insert(std::make_pair(pqmsig.amount, pqmsig.outputIndex));
+          auto r = m_usedPqDeposits.insert(std::make_pair(pqmsig.amount, pqmsig.outputIndex));
           (void)r;
           assert(r.second);
         }
@@ -107,7 +107,7 @@ namespace cn
         else if (in.type() == typeid(PqMultisigInput))
         {
           const auto &pqmsig = boost::get<PqMultisigInput>(in);
-          if (m_usedOutputs.count(std::make_pair(pqmsig.amount, pqmsig.outputIndex)))
+          if (m_usedPqDeposits.count(std::make_pair(pqmsig.amount, pqmsig.outputIndex)))
           {
             return false;
           }
@@ -118,6 +118,7 @@ namespace cn
 
     std::unordered_set<crypto::KeyImage> m_keyImages;
     std::set<std::pair<uint64_t, uint64_t>> m_usedOutputs;
+    std::set<std::pair<uint64_t, uint64_t>> m_usedPqDeposits; // PQ deposit cells (separate keyspace)
     std::vector<crypto::Hash> m_txHashes;
   };
 
