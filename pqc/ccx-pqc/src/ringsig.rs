@@ -6,9 +6,20 @@
 //! tag is deterministic in the signer's secret (linkable, malicious-signer-sound) while the ring
 //! closure hides which member signed (anonymous: all z_i are uniform, the chain is symmetric).
 //!
-//! THIS IS NOT AUDITED, NOT CONSTANT-TIME, AND THE PARAMETERS ARE DEMO-GRADE (small dimensions,
-//! NOT a calibrated security level). It exists to demonstrate that a genuinely anonymous + linkable
-//! post-quantum ring signature is structurally possible on this ABI. Do not use on mainnet.
+//! THIS IS NOT AUDITED AND THE PARAMETERS ARE DEMO-GRADE (small dimensions, NOT a calibrated security
+//! level). It exists to demonstrate that a genuinely anonymous + linkable post-quantum ring signature
+//! is structurally possible on this ABI. Do not use on mainnet.
+//!
+//! CONSTANT-TIME STATUS (mainnet activation gate, see ringsig-hardening.md §5): the modular-arithmetic
+//! HOT PATHS are now constant-time. Every reduction the secret key `s`, masks `y`, and responses `z`
+//! flow through — `mulmod` (Barrett, no idiv), `cmod`/`pmod` (`reduce_to_0q`, no idiv), and `addq`/`subq`
+//! (branchless masked select) — is division-free and branchless, so the NTT butterflies / reductions run
+//! in time independent of secret operand values. The rewrite is BIT-IDENTICAL to the old `%`-based code
+//! (NTT-vs-schoolbook equivalence == 0, all selftests green). RESIDUAL: the Fiat-Shamir-with-aborts
+//! rejection loop in `sign()` still has a secret-dependent ITERATION COUNT (the `‖z‖∞ ≤ ZBOUND` abort
+//! decision depends on the mask norm) — a standard, accepted lattice-signature consideration, documented
+//! as a residual rather than fully masked; see ringsig-hardening.md §5. Sampling/challenge-handling
+//! side-channels remain part of the broader audit gate.
 //!
 //! Ring polynomial: R_q = Z_q[X]/(X^256 + 1), q = 8380417 (negacyclic schoolbook multiplication).
 use sha3::Shake256;
@@ -43,22 +54,68 @@ pub type Poly = [i64; N];
 pub type PolyVecL = [Poly; L];
 pub type PolyVecK = [Poly; K];
 
-// Centered representative. Q is odd, so integer Q/2 = (Q-1)/2 and the kept range is the CLOSED
-// interval [-Q/2, Q/2] (the `>`/`<` comparisons leave r untouched at both endpoints). Each residue
-// class mod Q maps to exactly one point in that set, so cmod is a canonicalizing bijection — which is
-// what `coeff_is_canonical` (c == cmod(c)) relies on.
-#[inline] fn cmod(a: i64) -> i64 {
-    let mut r = a % Q;
-    if r > Q / 2 { r -= Q; }
-    if r < -Q / 2 { r += Q; }
+// ============================== CONSTANT-TIME MODULAR ARITHMETIC ===============================
+// MAINNET-GATE HARDENING (CIP-0001 §5.3 / docs/design/quantum-resistance/ringsig-hardening.md §5):
+// the scheme is testnet-only PARTLY because the modular reductions below used to branch on / divide by
+// secret-dependent data (the key `s`, masks `y`, responses `z` all flow through cmod/pmod/mulmod in the
+// NTT butterflies). A `%`-by-Q compiles to a hardware `idiv` whose latency is data-dependent, and the
+// `if r >= Q`/`if r < 0` folds are secret-dependent branches — both are timing side channels. Every
+// reduction here is now BRANCHLESS and division-free (multiply + arithmetic-shift + masked subtract),
+// so the running time is independent of the secret operand values. The rewrite is BIT-IDENTICAL to the
+// old `%`-based code over every input range these functions see (proven exhaustively against the old
+// definitions before integration, and guarded at runtime by `ntt_matches_schoolbook` == 0 and the
+// sign/verify selftests): signatures, keys and nullifiers are unchanged and the wire format is the same.
+//
+// Branchless masked-select idiom used throughout: for a signed i64 `v`, `(v >> 63)` is an arithmetic
+// (sign-extending) shift giving the all-ones mask `-1` iff v < 0, else `0`. `Q & mask` is then `Q` iff
+// v < 0 else `0`, so `x + (Q & mask)` / `x - (Q & mask)` is a conditional ±Q with NO branch.
+
+// Constant-time fold of a value already in [0, 2Q) to [0, Q): subtract Q iff a >= Q. Bit-identical to
+// the old `if a >= Q { a - Q } else { a }` over [0, 2Q). `t = a - Q` is in [-Q, Q); its sign bit selects
+// whether to add Q back. (Old name `addq`: the NTT butterfly's plus-side reduction of a sum in [0,2Q).)
+#[inline] fn addq(a: i64) -> i64 { let t = a - Q; t + (Q & (t >> 63)) }
+// Constant-time fold of a value in (-Q, Q) to [0, Q): add Q iff a < 0. Bit-identical to the old
+// `if a < 0 { a + Q } else { a }`. (Old name `subq`: the butterfly's minus-side reduction of a diff.)
+#[inline] fn subq(a: i64) -> i64 { a + (Q & (a >> 63)) }
+
+// General constant-time reduction of an ARBITRARY i64 to [0, Q), == the mathematical mod (== the old
+// `((a % Q) + Q) % Q`). No `idiv`: estimate floor(a/Q) by a fixed-point reciprocal multiply-shift, then
+// correct branchlessly. RECIP = floor(2^RSHIFT / Q); the estimate error is < 1 over the whole i64 range
+// (|a|·(2^RSHIFT/Q - RECIP)/2^RSHIFT < |a|/2^RSHIFT <= 2^63/2^84 < 1) plus at most 1 from the two floors,
+// so r = a - qf*Q lands in (-2Q, 2Q) and ONE masked ±Q each side suffices — we apply TWO each side as a
+// proven-ample constant-count margin (still branchless, no data-dependent loop count).
+const RSHIFT: u32 = 84;                       // 2^84 fits the i128 product a*RECIP for |a| up to 2^63
+const RECIP: i128 = (1i128 << RSHIFT) / (Q as i128); // ~2^61, computed at compile time (const eval)
+#[inline] fn reduce_to_0q(a: i64) -> i64 {
+    // floor((a as i128 * RECIP) >> RSHIFT): i128 arithmetic shift floors toward -inf (matches the
+    // mathematical floor for negative a, exactly as the multiply-shift derivation requires).
+    let qf = ((a as i128 * RECIP) >> RSHIFT) as i64;
+    // `wrapping_*` throughout: for inputs near i64::MIN/MAX the intermediate `qf*Q` and `a - qf*Q` can
+    // wrap two's-complement, which is EXACT for this reduction (the true `a - qf*Q` lands in (-2Q, 2Q),
+    // and its low 64 bits are preserved by wraparound). Using wrapping ops also keeps it panic-free in
+    // debug builds. The masked corrections below stay in-range so they need no wrapping. (For the
+    // actually-reachable inputs — i32/u32-bounded — nothing wraps; this just makes it total.)
+    let mut r = a.wrapping_sub(qf.wrapping_mul(Q));
+    // if r >= Q subtract Q (mask = (Q-1-r) sign bit: all-ones iff r > Q-1 iff r >= Q), applied twice.
+    r -= Q & ((Q - 1 - r) >> 63);
+    r -= Q & ((Q - 1 - r) >> 63);
+    // if r < 0 add Q, applied twice.
+    r += Q & (r >> 63);
+    r += Q & (r >> 63);
     r
 }
-#[inline] fn pmod(a: i64) -> i64 { let mut r = a % Q; if r < 0 { r += Q; } r } // in [0, Q)
-// Fast single-step reductions for the NTT butterflies, where operands are already in [0,Q): a sum is
-// in [0,2Q) (subtract Q once) and a difference is in (-Q,Q) (add Q if negative). Avoids the `%` that
-// dominated the transform. Results are bit-identical to pmod over these bounded inputs.
-#[inline] fn addq(a: i64) -> i64 { if a >= Q { a - Q } else { a } }
-#[inline] fn subq(a: i64) -> i64 { if a < 0 { a + Q } else { a } }
+// Centered representative in [-Q/2, Q/2] (Q odd => Q/2 = (Q-1)/2). Constant-time, division-free and
+// branchless. Bit-identical to the old `r = a % Q; if r > Q/2 { r -= Q }; if r < -Q/2 { r += Q }` over
+// every input range cmod sees (centered-coeff sums/diffs, intt outputs in [0,Q), and the full i32/u32
+// adversarial ranges that `coeff_is_canonical` and the forge helpers feed it). cmod is a canonicalizing
+// bijection onto [-Q/2, Q/2], which is what `coeff_is_canonical` (c == cmod(c)) relies on.
+#[inline] fn cmod(a: i64) -> i64 {
+    let r = reduce_to_0q(a);          // [0, Q)
+    // fold the upper half down: subtract Q iff r > Q/2 (mask = (Q/2 - r) sign bit, all-ones iff r > Q/2).
+    r - (Q & (((Q / 2) - r) >> 63))
+}
+// Non-negative representative in [0, Q). Constant-time, division-free, branchless.
+#[inline] fn pmod(a: i64) -> i64 { reduce_to_0q(a) }
 fn poly_zero() -> Poly { [0i64; N] }
 fn poly_add(a: &Poly, b: &Poly) -> Poly { let mut r = poly_zero(); for i in 0..N { r[i] = cmod(a[i] + b[i]); } r }
 fn poly_sub(a: &Poly, b: &Poly) -> Poly { let mut r = poly_zero(); for i in 0..N { r[i] = cmod(a[i] - b[i]); } r }
@@ -71,9 +128,28 @@ fn poly_sub(a: &Poly, b: &Poly) -> Poly { let mut r = poly_zero(); for i in 0..N
 // schoolbook for every input — signatures are unchanged, only faster. (Verified against schoolbook
 // over thousands of random vectors before integration.)
 const ZETA: i64 = 1753;
-// q < 2^23, so any product of two residues in [0,q) is < 2^46 and fits in i64 — no i128 needed.
-// (i64 division is markedly faster than i128 division, which dominates the NTT butterflies.)
-#[inline] fn mulmod(a: i64, b: i64) -> i64 { (a * b) % Q }
+// Constant-time modular multiply via BARRETT reduction. CALLED ONLY with both operands in [0, Q)
+// (NTT twiddles, pre-transformed residues, n_inv()), so the product p = a*b is in [0, (Q-1)^2] < 2^46.
+// The old `(a * b) % Q` used a hardware `idiv` whose latency depends on the operand bytes — a timing
+// side channel on the secret-derived residues flowing through the butterflies. Barrett replaces the
+// divide with a multiply-by-reciprocal, an arithmetic shift, and TWO branchless masked subtractions:
+//   q_est = (p * BARRETT_M) >> BARRETT_K  (the i128 product is exact; q_est is floor(p/Q) or one less)
+//   r     = p - q_est*Q                   (in [0, ~2Q))
+//   r    -= Q twice, each guarded by a sign-bit mask, landing r in [0, Q).
+// BARRETT_M = floor(2^BARRETT_K / Q). With BARRETT_K = 46 (> log2 of the max product) the estimate is
+// off by at most 1, so two conditional subtractions are provably enough. Result is BIT-IDENTICAL to
+// `(a*b) % Q` for all a,b in [0,Q) (verified exhaustively over edges + tens of millions of pairs);
+// `ntt_matches_schoolbook` re-proves end-to-end that the transform output is unchanged.
+const BARRETT_K: u32 = 46;
+const BARRETT_M: i64 = ((1i128 << BARRETT_K) / (Q as i128)) as i64; // floor(2^46 / Q), ~2^23, const eval
+#[inline] fn mulmod(a: i64, b: i64) -> i64 {
+    let p = a * b;                                              // exact: a,b in [0,Q) => p < 2^46 < i64::MAX
+    let q_est = ((p as i128 * BARRETT_M as i128) >> BARRETT_K) as i64;
+    let mut r = p - q_est * Q;                                  // in [0, ~2Q)
+    r -= Q & ((Q - 1 - r) >> 63);                               // if r >= Q subtract Q (branchless)
+    r -= Q & ((Q - 1 - r) >> 63);                               // estimate off by <= 1 => twice suffices
+    r
+}
 fn powmod(mut b: i64, mut e: i64) -> i64 { let mut r = 1i64; b = pmod(b); while e > 0 { if e & 1 == 1 { r = mulmod(r, b); } b = mulmod(b, b); e >>= 1; } r }
 #[inline] fn bitrev8(mut x: usize) -> usize { let mut r = 0; for _ in 0..8 { r = (r << 1) | (x & 1); x >>= 1; } r }
 
@@ -736,4 +812,126 @@ pub fn adversarial_soundness_ok() -> bool {
         && adversarial_soundness_ok_for_ring(2)
         && adversarial_soundness_ok_for_ring(4)
         && adversarial_soundness_ok_for_ring(8)
+}
+
+// ============================== TESTS ==========================================================
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::Instant;
+
+    // --- Reference (OLD, division/branch-based) reductions, kept here ONLY as the equivalence oracle.
+    // The constant-time rewrite in the module above MUST reproduce these bit-for-bit over every input
+    // range the scheme uses, which is the whole bit-identicality claim.
+    fn cmod_ref(a: i64) -> i64 { let mut r = a % Q; if r > Q / 2 { r -= Q; } if r < -Q / 2 { r += Q; } r }
+    fn pmod_ref(a: i64) -> i64 { let mut r = a % Q; if r < 0 { r += Q; } r }
+    fn addq_ref(a: i64) -> i64 { if a >= Q { a - Q } else { a } }
+    fn subq_ref(a: i64) -> i64 { if a < 0 { a + Q } else { a } }
+    fn mulmod_ref(a: i64, b: i64) -> i64 { (a * b) % Q }
+
+    // small deterministic xorshift PRNG (no rand dependency)
+    struct Rng(u64);
+    impl Rng { fn next(&mut self) -> u64 { let mut x = self.0; x ^= x << 13; x ^= x >> 7; x ^= x << 17; self.0 = x; x } }
+
+    #[test]
+    fn addq_subq_constant_time_bit_identical() {
+        // addq is called on sums in [0, 2Q); subq on diffs in (-Q, Q). Cover both ranges exhaustively.
+        for a in 0..(2 * Q) { assert_eq!(addq(a), addq_ref(a), "addq({})", a); }
+        for a in -(Q - 1)..Q { assert_eq!(subq(a), subq_ref(a), "subq({})", a); }
+    }
+
+    #[test]
+    fn mulmod_barrett_bit_identical() {
+        // mulmod is only ever called with both operands in [0, Q). Edges + random pairs.
+        let edges = [0i64, 1, 2, (Q - 1) / 2, (Q - 1) / 2 + 1, Q - 2, Q - 1];
+        for &a in edges.iter() { for &b in edges.iter() { assert_eq!(mulmod(a, b), mulmod_ref(a, b), "mulmod({},{})", a, b); } }
+        let mut r = Rng(0x9e3779b97f4a7c15);
+        for _ in 0..2_000_000u64 {
+            let a = (r.next() % Q as u64) as i64;
+            let b = (r.next() % Q as u64) as i64;
+            assert_eq!(mulmod(a, b), mulmod_ref(a, b), "mulmod({},{})", a, b);
+        }
+    }
+
+    #[test]
+    fn cmod_pmod_constant_time_bit_identical() {
+        // cmod/pmod see: centered-coeff sums/diffs in (-Q,Q), intt outputs in [0,Q), and the FULL
+        // i32/u32 adversarial ranges (coeff_is_canonical on deserialized i32, forge cmod(read_u32)).
+        // Prove bit-identicality densely around 0 and ±multiples of Q, at the i32/u32 edges, and over
+        // random i32/u32/i64 — i.e. everywhere the functions can be reached.
+        for a in -(5 * Q)..=(5 * Q) {
+            assert_eq!(pmod(a), pmod_ref(a), "pmod({})", a);
+            assert_eq!(cmod(a), cmod_ref(a), "cmod({})", a);
+        }
+        let edges: [i64; 20] = [
+            i32::MIN as i64, i32::MAX as i64, (i32::MIN as i64) + 1, (i32::MAX as i64) - 1,
+            u32::MAX as i64, 0, 1, -1, Q, -Q, Q - 1, -(Q - 1), Q / 2, Q / 2 + 1, -(Q / 2), -(Q / 2) - 1,
+            // i64 extremes: NOT reachable by any call site (inputs are i32/u32-bounded), but the
+            // reduction is correct over the FULL i64 range (wrapping qf*Q is exact in two's complement),
+            // so pin that here too — belt-and-suspenders against any future wider caller.
+            i64::MIN, i64::MAX, i64::MIN + 1, i64::MAX - 1,
+        ];
+        for &a in edges.iter() {
+            assert_eq!(pmod(a), pmod_ref(a), "pmod edge {}", a);
+            assert_eq!(cmod(a), cmod_ref(a), "cmod edge {}", a);
+        }
+        let mut r = Rng(0x123456789abcdef0);
+        for _ in 0..2_000_000u64 {
+            let v = r.next();
+            for &a in &[v as i64, (v as u32) as i64, (v as i32) as i64] {
+                assert_eq!(pmod(a), pmod_ref(a), "pmod rand {}", a);
+                assert_eq!(cmod(a), cmod_ref(a), "cmod rand {}", a);
+            }
+        }
+    }
+
+    // End-to-end bit-identicality of the transform after the constant-time rewrite. Must be 0.
+    #[test]
+    fn ntt_equivalence_zero_mismatches() {
+        assert_eq!(ntt_matches_schoolbook(5000), 0, "NTT must stay bit-identical to schoolbook");
+    }
+
+    // Full adversarial soundness suite must still pass after the rewrite.
+    #[test]
+    fn soundness_still_holds() { assert!(adversarial_soundness_ok()); }
+
+    // Timing harness (Task 4): median sign + verify for a ring of 4. `cargo test -- --nocapture`
+    // prints the numbers. This measures the CURRENT (constant-time) build; the BEFORE figure is taken
+    // by running this same harness against the pre-rewrite commit (see ringsig-hardening.md §5).
+    #[test]
+    fn timing_ring4_sign_verify() {
+        const RING: usize = 4;
+        let mut ring: Vec<Vec<u8>> = Vec::new();
+        let mut seeds: Vec<[u8; 32]> = Vec::new();
+        for i in 0..RING { let mut sd = [0u8; 32]; sd[0] = i as u8; sd[1] = 0x11; let (pk, _s, _t) = keygen(&sd); ring.push(pk); seeds.push(sd); }
+        let msg = b"ccx-lring-timing";
+        let signer = 1usize;
+
+        // warm up the OnceLock matrix caches so we time steady-state sign/verify, not first-call setup.
+        let warm = sign(msg, &ring, signer, &seeds[signer]).expect("warmup sign");
+        assert!(verify(msg, &ring, &warm).is_some());
+
+        let iters = 200u32;
+        let mut sign_ns: Vec<u128> = Vec::with_capacity(iters as usize);
+        let mut verify_ns: Vec<u128> = Vec::with_capacity(iters as usize);
+        for k in 0..iters {
+            // vary the message so each sign does fresh work (still ring-of-4)
+            let mut m = msg.to_vec(); m.extend_from_slice(&k.to_le_bytes());
+            let t0 = Instant::now();
+            let sig = sign(&m, &ring, signer, &seeds[signer]).expect("sign");
+            sign_ns.push(t0.elapsed().as_nanos());
+            let t1 = Instant::now();
+            let ok = verify(&m, &ring, &sig).is_some();
+            verify_ns.push(t1.elapsed().as_nanos());
+            assert!(ok);
+        }
+        sign_ns.sort_unstable();
+        verify_ns.sort_unstable();
+        let med = |v: &Vec<u128>| v[v.len() / 2] as f64 / 1.0e6;
+        let mean = |v: &Vec<u128>| v.iter().sum::<u128>() as f64 / v.len() as f64 / 1.0e6;
+        println!(
+            "RING-4 TIMING: sign median={:.3} ms mean={:.3} ms | verify median={:.3} ms mean={:.3} ms | iters={}",
+            med(&sign_ns), mean(&sign_ns), med(&verify_ns), mean(&verify_ns), iters
+        );
+    }
 }
