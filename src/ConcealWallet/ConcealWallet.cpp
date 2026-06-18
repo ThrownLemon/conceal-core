@@ -40,6 +40,7 @@
 #include "Rpc/PqSpendClient.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteConfig.h"
+#include "pq_testnet_kem_keypair.h"           // PQ_TESTNET_KEM_PK (real testnet stealth recipient)
 
 #include "Wallet/WalletGreen.h"
 #include "Wallet/WalletRpcServer.h"
@@ -325,7 +326,7 @@ conceal_wallet::conceal_wallet(platform_system::Dispatcher& dispatcher, const cn
   m_consoleHandler.setHandler("deposit_info", boost::bind(&conceal_wallet::deposit_info, this, boost::arg<1>()), "deposit_info <id> - Get infomation for deposit <id>");
   m_consoleHandler.setHandler("save_txs_to_file", boost::bind(&conceal_wallet::save_all_txs_to_file, this, boost::arg<1>()), "save_txs_to_file - Saves all known transactions to <wallet_name>_conceal_transactions.txt");
   m_consoleHandler.setHandler("check_address", boost::bind(&conceal_wallet::check_address, this, boost::arg<1>()), "check_address <address> - Checks to see if given wallet is valid.");
-  m_consoleHandler.setHandler("pq_balance", boost::bind(&conceal_wallet::pq_balance, this, boost::arg<1>()), "pq_balance - Show spendable post-quantum (testnet PoC) outputs from the remote node");
+  m_consoleHandler.setHandler("pq_balance", boost::bind(&conceal_wallet::pq_balance, this, boost::arg<1>()), "pq_balance - Show unlocked post-quantum (testnet PoC) outputs from the remote node");
   m_consoleHandler.setHandler("pq_transfer", boost::bind(&conceal_wallet::pq_transfer, this, boost::arg<1>()), "pq_transfer [ringSize] [fee] - Build + relay a post-quantum (testnet PoC) spend via the remote node");
 }
 
@@ -1821,8 +1822,19 @@ bool conceal_wallet::pq_balance(const std::vector<std::string> &args)
       }
     }
 
-    success_msg_writer() << "PQ balance: " << spendable << " outputs, total "
-                         << m_currency.formatAmount(spendable * amount);
+    // The daemon reports outputs whose unlock time has passed (unlock-spendable), not
+    // "unspent-by-you" — label accordingly so the count is not misread as a wallet balance.
+    // Guard the count*amount product against uint64 overflow before formatting.
+    std::string totalStr;
+    if (amount != 0 && spendable > (UINT64_MAX / amount))
+    {
+      totalStr = "(overflow)";
+    }
+    else
+    {
+      totalStr = m_currency.formatAmount(static_cast<uint64_t>(spendable) * amount);
+    }
+    success_msg_writer() << "unlocked PQ outputs: " << spendable << ", total " << totalStr;
   }
   catch (const std::exception& e)
   {
@@ -1857,7 +1869,11 @@ bool conceal_wallet::pq_transfer(const std::vector<std::string> &args)
   std::string txHash;
   std::string status;
   std::string err;
-  const std::vector<uint8_t> recipientKemPubKey; // empty => throwaway/self output
+  // Spend to the fixed testnet KEM identity so the output is a REAL, scannable, re-spendable
+  // stealth output — NOT a burn. (An empty key would discard the one-time secret => destroyed
+  // funds; that throwaway path belongs to pq_injector only, as the A/B parity oracle.)
+  const std::vector<uint8_t> recipientKemPubKey(
+      cn::PQ_TESTNET_KEM_PK, cn::PQ_TESTNET_KEM_PK + sizeof(cn::PQ_TESTNET_KEM_PK));
 
   if (cn::pqSpendViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
                            cn::PQ_TESTNET_COINBASE_AMOUNT, fee, ringSize,

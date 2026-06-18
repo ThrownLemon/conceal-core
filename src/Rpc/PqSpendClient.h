@@ -30,8 +30,15 @@ namespace cn
 {
   // Build + relay a PQ spend of one `amount`-denominated output via the daemon at host:port.
   //
-  // recipientKemPubKey: ML-KEM-768 public key of the real recipient; empty => a throwaway/self
-  //   output (byte-identical to pq_injector, for A/B parity).
+  // recipientKemPubKey: ML-KEM-768 public key of the real recipient. The wallet front-ends pass the
+  //   fixed testnet KEM public key (cn::PQ_TESTNET_KEM_PK) so the spend output is a real, scannable,
+  //   re-spendable stealth output to the testnet identity. An EMPTY key makes the builder emit a
+  //   throwaway output whose one-time secret is discarded (the funds are destroyed) — used only by
+  //   pq_injector as the A/B parity oracle, NEVER by the wallet front-ends.
+  //
+  // The helper randomly selects the signer + decoys via a CSPRNG and retries with a different
+  // signer (up to 8 attempts) if a build or relay fails, so an already-spent output no longer
+  // permanently wedges the command and successive spends are not trivially linkable.
   //
   // On success: outTxHashHex = getObjectHash(tx) hex, outStatus = the node's relay status, returns
   // true. On any failure: err is set and the function returns false.

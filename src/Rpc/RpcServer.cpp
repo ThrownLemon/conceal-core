@@ -923,6 +923,15 @@ bool RpcServer::on_get_random_outs_json(const COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR
 
 bool RpcServer::on_get_pq_outputs(const COMMAND_RPC_GET_PQ_OUTPUTS::request& req, COMMAND_RPC_GET_PQ_OUTPUTS::response& res) {
   res.status = "Failed";
+
+  // DoS guard (non-consensus): reject before the locked walk if the caller asks for too many
+  // amounts. getPqOutputs holds m_blockchain_lock per amount, so an unbounded amounts list would
+  // let one request monopolise the lock and stall block / tx / peer processing.
+  if (req.amounts.size() > cn::PQ_GET_OUTPUTS_MAX_AMOUNTS) {
+    res.status = "Too many amounts requested (max " + std::to_string(cn::PQ_GET_OUTPUTS_MAX_AMOUNTS) + ")";
+    return true;
+  }
+
   res.outs.reserve(req.amounts.size());
 
   for (uint64_t amount : req.amounts) {
@@ -933,8 +942,15 @@ bool RpcServer::on_get_pq_outputs(const COMMAND_RPC_GET_PQ_OUTPUTS::request& req
 
     COMMAND_RPC_GET_PQ_OUTPUTS::outs_for_amount ofa;
     ofa.amount = amount;
-    ofa.outs.reserve(entries.size());
-    for (const auto& e : entries) {
+
+    // Cap the entries returned per amount (lowest global indices first). getPqOutputs already
+    // returns entries in ascending global-index order, so the first N are the lowest indices; this
+    // bounds the per-entry hex/hash work the response builder does for one amount.
+    const size_t emit = std::min<size_t>(entries.size(), cn::PQ_GET_OUTPUTS_MAX_PER_AMOUNT);
+    ofa.truncated = (entries.size() > emit);
+    ofa.outs.reserve(emit);
+    for (size_t i = 0; i < emit; ++i) {
+      const PqOutputEntry& e = entries[i];
       COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry out;
       out.global_index = e.globalIndex;
       out.key = common::toHex(e.key);

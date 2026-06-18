@@ -319,10 +319,12 @@ struct COMMAND_RPC_GET_PQ_OUTPUTS {
   struct outs_for_amount {
     uint64_t amount;
     std::vector<pq_out_entry> outs;
+    bool truncated = false;  // true if the node capped this amount's bucket (more entries exist on-chain)
 
     void serialize(ISerializer& s) {
       KV_MEMBER(amount)
       KV_MEMBER(outs)
+      KV_MEMBER(truncated)
     }
   };
 

@@ -2265,6 +2265,17 @@ namespace cn
       const TransactionIndex &idx = amount_outs_vec[i].first;
       const uint16_t outInTx = amount_outs_vec[i].second;
 
+      // Crash-guard: a stale / corrupt index (e.g. left over from a reorg path) must not blindly
+      // deref transactionByIndex, which indexes m_blocks[idx.block].transactions[idx.transaction]
+      // with no bounds check. Skip such an entry rather than crash the daemon on a read-only RPC.
+      if (!(idx.block < m_blocks.size()) ||
+          !(idx.transaction < m_blocks[idx.block].transactions.size()))
+      {
+        logger(ERROR, BRIGHT_RED) << "PQ output references out-of-range transaction index (block="
+                                  << idx.block << ", tx=" << idx.transaction << "); skipping";
+        continue;
+      }
+
       const TransactionEntry &te = transactionByIndex(idx);
       if (!(outInTx < te.tx.outputs.size()))
       {

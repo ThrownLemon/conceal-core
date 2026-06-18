@@ -34,6 +34,7 @@
 #include "NodeFactory.h"
 #include "Rpc/PqSpendClient.h"
 #include "CryptoNoteConfig.h"
+#include "pq_testnet_kem_keypair.h"           // PQ_TESTNET_KEM_PK (real testnet stealth recipient)
 
 #include "Wallet/WalletGreen.h"
 #include "Wallet/WalletErrors.h"
@@ -1241,7 +1242,11 @@ namespace payment_service
     const uint32_t ringSize = request.ringSize != 0 ? request.ringSize : 4;
 
     std::string err;
-    const std::vector<uint8_t> recipientKemPubKey; // empty => throwaway/self output
+    // Spend to the fixed testnet KEM identity so the output is a REAL, scannable, re-spendable
+    // stealth output — NOT a burn. (An empty key would discard the one-time secret => destroyed
+    // funds; that throwaway path belongs to pq_injector only, as the A/B parity oracle.)
+    const std::vector<uint8_t> recipientKemPubKey(
+        cn::PQ_TESTNET_KEM_PK, cn::PQ_TESTNET_KEM_PK + sizeof(cn::PQ_TESTNET_KEM_PK));
 
     bool ok = cn::pqSpendViaDaemon(dispatcher, m_daemonHost, m_daemonPort,
                                    amount, fee, ringSize, recipientKemPubKey,

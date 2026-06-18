@@ -13,6 +13,7 @@
 #include "HttpClient.h"                      // HttpClient, invokeJsonCommand (direct-path)
 #include "JsonRpc.h"                          // JsonRpc::invokeJsonRpcCommand
 #include "CoreRpcServerCommandsDefinitions.h"
+#include "crypto/crypto.h"                    // crypto::rand<T> (CSPRNG; NOT std::mt19937)
 
 #include "pq_testnet_kem_keypair.h"           // PQ_TESTNET_KEM_SK (testnet KEM secret)
 
@@ -25,6 +26,21 @@ namespace cn
     {
       out.clear();
       return common::fromHex(hex, out);
+    }
+
+    // Uniform random index in [0, n) using the project CSPRNG (crypto::rand — the same secure
+    // source used by Miner/NetNode/WalletGreen — NOT std::mt19937; the same lesson as the wallet
+    // KDF: privacy-relevant randomness must come from a secure source). Rejection-samples to avoid
+    // modulo bias; n must be > 0.
+    size_t cryptoRandIndex(size_t n)
+    {
+      const uint64_t limit = UINT64_MAX - (UINT64_MAX % n);
+      uint64_t r = 0;
+      do
+      {
+        r = crypto::rand<uint64_t>();
+      } while (r >= limit);
+      return static_cast<size_t>(r % n);
     }
   }
 
@@ -61,6 +77,14 @@ namespace cn
       COMMAND_RPC_GET_PQ_OUTPUTS::response gres;
       cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", greq, gres);
 
+      // FIX A: a non-OK status means the node refused / errored; the response body is then
+      // meaningless. Surface it instead of treating an empty/partial result as "no outputs".
+      if (gres.status != CORE_RPC_STATUS_OK)
+      {
+        err = "get_pq_outputs failed: " + gres.status;
+        return false;
+      }
+
       const COMMAND_RPC_GET_PQ_OUTPUTS::outs_for_amount* ofa = nullptr;
       for (const auto& o : gres.outs)
       {
@@ -76,7 +100,7 @@ namespace cn
         return false;
       }
 
-      // ---- 2. collect spendable entries, sorted by ascending global index -----------------------
+      // ---- 2. collect spendable entries -----------------------------------------------------------
       std::vector<COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry> spendable;
       spendable.reserve(ofa->outs.size());
       for (const auto& e : ofa->outs)
@@ -94,61 +118,119 @@ namespace cn
         return false;
       }
 
-      std::sort(spendable.begin(), spendable.end(),
-                [](const COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry& a,
-                   const COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry& b) {
-                  return a.global_index < b.global_index;
-                });
+      // ---- 3-5. attempt loop: random signer + random decoys, build, relay -------------------------
+      //
+      // FIX B: the old code always picked signer = lowest global index + ring = the first
+      // `ringSize` outputs. Two problems that this loop fixes:
+      //   (1) if that output was already spent, every call re-picked it -> permanent failure;
+      //   (2) identical ring membership + signer position across spends is trivially linkable on a
+      //       privacy coin.
+      // Each attempt picks a RANDOM (not-yet-tried) signer and RANDOM ringSize-1 distinct decoys
+      // (CSPRNG — crypto::rand, NOT std::mt19937). The builder re-sorts the ring by global index
+      // internally, so the entropy is in WHICH outputs are chosen + which one signs. If build or
+      // relay fails we fall through to the next attempt with a different signer; the last error is
+      // returned once attempts are exhausted.
+      const size_t maxAttempts = std::min<size_t>(8, spendable.size());
 
-      // Signer = the spendable entry with the lowest global index (== spendable[0] after the sort).
-      // The ring = the first `ringSize` spendable entries by ascending global index; this always
-      // includes the signer, and the indices are distinct (each entry is a distinct output).
-      const uint32_t signerGlobalIndex = spendable[0].global_index;
+      // Track which signer slots we have already tried so each attempt uses a fresh one.
+      std::vector<bool> signerTried(spendable.size(), false);
+      size_t triedCount = 0;
 
-      // ---- 3. build the spend request ------------------------------------------------------------
-      cn::PqSpendRequest sreq;
-      sreq.amount = amount;
-      sreq.fee = fee;
-      sreq.signerGlobalIndex = signerGlobalIndex;
-      sreq.kemSecretKey.assign(cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK));
-      sreq.recipientKemPubKey = recipientKemPubKey;
+      err = "PQ spend: no attempt succeeded";
 
-      sreq.ring.reserve(ringSize);
-      for (uint32_t i = 0; i < ringSize; ++i)
+      for (size_t attempt = 0; attempt < maxAttempts && triedCount < spendable.size(); ++attempt)
       {
-        const COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry& e = spendable[i];
+        // Pick a random signer slot we have not tried yet.
+        size_t signerSlot = cryptoRandIndex(spendable.size());
+        while (signerTried[signerSlot])
+        {
+          signerSlot = (signerSlot + 1) % spendable.size();
+        }
+        signerTried[signerSlot] = true;
+        ++triedCount;
 
-        cn::PqRingMember member;
-        member.globalIndex = e.global_index;
-        if (!hexToBytes(e.key, member.key))
+        // Pick ringSize-1 distinct decoy slots != signerSlot, uniformly at random.
+        std::vector<size_t> chosen;
+        chosen.reserve(ringSize);
+        chosen.push_back(signerSlot);
+        std::vector<bool> inRing(spendable.size(), false);
+        inRing[signerSlot] = true;
+        while (chosen.size() < ringSize)
         {
-          err = "malformed output key hex at global index " + std::to_string(e.global_index);
-          return false;
+          size_t slot = cryptoRandIndex(spendable.size());
+          if (!inRing[slot])
+          {
+            inRing[slot] = true;
+            chosen.push_back(slot);
+          }
         }
-        if (!e.kem.empty() && !hexToBytes(e.kem, member.kemCt))
+
+        // Assemble the spend request from the chosen slots.
+        cn::PqSpendRequest sreq;
+        sreq.amount = amount;
+        sreq.fee = fee;
+        sreq.signerGlobalIndex = spendable[signerSlot].global_index;
+        sreq.kemSecretKey.assign(cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK));
+        sreq.recipientKemPubKey = recipientKemPubKey;
+
+        bool malformed = false;
+        sreq.ring.reserve(ringSize);
+        for (size_t k = 0; k < chosen.size(); ++k)
         {
-          err = "malformed output kem hex at global index " + std::to_string(e.global_index);
-          return false;
+          const COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry& e = spendable[chosen[k]];
+
+          cn::PqRingMember member;
+          member.globalIndex = e.global_index;
+          if (!hexToBytes(e.key, member.key))
+          {
+            err = "malformed output key hex at global index " + std::to_string(e.global_index);
+            malformed = true;
+            break;
+          }
+          if (!e.kem.empty() && !hexToBytes(e.kem, member.kemCt))
+          {
+            err = "malformed output kem hex at global index " + std::to_string(e.global_index);
+            malformed = true;
+            break;
+          }
+          sreq.ring.push_back(member);
         }
-        sreq.ring.push_back(member);
+        if (malformed)
+        {
+          // A malformed on-chain entry is not fixed by retrying with the same signer, but a
+          // different ring may avoid it; try the next attempt.
+          continue;
+        }
+
+        // ---- build + sign the transaction (all crypto happens inside the shared builder) ---------
+        cn::Transaction tx;
+        if (!cn::buildPqSpendTransaction(sreq, tx, err))
+        {
+          // Build failed (e.g. signer not ours / already-spent class) — try a different signer.
+          continue;
+        }
+
+        // ---- relay the signed tx via the direct-path sendrawtransaction command -----------------
+        cn::COMMAND_RPC_SEND_RAW_TX::request rreq;
+        rreq.tx_as_hex = common::toHex(cn::toBinaryArray(tx));
+        cn::COMMAND_RPC_SEND_RAW_TX::response rres;
+        cn::invokeJsonCommand(httpClient, "/sendrawtransaction", rreq, rres);
+
+        // FIX A: a rejected relay used to return true (false success). Check the status: only an
+        // OK relay is a real success; otherwise record the reason and try the next signer.
+        if (rres.status != CORE_RPC_STATUS_OK)
+        {
+          err = "relay rejected: " + rres.status;
+          continue;
+        }
+
+        outStatus = rres.status;
+        outTxHashHex = common::podToHex(cn::getObjectHash(tx));
+        return true;
       }
 
-      // ---- 4. build + sign the transaction (all crypto happens inside the shared builder) --------
-      cn::Transaction tx;
-      if (!cn::buildPqSpendTransaction(sreq, tx, err))
-      {
-        return false;
-      }
-
-      // ---- 5. relay the signed tx via the direct-path sendrawtransaction command ----------------
-      cn::COMMAND_RPC_SEND_RAW_TX::request rreq;
-      rreq.tx_as_hex = common::toHex(cn::toBinaryArray(tx));
-      cn::COMMAND_RPC_SEND_RAW_TX::response rres;
-      cn::invokeJsonCommand(httpClient, "/sendrawtransaction", rreq, rres);
-
-      outStatus = rres.status;
-      outTxHashHex = common::podToHex(cn::getObjectHash(tx));
-      return true;
+      // All attempts exhausted; `err` holds the last failure reason.
+      return false;
     }
     catch (const std::exception& e)
     {
