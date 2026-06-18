@@ -1012,6 +1012,15 @@ namespace cn
   difficulty_type Blockchain::getDifficultyForNextBlock()
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+
+    // Testnet PoC (CIP-0001): pin difficulty to a small constant. The LWMA retarget otherwise
+    // overshoots after the first few instant blocks and stalls mining on the limited PoC hashrate.
+    // Miner and validator both call this, so the chain stays self-consistent.
+    if (m_currency.isTestnet())
+    {
+      return static_cast<difficulty_type>(1000);
+    }
+
     std::vector<uint64_t> timestamps;
     std::vector<difficulty_type> commulative_difficulties;
 
@@ -2874,11 +2883,15 @@ namespace cn
       uint64_t fee = m_currency.getTransactionFee(transactions[i], block.height);
 
       bool isTransactionValid = true;
-      if (block.bl.majorVersion == BLOCK_MAJOR_VERSION_1 && transactions[i].version > TRANSACTION_VERSION_1)
+      // Testnet PoC (CIP-0001): allow version-3 PQ transactions inside the (version-1) testnet
+      // blocks without standing up a dedicated PQ block-major-version fork.
+      bool pqTestnetTx = m_currency.isTestnet() && transactions[i].version == TRANSACTION_VERSION_3;
+      if (block.bl.majorVersion == BLOCK_MAJOR_VERSION_1 && transactions[i].version > TRANSACTION_VERSION_1 && !pqTestnetTx)
       {
         isTransactionValid = false;
         logger(INFO, BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id << " because it has invalid version " << transactions[i].version;
       }
+
 
       if (!checkTransactionInputs(transactions[i]))
       {

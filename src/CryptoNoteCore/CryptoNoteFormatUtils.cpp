@@ -291,7 +291,12 @@ bool check_inputs_types_supported(const TransactionPrefix& tx) {
       if (tx.version < TRANSACTION_VERSION_2) {
         return false;
       }
-    } else if (in.type() != typeid(KeyInput) && in.type() != typeid(MultisignatureInput)) {
+    } else if (inputType == typeid(PqKeyInput)) {
+      // Post-quantum ring-signature input (CIP-0001), allowed from version 3 on.
+      if (tx.version < TRANSACTION_VERSION_3) {
+        return false;
+      }
+    } else if (inputType != typeid(KeyInput)) {
       return false;
     }
   }
@@ -335,6 +340,20 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
           }
           return false;
         }
+      }
+    } else if (out.target.type() == typeid(PqKeyOutput)) {
+      // Post-quantum output (CIP-0001): plaintext amount, variable-length lattice public key.
+      if (out.amount == 0) {
+        if (error) {
+          *error = "Zero amount PQ output";
+        }
+        return false;
+      }
+      if (boost::get<PqKeyOutput>(out.target).key.empty()) {
+        if (error) {
+          *error = "PQ output with empty key";
+        }
+        return false;
       }
     } else {
       if (error) {
