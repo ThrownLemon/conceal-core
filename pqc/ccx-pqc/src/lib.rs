@@ -27,6 +27,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 
 mod ringsig; // EXPERIMENTAL lattice linkable ring signature (anonymous + soundly linkable)
 mod detkeygen; // Deterministic FIPS-203/204 keygen from a seed (mnemonic-restorable PQ wallet keys)
+mod walletcrypto; // Wallet-file at-rest KDF (Argon2id) + AEAD (XChaCha20-Poly1305) — client-side only
 
 // FFI panic guard: a Rust panic unwinding across the `extern "C"` boundary into the C++ daemon is
 // undefined behaviour. Every entry point runs its body inside catch_unwind and, on panic, returns
@@ -761,4 +762,171 @@ pub extern "C" fn ccx_pq_multisig_selftest() -> CcxPqSizes {
     let ok = (roundtrip_ok && tamper_rejected && wrongkey_rejected && wrongmsg_rejected) as i32;
     CcxPqSizes { pk: pkb, sk: skb, ct_or_sig: sgb, ss: 0, ok }
   })
+}
+
+// (Deterministic PQ keygen — ccx_pq_kem_keygen_det / ccx_pq_multisig_keygen_det — is provided by the
+// real FIPS-203/204 seed-keygen in `detkeygen.rs` (crypto branch). The wallet's earlier inline SHAKE
+// placeholders were dropped at merge; the C++ wallet binds to the real symbols transparently.)
+
+// --- WALLET-FILE AT-REST ENCRYPTION (Argon2id KDF + XChaCha20-Poly1305 AEAD) ---------------------
+// CIP-0001 Q2 §1b: replace the weak wallet KDF (one unsalted pass of cn_slow_hash_v0) +
+// unauthenticated chacha8 container cipher. CLIENT-SIDE ONLY — the wallet file never touches
+// consensus, so this is a pure local-storage upgrade with no fork implication. The pure logic lives
+// in walletcrypto.rs; these are the panic-guarded C ABI shims the C++ wallet links against.
+
+/// Fill `out` (len `out_len`) with CSPRNG bytes from the OS entropy source. The wallet uses this for
+/// the Argon2id salt and the XChaCha20 nonce — both MUST be CSPRNG-grade (the C++ mt19937 helper has
+/// only 32 bits of seed entropy, risking salt+nonce collisions across wallets). Returns 0 on success.
+#[no_mangle]
+pub extern "C" fn ccx_wallet_random_bytes(out: *mut u8, out_len: usize) -> i32 {
+    ffi_guard(-99, || {
+        if out.is_null() && out_len != 0 { return -1; }
+        if out_len == 0 { return 0; }
+        let buf = unsafe { std::slice::from_raw_parts_mut(out, out_len) };
+        walletcrypto::fill_random(buf);
+        0
+    })
+}
+
+/// XChaCha20-Poly1305 key size (32). Pinned for the C++ side to size buffers.
+#[no_mangle] pub extern "C" fn ccx_wallet_key_bytes() -> usize { walletcrypto::KEY_BYTES }
+/// XChaCha20-Poly1305 nonce size (24).
+#[no_mangle] pub extern "C" fn ccx_wallet_nonce_bytes() -> usize { walletcrypto::NONCE_BYTES }
+/// Poly1305 AEAD tag size (16) — sealed length is plaintext + this.
+#[no_mangle] pub extern "C" fn ccx_wallet_aead_tag_bytes() -> usize { walletcrypto::TAG_BYTES }
+
+/// Derive a 32-byte wallet key from (`password`, `salt`) via Argon2id with the supplied cost
+/// parameters (`mem_kib`, `iterations`, `parallelism`). Writes exactly 32 bytes to `key_out`.
+/// Returns 0 on success; negative on bad args / invalid parameters.
+#[no_mangle]
+pub extern "C" fn ccx_wallet_kdf_argon2id(
+    password: *const u8, password_len: usize,
+    salt: *const u8, salt_len: usize,
+    mem_kib: u32, iterations: u32, parallelism: u32,
+    key_out: *mut u8, key_cap: usize,
+) -> i32 {
+    ffi_guard(-99, || {
+        if salt.is_null() || key_out.is_null() { return -1; }
+        if password.is_null() && password_len != 0 { return -1; }
+        if key_cap < walletcrypto::KEY_BYTES { return -2; }
+        let pw = if password_len == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(password, password_len) } };
+        let sa = unsafe { std::slice::from_raw_parts(salt, salt_len) };
+        match walletcrypto::argon2id_derive(pw, sa, mem_kib, iterations, parallelism) {
+            Some(key) => {
+                unsafe { std::ptr::copy_nonoverlapping(key.as_ptr(), key_out, walletcrypto::KEY_BYTES); }
+                0
+            }
+            None => -4, // invalid parameters (e.g. iterations=0, salt too short)
+        }
+    })
+}
+
+/// Seal `pt` under (`key` 32B, `nonce` 24B) with XChaCha20-Poly1305. Writes `pt_len + 16` bytes
+/// (ciphertext || tag) to `ct_out` and sets `*ct_len_out`. Returns 0 on success, negative on error.
+/// If `ct_cap` is too small, writes the required length to `*ct_len_out` and returns -2.
+#[no_mangle]
+pub extern "C" fn ccx_wallet_aead_seal(
+    key: *const u8, key_len: usize,
+    nonce: *const u8, nonce_len: usize,
+    pt: *const u8, pt_len: usize,
+    ct_out: *mut u8, ct_cap: usize, ct_len_out: *mut usize,
+) -> i32 {
+    ffi_guard(-99, || {
+        if key.is_null() || nonce.is_null() || ct_out.is_null() || ct_len_out.is_null() { return -1; }
+        if pt.is_null() && pt_len != 0 { return -1; }
+        if key_len < walletcrypto::KEY_BYTES || nonce_len < walletcrypto::NONCE_BYTES { return -2; }
+        let need = pt_len.checked_add(walletcrypto::TAG_BYTES).unwrap_or(usize::MAX);
+        if ct_cap < need { unsafe { *ct_len_out = need; } return -2; }
+        let mut k = [0u8; 32]; k.copy_from_slice(unsafe { std::slice::from_raw_parts(key, walletcrypto::KEY_BYTES) });
+        let mut n = [0u8; 24]; n.copy_from_slice(unsafe { std::slice::from_raw_parts(nonce, walletcrypto::NONCE_BYTES) });
+        let ptb = if pt_len == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(pt, pt_len) } };
+        match walletcrypto::aead_seal(&k, &n, ptb) {
+            Some(sealed) => {
+                if sealed.len() != need { return -3; }
+                unsafe {
+                    std::ptr::copy_nonoverlapping(sealed.as_ptr(), ct_out, sealed.len());
+                    *ct_len_out = sealed.len();
+                }
+                0
+            }
+            None => -3,
+        }
+    })
+}
+
+/// Open a sealed blob (`ct` = ciphertext || tag) with (`key` 32B, `nonce` 24B). On a verified tag,
+/// writes `ct_len - 16` plaintext bytes to `pt_out` and sets `*pt_len_out`. On ANY authentication
+/// failure (wrong password, tamper, truncation) returns -3 and writes NOTHING to `pt_out`.
+#[no_mangle]
+pub extern "C" fn ccx_wallet_aead_open(
+    key: *const u8, key_len: usize,
+    nonce: *const u8, nonce_len: usize,
+    ct: *const u8, ct_len: usize,
+    pt_out: *mut u8, pt_cap: usize, pt_len_out: *mut usize,
+) -> i32 {
+    ffi_guard(-99, || {
+        if key.is_null() || nonce.is_null() || ct.is_null() || pt_len_out.is_null() { return -1; }
+        if key_len < walletcrypto::KEY_BYTES || nonce_len < walletcrypto::NONCE_BYTES { return -2; }
+        if ct_len < walletcrypto::TAG_BYTES { return -4; }
+        let pt_len = ct_len - walletcrypto::TAG_BYTES;
+        if pt_out.is_null() && pt_len != 0 { return -1; }
+        if pt_cap < pt_len { unsafe { *pt_len_out = pt_len; } return -2; }
+        let mut k = [0u8; 32]; k.copy_from_slice(unsafe { std::slice::from_raw_parts(key, walletcrypto::KEY_BYTES) });
+        let mut n = [0u8; 24]; n.copy_from_slice(unsafe { std::slice::from_raw_parts(nonce, walletcrypto::NONCE_BYTES) });
+        let ctb = unsafe { std::slice::from_raw_parts(ct, ct_len) };
+        match walletcrypto::aead_open(&k, &n, ctb) {
+            Some(plain) => {
+                if plain.len() != pt_len { return -3; }
+                if pt_len != 0 { unsafe { std::ptr::copy_nonoverlapping(plain.as_ptr(), pt_out, plain.len()); } }
+                unsafe { *pt_len_out = plain.len(); }
+                0
+            }
+            None => -3,
+        }
+    })
+}
+
+/// Selftest: Argon2id derive is reproducible + salt-sensitive; AEAD seal->open round-trips; any
+/// tamper / wrong key / wrong nonce makes open fail. ok=1 means all checks passed. Exercises the
+/// wallet at-rest crypto through the same C ABI the wallet uses.
+#[no_mangle]
+pub extern "C" fn ccx_wallet_crypto_selftest() -> CcxPqSizes {
+    ffi_guard(CCX_SIZES_PANIC, || {
+        let kb = walletcrypto::KEY_BYTES;
+        let nb = walletcrypto::NONCE_BYTES;
+        let tb = walletcrypto::TAG_BYTES;
+        let fail = CcxPqSizes { pk: kb, sk: nb, ct_or_sig: tb, ss: 0, ok: 0 };
+        let salt = [0x5au8; 16];
+        let mut key = vec![0u8; kb];
+        let mut key2 = vec![0u8; kb];
+        // cheap params for the selftest: 8 MiB, 1 pass, 1 lane
+        if ccx_wallet_kdf_argon2id(b"pw".as_ptr(), 2, salt.as_ptr(), salt.len(), 8 * 1024, 1, 1, key.as_mut_ptr(), kb) != 0 { return fail; }
+        if ccx_wallet_kdf_argon2id(b"pw".as_ptr(), 2, salt.as_ptr(), salt.len(), 8 * 1024, 1, 1, key2.as_mut_ptr(), kb) != 0 { return fail; }
+        let reproducible = key == key2;
+        let salt2 = [0xa5u8; 16];
+        let mut key3 = vec![0u8; kb];
+        if ccx_wallet_kdf_argon2id(b"pw".as_ptr(), 2, salt2.as_ptr(), salt2.len(), 8 * 1024, 1, 1, key3.as_mut_ptr(), kb) != 0 { return fail; }
+        let salt_sensitive = key != key3;
+
+        let nonce = [0x3cu8; 24];
+        let msg = b"ccx wallet crypto selftest payload";
+        let mut sealed = vec![0u8; msg.len() + tb];
+        let mut sealed_len = 0usize;
+        if ccx_wallet_aead_seal(key.as_ptr(), kb, nonce.as_ptr(), nb, msg.as_ptr(), msg.len(), sealed.as_mut_ptr(), sealed.len(), &mut sealed_len) != 0 { return fail; }
+        let mut out = vec![0u8; msg.len()];
+        let mut out_len = 0usize;
+        let open_ok = ccx_wallet_aead_open(key.as_ptr(), kb, nonce.as_ptr(), nb, sealed.as_ptr(), sealed_len, out.as_mut_ptr(), out.len(), &mut out_len) == 0
+            && out_len == msg.len() && &out[..] == &msg[..];
+
+        // tamper: flip a byte -> open must reject
+        let mut bad = sealed.clone(); bad[0] ^= 0x01;
+        let mut tmp = vec![0u8; msg.len()]; let mut tl = 0usize;
+        let tamper_rejected = ccx_wallet_aead_open(key.as_ptr(), kb, nonce.as_ptr(), nb, bad.as_ptr(), sealed_len, tmp.as_mut_ptr(), tmp.len(), &mut tl) != 0;
+
+        // wrong key (wrong password) -> open must reject
+        let wrong_rejected = ccx_wallet_aead_open(key3.as_ptr(), kb, nonce.as_ptr(), nb, sealed.as_ptr(), sealed_len, tmp.as_mut_ptr(), tmp.len(), &mut tl) != 0;
+
+        let ok = (reproducible && salt_sensitive && open_ok && tamper_rejected && wrong_rejected) as i32;
+        CcxPqSizes { pk: kb, sk: nb, ct_or_sig: tb, ss: 0, ok }
+    })
 }

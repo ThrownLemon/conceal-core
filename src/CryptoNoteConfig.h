@@ -163,6 +163,27 @@ namespace cn
 
 	const uint64_t TESTNET_GENESIS_TIMESTAMP = 1632048808;
 
+	// PQ address v2 prefixes (CIP-0001 wallet-address-v2), kept in `cn` next to the other PQ consensus
+	// constants (PQ_NULLIFIER_SIZE etc.). Base58 varint tags tuned so the address renders a recognisable
+	// human prefix (first 4 chars stable across the flags byte), the way 0x7ad4 was tuned to "ccx7".
+	// Computed by brute-forcing the tag; see wallet-v2-impl.md. Testnet-gated until the ring sig is
+	// audited; mainnet PQ addresses are parse-only for now.
+	//   mainnet: 0x14fad4 -> "ccxp..." (PQ-only)        0x117ad4 -> "ccxh..." (hybrid)
+	//   testnet: 0x220bd6 -> "ctp..."  (PQ-only)        0x164a56 -> "cth..."  (hybrid)
+	const uint64_t CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x14fad4;     /* ccxp PQ address prefix */
+	const uint64_t CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x117ad4; /* ccxh hybrid address prefix */
+	const uint64_t TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x220bd6;     /* ctp testnet PQ address prefix */
+	const uint64_t TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x164a56; /* cth testnet hybrid address prefix */
+
+	// ML-KEM-768 (FIPS 203) public-key length carried in a PQ address (bytes). Pinned here so the
+	// address parser can length-validate without calling the FFI; cross-checked against
+	// ccx_pq_kem_pubkey_bytes() at runtime. The 4096-byte ring-sig key is per-output/derived and is
+	// NOT in the address (wallet-address-v2.md §1).
+	const size_t  PQ_KEM_PUBLIC_KEY_SIZE = 1184;
+	const uint8_t PQ_ADDRESS_VERSION = 2;            /* PqAccountPublicAddress.pqVersion */
+	const uint32_t PQ_KEM_SCHEME_ID = 0xC0DE0203;    /* ML-KEM-768 message/stealth KEM scheme id (agility pin) */
+	const uint32_t PQ_RING_SCHEME_ID = 0xC0DE0004;   /* lattice linkable-ring-sig scheme id == ccx_pq_scheme_id() (K=L=6) */
+
 	const uint8_t TRANSACTION_VERSION_1 = 1;
 	const uint8_t TRANSACTION_VERSION_2 = 2;
 		const uint8_t TRANSACTION_VERSION_3 = 3; /* PQ transactions (CIP-0001) */

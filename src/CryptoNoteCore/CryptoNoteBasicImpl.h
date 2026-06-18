@@ -32,6 +32,13 @@ namespace cn {
   uint64_t getPenalizedAmount(uint64_t amount, size_t medianSize, size_t currentBlockSize);
   std::string getAccountAddressAsStr(uint64_t prefix, const AccountPublicAddress& adr);
   bool parseAccountAddressString(uint64_t& prefix, AccountPublicAddress& adr, const std::string& str);
+
+  // PQ address v2 (CIP-0001 wallet-address-v2). Separate parse/format path keyed on the prefix —
+  // the legacy AccountPublicAddress path is untouched (it would fail on a ~1.2 KB PQ payload and its
+  // check_key() calls do not apply to a KEM key). parse() length/scheme/version-validates the payload
+  // (the analogue of legacy's check_key()).
+  std::string getPqAccountAddressAsStr(uint64_t prefix, const PqAccountPublicAddress& adr);
+  bool parsePqAccountAddressString(uint64_t& prefix, PqAccountPublicAddress& adr, const std::string& str);
   bool is_coinbase(const Transaction& tx);
 
   bool operator ==(const cn::Transaction& a, const cn::Transaction& b);

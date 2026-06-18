@@ -112,6 +112,21 @@ struct AccountPublicAddress {
   crypto::PublicKey viewPublicKey;
 };
 
+// PQ address v2 (CIP-0001 wallet-address-v2). Carries the ML-KEM-768 public key (the long-term
+// "detect/receive" account key — senders encapsulate to it) plus a version/scheme envelope for
+// crypto-agility. The 4096-byte ring-sig key is per-output/derived and is deliberately NOT here.
+// `flags` bit0 = hybrid (legacy Ed25519 spend+view also present, for transitional dual-receive).
+// Validated on parse: kemPublicKey.size() == PQ_KEM_PUBLIC_KEY_SIZE, schemeIds/version pinned.
+struct PqAccountPublicAddress {
+  uint8_t  pqVersion;                       // = PQ_ADDRESS_VERSION (2)
+  uint8_t  flags;                           // bit0: hybrid; other bits reserved (must be 0)
+  uint32_t kemSchemeId;                      // pinned ML-KEM scheme id (agility)
+  uint32_t ringSchemeId;                     // pinned ring-sig scheme id (agility)
+  std::vector<uint8_t> kemPublicKey;         // ML-KEM-768 public key (PQ_KEM_PUBLIC_KEY_SIZE bytes)
+  crypto::PublicKey legacySpendPublicKey;    // hybrid only (flags bit0); zero otherwise
+  crypto::PublicKey legacyViewPublicKey;     // hybrid only (flags bit0); zero otherwise
+};
+
 struct AccountKeys {
   AccountPublicAddress address;
   crypto::SecretKey spendSecretKey;

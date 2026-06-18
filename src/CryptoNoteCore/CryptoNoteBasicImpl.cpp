@@ -6,6 +6,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "CryptoNoteBasicImpl.h"
+#include "CryptoNoteConfig.h"
 #include "CryptoNoteFormatUtils.h"
 #include "CryptoNoteTools.h"
 #include "CryptoNoteSerialization.h"
@@ -79,6 +80,65 @@ namespace cn {
       // ::serialization::parse_binary(data, adr) &&
       check_key(adr.spendPublicKey) &&
       check_key(adr.viewPublicKey);
+  }
+  //-----------------------------------------------------------------------
+  std::string getPqAccountAddressAsStr(uint64_t prefix, const PqAccountPublicAddress& adr) {
+    // Reuse the existing Base58 address machinery (varint tag + payload + 4-byte cn_fast_hash
+    // checksum) — do NOT invent a new encoder (wallet-address-v2 §2.1).
+    BinaryArray ba;
+    bool r = toBinaryArray(adr, ba);
+    assert(r);
+    return tools::base_58::encode_addr(prefix, common::asString(ba));
+  }
+  //-----------------------------------------------------------------------
+  bool parsePqAccountAddressString(uint64_t& prefix, PqAccountPublicAddress& adr, const std::string& str) {
+    // Cap the encoded length BEFORE decoding: decode_addr heap-allocates proportional to the input
+    // and runs the full cn_fast_hash checksum, so an attacker could feed a huge string. A valid PQ
+    // address payload is ~1.26 KB (version+flags+schemeIds + 1184-byte KEM PK + 64-byte legacy keys +
+    // checksum + varint tag) → ~1.75k Base58 chars; reject anything well beyond that up front.
+    const size_t MAX_PQ_ADDRESS_STR_LEN = 2048;
+    if (str.empty() || str.size() > MAX_PQ_ADDRESS_STR_LEN) {
+      return false;
+    }
+    std::string data;
+    if (!tools::base_58::decode_addr(str, prefix, data)) {
+      return false; // bad checksum / not Base58 / wrong block sizing
+    }
+    if (!fromBinaryArray(adr, asBinaryArray(data))) {
+      return false; // malformed payload
+    }
+    // Validate at the boundary (the analogue of legacy check_key()): pin version + scheme ids and the
+    // ML-KEM public-key length. Fail fast on anything unexpected so an out-of-spec address is rejected
+    // rather than silently misused.
+    if (adr.pqVersion != PQ_ADDRESS_VERSION) {
+      return false;
+    }
+    if (adr.kemSchemeId != PQ_KEM_SCHEME_ID) {
+      return false; // unsupported KEM scheme (crypto-agility)
+    }
+    if (adr.ringSchemeId != PQ_RING_SCHEME_ID) {
+      return false; // unsupported ring-sig scheme (crypto-agility) — both schemeIds are pinned
+    }
+    if (adr.kemPublicKey.size() != PQ_KEM_PUBLIC_KEY_SIZE) {
+      return false; // wrong ML-KEM-768 public-key length
+    }
+    // Reserved flag bits must be zero (only bit0 = hybrid is defined).
+    if ((adr.flags & ~uint8_t(0x01)) != 0) {
+      return false;
+    }
+    // For a hybrid address the legacy Ed25519 keys must be valid curve points; for PQ-only they must
+    // be the canonical zero (the serializer always writes them, zero when not hybrid).
+    const bool hybrid = (adr.flags & 0x01) != 0;
+    if (hybrid) {
+      if (!check_key(adr.legacySpendPublicKey) || !check_key(adr.legacyViewPublicKey)) {
+        return false;
+      }
+    } else {
+      if (!(adr.legacySpendPublicKey == NULL_PUBLIC_KEY) || !(adr.legacyViewPublicKey == NULL_PUBLIC_KEY)) {
+        return false; // PQ-only address must not carry stray legacy keys
+      }
+    }
+    return true;
   }
   //-----------------------------------------------------------------------
   bool operator ==(const cn::Transaction& a, const cn::Transaction& b) {

@@ -14,6 +14,9 @@
 
 #include "IFusionManager.h"
 #include "WalletIndices.h"
+#include "WalletKdf.h"
+#include "PqAccount.h"
+#include "WalletSerializationV2.h"
 #include "Common/StringOutputStream.h"
 #include "Logging/LoggerRef.h"
 #include <System/Dispatcher.h>
@@ -41,6 +44,19 @@ public:
   void createDeposit(uint64_t amount, uint32_t term, std::string sourceAddress, std::string destinationAddress, std::string &transactionHash) override;
   void withdrawDeposit(DepositId depositId, std::string &transactionHash) override;
   std::vector<MultisignatureInput> prepareMultisignatureInputs(const std::vector<TransactionOutputInformation> &selectedTransfers) const;
+
+  /* PQ wallet (CIP-0001 wallet-address-v2). Testnet-gated. Derives the deterministic ML-KEM account
+     from `masterSeed` (the 25-word mnemonic seed / a spend secret), stores it in the encrypted PQ
+     container section, and exposes the PQ/hybrid address. enablePqAccount is idempotent for a given
+     seed (deterministic keygen). Requires a v7 (Argon2id + AEAD) container. */
+  void enablePqAccount(const crypto::SecretKey &masterSeed);
+  bool hasPqAccount() const { return m_pqEnabled; }
+  // Returns the PQ-only Base58 address (ccxp / testnet ctp). Throws if no PQ account is set.
+  std::string getPqAddress(bool testnet) const;
+  // Returns the hybrid Base58 address (ccxh / testnet cth) combining the PQ KEM key with the given
+  // legacy Ed25519 spend/view public keys. Throws if no PQ account is set.
+  std::string getPqHybridAddress(bool testnet, const crypto::PublicKey &legacySpend, const crypto::PublicKey &legacyView) const;
+  const PqAccountKeys &getPqAccountKeys() const { return m_pqAccountKeys; }
 
   
   void initialize(const std::string& path, const std::string& password) override;
@@ -336,17 +352,42 @@ protected:
   void addUnconfirmedTransaction(const ITransactionReader &transaction);
   void removeUnconfirmedTransaction(const crypto::Hash &transactionHash);
   void initTransactionPool();
-  static void loadAndDecryptContainerData(ContainerStorage& storage, const crypto::chacha8_key& key, BinaryArray& containerData);
-  static void encryptAndSaveContainerData(ContainerStorage& storage, const crypto::chacha8_key& key, const void* containerData, size_t containerDataSize);
+  // Container suffix encrypt/decrypt. For container version >= AEAD_KDF_VERSION (7) the suffix is
+  // XChaCha20-Poly1305 AEAD (authenticated, with a stored KDF header + per-save nonce); for older
+  // versions it is the legacy unauthenticated chacha8 + IV. The version selects the path so old
+  // wallets keep loading and migrate to AEAD on the next save.
+  static void loadAndDecryptContainerData(ContainerStorage& storage, const crypto::chacha8_key& key, uint8_t version, BinaryArray& containerData);
+  // For v7+ `kdfHeader` MUST point at the header whose salt/cost produced `key` (it is stored,
+  // plaintext, in the suffix so the wallet can re-derive the key on next open). It is ignored for
+  // legacy versions and may be null there.
+  static void encryptAndSaveContainerData(ContainerStorage& storage, const crypto::chacha8_key& key, uint8_t version, const WalletKdfHeader* kdfHeader, const void* containerData, size_t containerDataSize);
   void loadWalletCache(std::unordered_set<crypto::PublicKey>& addedKeys, std::unordered_set<crypto::PublicKey>& deletedKeys, std::string& extra);
 
   void copyContainerStorageKeys(const ContainerStorage& src, const crypto::chacha8_key& srcKey, ContainerStorage& dst, const crypto::chacha8_key& dstKey) const;
   static void copyContainerStoragePrefix(ContainerStorage& src, const crypto::chacha8_key& srcKey, ContainerStorage& dst, const crypto::chacha8_key& dstKey);
 
   void deleteOrphanTransactions(const std::unordered_set<crypto::PublicKey> &deletedKeys);
-  void saveWalletCache(ContainerStorage &storage, const crypto::chacha8_key &key, WalletSaveLevel saveLevel, const std::string &extra);
+  // `version`/`kdfHeader` select the suffix cipher: v7 = AEAD with the given header (must match the
+  // key), legacy = chacha8 (header ignored, may be null).
+  void saveWalletCache(ContainerStorage &storage, const crypto::chacha8_key &key, uint8_t version, const WalletKdfHeader *kdfHeader, WalletSaveLevel saveLevel, const std::string &extra);
   void loadSpendKeys();
   void loadContainerStorage(const std::string &path);
+
+  // Derive the container key from a password for the given format version: Argon2id (with the stored
+  // KDF header) for version >= AEAD_KDF_VERSION, else the legacy cn_slow_hash_v0 KDF. Used by
+  // initWithKeys / load / changePassword so the migration is uniform.
+  crypto::chacha8_key deriveContainerKey(const std::string &password, uint8_t version) const;
+  // Read the Argon2id KDF header stored in the (v7) container suffix prefix. Throws if absent/invalid.
+  static WalletKdfHeader readKdfHeader(const ContainerStorage &storage);
+  // If the open wallet is in a pre-AEAD format (< version 7), re-key its prefix + spend records from
+  // the legacy KDF to a fresh Argon2id key and bump the container version. No-op for v7 wallets.
+  void migrateToAeadFormatIfNeeded();
+
+  // PQ wallet section (CIP-0001 wallet-address-v2). Serialized inside the AEAD container after the
+  // WalletSerializerV2 stream, guarded by a presence byte so v7 wallets WITHOUT PQ keys round-trip
+  // cleanly. The section rides inside the AEAD suffix, so it is re-encrypted on every rekey.
+  void savePqSection(common::IOutputStream &destination) const;
+  void loadPqSection(common::IInputStream &source);
 
   void subscribeWallets();
 
@@ -422,6 +463,16 @@ private:
 
   std::string m_password;
   crypto::chacha8_key m_key;
+  // On-disk container format version of the currently-open wallet (e.g. 6 = legacy chacha8/cn_slow,
+  // 7 = Argon2id + AEAD). Drives which KDF/cipher the suffix encrypt/decrypt uses.
+  uint8_t m_walletFormatVersion = WalletSerializerV2::SERIALIZATION_VERSION;
+  // Argon2id KDF header (salt + cost) for a v7 wallet; only meaningful when m_walletFormatVersion >= 7.
+  WalletKdfHeader m_kdfHeader;
+  // PQ wallet section (CIP-0001 wallet-address-v2). Holds the deterministically-derived ML-KEM
+  // keypair + scheme ids. Stored inside the AEAD-encrypted container (so it is re-encrypted on rekey),
+  // only when m_pqEnabled. The KEM SK is needed every scan; the PK is for address display.
+  bool m_pqEnabled = false;
+  PqAccountKeys m_pqAccountKeys;
   std::string m_path;
   std::string m_extra; // workaround for wallet reset
   

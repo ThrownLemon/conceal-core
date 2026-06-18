@@ -81,6 +81,27 @@ int32_t ccx_pq_multisig_sign(const uint8_t *msg, size_t msg_len,
 int32_t ccx_pq_multisig_verify(const uint8_t *msg, size_t msg_len,
                                const uint8_t *pk, size_t pk_len,
                                const uint8_t *sig, size_t sig_len);
+/* Wallet-file at-rest encryption (CIP-0001 Q2 §1b — CLIENT-SIDE ONLY, no consensus): Argon2id KDF
+   (RFC 9106, salt + tunable cost) replacing the unsalted single-pass cn_slow_hash_v0 wallet KDF, and
+   XChaCha20-Poly1305 AEAD (24-byte nonce, 16-byte Poly1305 tag) replacing the unauthenticated 8-round
+   chacha8 container cipher. The wallet stores the salt + cost params + nonce in a versioned header. */
+size_t ccx_wallet_key_bytes(void);        /* 32 */
+size_t ccx_wallet_nonce_bytes(void);      /* 24 (XChaCha20 extended nonce) */
+size_t ccx_wallet_aead_tag_bytes(void);   /* 16 (Poly1305 tag) — sealed len = pt_len + this */
+/* CSPRNG (OS entropy) for the wallet salt + nonce — never use mt19937 for key/salt/nonce material. */
+int32_t ccx_wallet_random_bytes(uint8_t *out, size_t out_len);
+int32_t ccx_wallet_kdf_argon2id(const uint8_t *password, size_t password_len,
+                                const uint8_t *salt, size_t salt_len,
+                                uint32_t mem_kib, uint32_t iterations, uint32_t parallelism,
+                                uint8_t *key_out, size_t key_cap);
+int32_t ccx_wallet_aead_seal(const uint8_t *key, size_t key_len,
+                             const uint8_t *nonce, size_t nonce_len,
+                             const uint8_t *pt, size_t pt_len,
+                             uint8_t *ct_out, size_t ct_cap, size_t *ct_len_out);
+int32_t ccx_wallet_aead_open(const uint8_t *key, size_t key_len,
+                             const uint8_t *nonce, size_t nonce_len,
+                             const uint8_t *ct, size_t ct_len,
+                             uint8_t *pt_out, size_t pt_cap, size_t *pt_len_out);
 /* Real PQ primitives self-tests — sizes via out-struct. */
 typedef struct { size_t pk, sk, ct_or_sig, ss; int32_t ok; } ccx_pq_sizes;
 ccx_pq_sizes ccx_mlkem768_selftest(void);
@@ -103,6 +124,9 @@ int32_t ccx_pqr_soundness_test(void);
    against a future twiddle/sign/bitrev regression silently changing signature bytes. Runs `iters`
    random trials. Expect 0. */
 uint32_t ccx_pqr_ntt_equiv_test(uint32_t iters);
+/* Wallet-file at-rest crypto selftest (Argon2id KDF + XChaCha20-Poly1305 AEAD). ok=1 iff derive is
+   reproducible + salt-sensitive and seal/open round-trips with tamper/wrong-key rejected. */
+ccx_pq_sizes ccx_wallet_crypto_selftest(void);
 #ifdef __cplusplus
 }
 #endif
