@@ -26,6 +26,7 @@ use pqcrypto_traits::sign::{PublicKey as SP, SecretKey as SS, SignedMessage as S
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 mod ringsig; // EXPERIMENTAL lattice linkable ring signature (anonymous + soundly linkable)
+mod detkeygen; // Deterministic FIPS-203/204 keygen from a seed (mnemonic-restorable PQ wallet keys)
 
 // FFI panic guard: a Rust panic unwinding across the `extern "C"` boundary into the C++ daemon is
 // undefined behaviour. Every entry point runs its body inside catch_unwind and, on panic, returns
