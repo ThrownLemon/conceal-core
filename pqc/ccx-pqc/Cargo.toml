@@ -8,6 +8,15 @@ description = "Conceal post-quantum crypto module (C-ABI). Real ML-KEM/ML-DSA; r
 name = "ccx_pqc"
 crate-type = ["staticlib"]
 
+# The FFI panic guards (std::panic::catch_unwind in src/lib.rs) only work if panics unwind. Pin
+# unwind so a future "panic = abort" optimisation can't silently turn every extern "C" guard into a
+# process abort, breaking the on-panic error-code contract the C++ daemon relies on.
+[profile.release]
+panic = "unwind"
+
+[profile.dev]
+panic = "unwind"
+
 [dependencies]
 sha3 = "0.10"
 pqcrypto-kyber = "0.8"

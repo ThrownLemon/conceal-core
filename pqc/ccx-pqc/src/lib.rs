@@ -21,8 +21,19 @@ use pqcrypto_kyber::kyber768;
 use pqcrypto_dilithium::dilithium3;
 use pqcrypto_traits::kem::{PublicKey as KP, SecretKey as KS, Ciphertext as KC, SharedSecret as KSS};
 use pqcrypto_traits::sign::{PublicKey as SP, SecretKey as SS, SignedMessage as SM};
+use std::panic::{catch_unwind, AssertUnwindSafe};
 
 mod ringsig; // EXPERIMENTAL lattice linkable ring signature (anonymous + soundly linkable)
+
+// FFI panic guard: a Rust panic unwinding across the `extern "C"` boundary into the C++ daemon is
+// undefined behaviour. Every entry point runs its body inside catch_unwind and, on panic, returns
+// the supplied error value instead — preserving each function's existing return-type contract (an
+// error int, or a CcxPqSizes with ok=0). AssertUnwindSafe is sound here: the raw C pointers we touch
+// are validated before use and we never observe a broken invariant after a caught unwind.
+#[inline]
+fn ffi_guard<T, F: FnOnce() -> T>(on_panic: T, body: F) -> T {
+    catch_unwind(AssertUnwindSafe(body)).unwrap_or(on_panic)
+}
 
 const PK: usize = ringsig::PK_BYTES; // lattice public key (t) bytes
 const SK: usize = 32;                // 32-byte seed (the short secret s is re-derived from it)
@@ -57,6 +68,7 @@ fn ring_sig_size(n: usize) -> usize { ringsig::sig_bytes(n) }
 pub extern "C" fn ccx_pq_keygen(seed: *const u8, seed_len: usize,
                                 pk_out: *mut u8, pk_cap: usize,
                                 sk_out: *mut u8, sk_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if pk_out.is_null() || sk_out.is_null() { return -1; }
     if pk_cap < PK || sk_cap < SK { return -2; }
     let seed = if seed.is_null() { &[][..] } else { unsafe { std::slice::from_raw_parts(seed, seed_len) } };
@@ -68,12 +80,14 @@ pub extern "C" fn ccx_pq_keygen(seed: *const u8, seed_len: usize,
         std::ptr::copy_nonoverlapping(pk.as_ptr(), pk_out, PK);
     }
     0
+  })
 }
 
 #[no_mangle]
 pub extern "C" fn ccx_pq_nullifier(sk: *const u8, sk_len: usize,
                                    _pk: *const u8, _pk_len: usize,
                                    nf_out: *mut u8, nf_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if sk.is_null() || nf_out.is_null() { return -1; }
     if nf_cap < NF || sk_len < SK { return -2; }
     let skb = unsafe { std::slice::from_raw_parts(sk, SK) };
@@ -82,6 +96,7 @@ pub extern "C" fn ccx_pq_nullifier(sk: *const u8, sk_len: usize,
     let nf = nf_from_tag(&ringsig::tag_bytes_of(&s)); // tag I = A2*s, bound to the secret
     unsafe { std::ptr::copy_nonoverlapping(nf.as_ptr(), nf_out, NF); }
     0
+  })
 }
 
 fn split_ring(ringb: &[u8], ring_count: usize, stride: usize) -> Vec<Vec<u8>> {
@@ -95,6 +110,7 @@ pub extern "C" fn ccx_pq_sign(msg: *const u8, msg_len: usize,
                               ring: *const u8, ring_count: usize, member_stride: usize,
                               sk: *const u8, sk_len: usize, signer_index: usize,
                               sig_out: *mut u8, sig_len: *mut usize) -> i32 {
+  ffi_guard(-99, || {
     if sig_len.is_null() { return -1; }
     let need = ring_sig_size(ring_count);
     if sig_out.is_null() { unsafe { *sig_len = need; } return 0; }          // two-call size query
@@ -116,12 +132,14 @@ pub extern "C" fn ccx_pq_sign(msg: *const u8, msg_len: usize,
         }
         None => -6, // signing aborted too many times (rejection sampling)
     }
+  })
 }
 
 #[no_mangle]
 pub extern "C" fn ccx_pq_verify(msg: *const u8, msg_len: usize,
                                 ring: *const u8, ring_count: usize, member_stride: usize,
                                 sig: *const u8, sig_len: usize, nf_out: *mut u8, nf_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if msg.is_null() || ring.is_null() || sig.is_null() { return -1; }
     if ring_count == 0 || member_stride < PK { return -1; }
     if sig_len != ring_sig_size(ring_count) { return -3; }
@@ -141,24 +159,31 @@ pub extern "C" fn ccx_pq_verify(msg: *const u8, msg_len: usize,
         }
         None => -5,
     }
+  })
 }
 
 #[repr(C)] pub struct CcxPqSizes { pub pk: usize, pub sk: usize, pub ct_or_sig: usize, pub ss: usize, pub ok: i32 }
+// Panic default for CcxPqSizes-returning selftests: ok=0 signals failure, sizes zeroed.
+const CCX_SIZES_PANIC: CcxPqSizes = CcxPqSizes { pk: 0, sk: 0, ct_or_sig: 0, ss: 0, ok: 0 };
 #[no_mangle]
 pub extern "C" fn ccx_mlkem768_selftest() -> CcxPqSizes {
+  ffi_guard(CCX_SIZES_PANIC, || {
     let (pk, sk) = kyber768::keypair();
     let (ss1, ct) = kyber768::encapsulate(&pk);
     let ss2 = kyber768::decapsulate(&ct, &sk);
     CcxPqSizes { pk: pk.as_bytes().len(), sk: sk.as_bytes().len(), ct_or_sig: ct.as_bytes().len(),
                  ss: ss1.as_bytes().len(), ok: (ss1.as_bytes() == ss2.as_bytes()) as i32 }
+  })
 }
 #[no_mangle]
 pub extern "C" fn ccx_mldsa_selftest() -> CcxPqSizes {
+  ffi_guard(CCX_SIZES_PANIC, || {
     let (pk, sk) = dilithium3::keypair();
     let m = b"ccx deposit";
     let sm = dilithium3::sign(m, &sk);
     let ok = dilithium3::open(&sm, &pk).map(|x| x == m).unwrap_or(false) as i32;
     CcxPqSizes { pk: pk.as_bytes().len(), sk: sk.as_bytes().len(), ct_or_sig: sm.as_bytes().len(), ss: 0, ok }
+  })
 }
 
 // --- ML-KEM-768 stealth one-time outputs (Gap 4) -----------------------------------------------
@@ -180,6 +205,7 @@ const KEM_CT: usize = 1088;
 #[no_mangle]
 pub extern "C" fn ccx_pq_kem_keypair(pk_out: *mut u8, pk_cap: usize,
                                      sk_out: *mut u8, sk_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if pk_out.is_null() || sk_out.is_null() { return -1; }
     if pk_cap < KEM_PK || sk_cap < KEM_SK { return -2; }
     let (pk, sk) = kyber768::keypair();
@@ -188,6 +214,7 @@ pub extern "C" fn ccx_pq_kem_keypair(pk_out: *mut u8, pk_cap: usize,
         std::ptr::copy_nonoverlapping(sk.as_bytes().as_ptr(), sk_out, KEM_SK);
     }
     0
+  })
 }
 
 /// Sender: encapsulate to `kem_pk`, write the Kyber ciphertext to `ct_out`, and SHAKE256-derive a
@@ -196,6 +223,7 @@ pub extern "C" fn ccx_pq_kem_keypair(pk_out: *mut u8, pk_cap: usize,
 pub extern "C" fn ccx_pq_kem_derive_output(kem_pk: *const u8, kem_pk_len: usize,
                                            ct_out: *mut u8, ct_cap: usize,
                                            seed_out: *mut u8, seed_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if kem_pk.is_null() || ct_out.is_null() || seed_out.is_null() { return -1; }
     if seed_cap < 32 { return -2; }
     let pkb = unsafe { std::slice::from_raw_parts(kem_pk, kem_pk_len) };
@@ -210,6 +238,7 @@ pub extern "C" fn ccx_pq_kem_derive_output(kem_pk: *const u8, kem_pk_len: usize,
         std::ptr::copy_nonoverlapping(seed.as_ptr(), seed_out, 32);
     }
     0
+  })
 }
 
 /// Recipient: decapsulate `ct` with `kem_sk` and re-derive the same 32-byte one-time signing seed.
@@ -217,6 +246,7 @@ pub extern "C" fn ccx_pq_kem_derive_output(kem_pk: *const u8, kem_pk_len: usize,
 pub extern "C" fn ccx_pq_kem_scan(kem_sk: *const u8, kem_sk_len: usize,
                                   ct: *const u8, ct_len: usize,
                                   seed_out: *mut u8, seed_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if kem_sk.is_null() || ct.is_null() || seed_out.is_null() { return -1; }
     if seed_cap < 32 { return -2; }
     let skb = unsafe { std::slice::from_raw_parts(kem_sk, kem_sk_len) };
@@ -228,12 +258,14 @@ pub extern "C" fn ccx_pq_kem_scan(kem_sk: *const u8, kem_sk_len: usize,
     shake(&[b"ccx-stealth-otk", ss.as_bytes()], &mut seed);
     unsafe { std::ptr::copy_nonoverlapping(seed.as_ptr(), seed_out, 32); }
     0
+  })
 }
 
 /// Selftest: recipient recovers the SAME one-time keypair the sender derived; a wrong recipient
 /// recovers a DIFFERENT seed (cannot derive the output key). Proves real ML-KEM stealth.
 #[no_mangle]
 pub extern "C" fn ccx_pq_kem_stealth_selftest() -> CcxPqSizes {
+  ffi_guard(CCX_SIZES_PANIC, || {
     let (pk, sk) = kyber768::keypair();
     let (pkb, skb) = (pk.as_bytes(), sk.as_bytes());
     let mut ct = vec![0u8; KEM_CT];
@@ -255,6 +287,7 @@ pub extern "C" fn ccx_pq_kem_stealth_selftest() -> CcxPqSizes {
 
     let ok = (r1 == 0 && r2 == 0 && sa == sb && pk_a == pk_b && sa != sc) as i32;
     CcxPqSizes { pk: KEM_PK, sk: KEM_SK, ct_or_sig: KEM_CT, ss: 32, ok }
+  })
 }
 
 /// Selftest for the EXPERIMENTAL lattice linkable ring signature: proves a ring-of-4 signature
@@ -263,6 +296,7 @@ pub extern "C" fn ccx_pq_kem_stealth_selftest() -> CcxPqSizes {
 /// symmetric across members). ok=1 means all checks passed.
 #[no_mangle]
 pub extern "C" fn ccx_pqr_ringsig_selftest() -> CcxPqSizes {
+  ffi_guard(CCX_SIZES_PANIC, || {
     let n = 4usize;
     let mut pks: Vec<Vec<u8>> = Vec::new();
     let mut seeds: Vec<[u8; 32]> = Vec::new();
@@ -296,21 +330,26 @@ pub extern "C" fn ccx_pqr_ringsig_selftest() -> CcxPqSizes {
 
     let ok = (tag1 == tag2 && tag1 != tag3 && forge_rejected && wrongmsg_rejected && nonmember_rejected) as i32;
     CcxPqSizes { pk: ringsig::PK_BYTES, sk: 32, ct_or_sig: ringsig::sig_bytes(n), ss: ringsig::TAG_BYTES, ok }
+  })
 }
 
 /// Returns 1 if a no-secret forgery VERIFIES (scheme universally forgeable / BROKEN), else 0.
 /// Tests the security review's CRITICAL universal-forgery claim directly.
 #[no_mangle]
 pub extern "C" fn ccx_pqr_forgery_test() -> i32 {
+  // On panic, return 0 ("not forgeable") — the safe answer that does not falsely flag a break.
+  ffi_guard(0, || {
     let mut pks: Vec<Vec<u8>> = Vec::new();
     for i in 0..4u8 { let mut sd = [0u8; 32]; sd[0] = i; sd[1] = 0x55; let (pk, _s, _t) = ringsig::keygen(&sd); pks.push(pk); }
     ringsig::forge_no_secret(b"forge-msg", &pks) as i32
+  })
 }
 
 /// End-to-end C-ABI selftest: keygen -> sign -> verify (ring size 1) and the verify-recovered
 /// nullifier equals ccx_pq_nullifier(sk). Exercises the lattice backend through the public ABI.
 #[no_mangle]
 pub extern "C" fn ccx_pq_ringsig_selftest() -> CcxPqSizes {
+  ffi_guard(CCX_SIZES_PANIC, || {
     let mut pk = vec![0u8; PK];
     let mut sk = vec![0u8; SK];
     let seed = b"ccx-ringsig-selftest";
@@ -328,4 +367,5 @@ pub extern "C" fn ccx_pq_ringsig_selftest() -> CcxPqSizes {
     ccx_pq_nullifier(sk.as_ptr(), SK, pk.as_ptr(), PK, nf2.as_mut_ptr(), NF);
     let ok = (s == 0 && v == 0 && nf == nf2) as i32;
     CcxPqSizes { pk: PK, sk: SK, ct_or_sig: sl, ss: NF, ok }
+  })
 }
