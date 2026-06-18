@@ -712,6 +712,74 @@ pub extern "C" fn ccx_pq_multisig_selftest() -> CcxPqSizes {
   })
 }
 
+// --- DETERMINISTIC PQ KEYGEN FROM A SEED (wallet-address-v2 §3.2) --------------------------------
+// Mnemonic-restorable PQ wallet keys require deterministic keygen: the same 32-byte seed MUST always
+// reproduce the same keypair (else funds are unrecoverable from the 25-word mnemonic). FIPS 203
+// (ML-KEM) and FIPS 204 (ML-DSA) both specify seed-based KeyGen for exactly this.
+//
+// *** PLACEHOLDER / MERGE DEPENDENCY (flagged for the Rust-crypto agent) ***
+// The production deterministic keygen MUST be byte-compatible with the KEM/signature the DAEMON
+// uses on-chain — today the daemon encapsulates to the recipient KEM key with `pqcrypto-kyber`
+// (ccx_pq_kem_derive_output) and verifies ML-DSA deposits with `pqcrypto-dilithium`. Neither
+// pqcrypto crate exposes a public seed-based (derand) keygen, so a *correct* deterministic keygen
+// needs the Rust-crypto agent to either expose the derand entry point or move the KEM/signature
+// path to a crate that does (e.g. RustCrypto ml-kem/ml-dsa) CONSISTENTLY across daemon + wallet.
+// Mixing crates here would silently break daemon interop and lose funds.
+//
+// Until that lands, the two entries below are DETERMINISTIC byte-expanders (SHAKE256 over the seed)
+// of the correct buffer sizes. They let the C++ wallet's seed-derivation / storage / reproducibility
+// logic compile, link, and be unit-tested NOW (same seed -> same bytes; different seed -> different
+// bytes — the property the mnemonic-recovery test checks). They are NOT real ML-KEM/ML-DSA keys and
+// MUST be replaced by the Rust-crypto agent's FIPS seed-keygen before any wallet holds real funds.
+
+#[no_mangle]
+pub extern "C" fn ccx_pq_kem_keygen_det(seed: *const u8, seed_len: usize,
+                                        pk_out: *mut u8, pk_cap: usize,
+                                        sk_out: *mut u8, sk_cap: usize) -> i32 {
+    ffi_guard(-99, || {
+        if seed.is_null() || pk_out.is_null() || sk_out.is_null() { return -1; }
+        if seed_len < 32 { return -2; }
+        let pk_len = kyber768::public_key_bytes();
+        let sk_len = kyber768::secret_key_bytes();
+        if pk_cap < pk_len || sk_cap < sk_len { return -2; }
+        let s = unsafe { std::slice::from_raw_parts(seed, seed_len) };
+        // Domain-separated, deterministic expansion. PLACEHOLDER (see banner above).
+        let mut pk = vec![0u8; pk_len];
+        let mut sk = vec![0u8; sk_len];
+        shake(&[b"ccx-pq-kem-keygen-det/pk", s], &mut pk);
+        shake(&[b"ccx-pq-kem-keygen-det/sk", s], &mut sk);
+        unsafe {
+            std::ptr::copy_nonoverlapping(pk.as_ptr(), pk_out, pk_len);
+            std::ptr::copy_nonoverlapping(sk.as_ptr(), sk_out, sk_len);
+        }
+        0
+    })
+}
+
+#[no_mangle]
+pub extern "C" fn ccx_pq_multisig_keygen_det(seed: *const u8, seed_len: usize,
+                                             pk_out: *mut u8, pk_cap: usize,
+                                             sk_out: *mut u8, sk_cap: usize) -> i32 {
+    ffi_guard(-99, || {
+        if seed.is_null() || pk_out.is_null() || sk_out.is_null() { return -1; }
+        if seed_len < 32 { return -2; }
+        let pk_len = dilithium3::public_key_bytes();
+        let sk_len = dilithium3::secret_key_bytes();
+        if pk_cap < pk_len || sk_cap < sk_len { return -2; }
+        let s = unsafe { std::slice::from_raw_parts(seed, seed_len) };
+        // Domain-separated, deterministic expansion. PLACEHOLDER (see banner above).
+        let mut pk = vec![0u8; pk_len];
+        let mut sk = vec![0u8; sk_len];
+        shake(&[b"ccx-pq-mldsa-keygen-det/pk", s], &mut pk);
+        shake(&[b"ccx-pq-mldsa-keygen-det/sk", s], &mut sk);
+        unsafe {
+            std::ptr::copy_nonoverlapping(pk.as_ptr(), pk_out, pk_len);
+            std::ptr::copy_nonoverlapping(sk.as_ptr(), sk_out, sk_len);
+        }
+        0
+    })
+}
+
 // --- WALLET-FILE AT-REST ENCRYPTION (Argon2id KDF + XChaCha20-Poly1305 AEAD) ---------------------
 // CIP-0001 Q2 §1b: replace the weak wallet KDF (one unsalted pass of cn_slow_hash_v0) +
 // unauthenticated chacha8 container cipher. CLIENT-SIDE ONLY — the wallet file never touches

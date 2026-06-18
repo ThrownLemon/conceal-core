@@ -13,6 +13,15 @@ size_t ccx_pq_seckey_bytes(void);
 size_t ccx_pq_nullifier_bytes(void);
 int32_t ccx_pq_keygen(const uint8_t *seed, size_t seed_len,
                       uint8_t *pk_out, size_t pk_cap, uint8_t *sk_out, size_t sk_cap);
+/* DETERMINISTIC PQ keygen from a 32-byte seed (FIPS 203 / 204 seed-based KeyGen) for mnemonic-
+   restorable wallet keys (CIP-0001 wallet-address-v2 §3.2). Same seed MUST always reproduce the same
+   keypair (else funds are unrecoverable from the mnemonic). Sizes match ccx_pq_kem_*_bytes() /
+   ccx_pq_multisig_*_bytes(). NOTE: the wallet derives the PQ seed from the 25-word master seed via a
+   domain-separated SHAKE before calling these. */
+int32_t ccx_pq_kem_keygen_det(const uint8_t *seed, size_t seed_len,
+                              uint8_t *pk_out, size_t pk_cap, uint8_t *sk_out, size_t sk_cap);
+int32_t ccx_pq_multisig_keygen_det(const uint8_t *seed, size_t seed_len,
+                                   uint8_t *pk_out, size_t pk_cap, uint8_t *sk_out, size_t sk_cap);
 int32_t ccx_pq_nullifier(const uint8_t *sk, size_t sk_len, const uint8_t *pk, size_t pk_len,
                          uint8_t *nf_out, size_t nf_cap);
 int32_t ccx_pq_sign(const uint8_t *msg, size_t msg_len,

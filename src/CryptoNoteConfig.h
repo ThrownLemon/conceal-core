@@ -20,6 +20,14 @@ namespace cn
 		const size_t CRYPTONOTE_MAX_BLOCK_BLOB_SIZE = 500000000;
 		const size_t CRYPTONOTE_MAX_TX_SIZE = 1000000000;
 		const uint64_t CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x7ad4; /* ccx7 address prefix */
+		// PQ address v2 prefixes (CIP-0001 wallet-address-v2). Base58 varint tags tuned so the address
+		// renders a recognisable human prefix (first 4 chars stable across the flags byte), the same way
+		// 0x7ad4 was tuned to "ccx7". Computed by brute-forcing the tag; see wallet-v2-impl.md.
+		//   0x14fad4 -> "ccxp..." (PQ-only: ML-KEM-768 public key)
+		//   0x117ad4 -> "ccxh..." (hybrid: legacy Ed25519 spend+view AND ML-KEM-768 public key)
+		// Testnet-gated until the ring signature is audited; mainnet PQ addresses are parse-only for now.
+		const uint64_t CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x14fad4;     /* ccxp PQ address prefix */
+		const uint64_t CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x117ad4; /* ccxh hybrid address prefix */
 		const size_t CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW = 10;			 /* 20 minutes */
 		const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT = 60 * 60 * 2; /* two hours */
 		const uint64_t CRYPTONOTE_BLOCK_FUTURE_TIME_LIMIT_V1 = 360;		 /* changed for LWMA3 */
@@ -162,6 +170,19 @@ namespace cn
 	const uint64_t GENESIS_TIMESTAMP = 1527078920;
 
 	const uint64_t TESTNET_GENESIS_TIMESTAMP = 1632048808;
+
+	// Testnet PQ address v2 prefixes (distinct human prefix from mainnet). See wallet-address-v2.md.
+	//   0x220bd6 -> "ctp..." (testnet PQ-only)   0x164a56 -> "cth..." (testnet hybrid)
+	const uint64_t TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x220bd6;     /* ctp testnet PQ address prefix */
+	const uint64_t TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x164a56; /* cth testnet hybrid address prefix */
+
+	// ML-KEM-768 (FIPS 203) public-key length carried in a PQ address (bytes). Pinned here so the
+	// address parser can length-validate without calling the FFI; cross-checked against
+	// ccx_pq_kem_pubkey_bytes() at runtime. The 4096-byte ring-sig key is per-output/derived and is
+	// NOT in the address (wallet-address-v2.md §1).
+	const size_t  PQ_KEM_PUBLIC_KEY_SIZE = 1184;
+	const uint8_t PQ_ADDRESS_VERSION = 2;            /* PqAccountPublicAddress.pqVersion */
+	const uint32_t PQ_KEM_SCHEME_ID = 0xC0DE0203;    /* ML-KEM-768 message/stealth KEM scheme id (agility pin) */
 
 	const uint8_t TRANSACTION_VERSION_1 = 1;
 	const uint8_t TRANSACTION_VERSION_2 = 2;

@@ -53,6 +53,7 @@ void serialize(Block& block, ISerializer& serializer);
 void serialize(TransactionExtraMergeMiningTag& tag, ISerializer& serializer);
 
 void serialize(AccountPublicAddress& address, ISerializer& serializer);
+void serialize(PqAccountPublicAddress& address, ISerializer& serializer);
 void serialize(AccountKeys& keys, ISerializer& s);
 void serialize(TransactionInputs &inputs, ISerializer &serializer);
 
