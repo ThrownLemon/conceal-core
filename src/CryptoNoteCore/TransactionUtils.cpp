@@ -49,6 +49,10 @@ uint64_t getTransactionInputAmount(const TransactionInput& in) {
     // TODO calculate interest
     return boost::get<MultisignatureInput>(in).amount;
   }
+  if (in.type() == typeid(PqMultisigInput)) {
+    // PQ deposit input (CIP-0001): principal only here, mirroring the MultisignatureInput case.
+    return boost::get<PqMultisigInput>(in).amount;
+  }
   return 0;
 }
 

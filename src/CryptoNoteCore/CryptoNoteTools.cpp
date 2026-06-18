@@ -40,6 +40,8 @@ uint64_t getInputAmount(const Transaction& transaction) {
       amount += boost::get<KeyInput>(input).amount;
     } else if (input.type() == typeid(MultisignatureInput)) {
       amount += boost::get<MultisignatureInput>(input).amount;
+    } else if (input.type() == typeid(PqMultisigInput)) {
+      amount += boost::get<PqMultisigInput>(input).amount; // PQ deposit principal (CIP-0001)
     }
   }
 
@@ -55,6 +57,8 @@ std::vector<uint64_t> getInputsAmounts(const Transaction& transaction) {
       inputsAmounts.push_back(boost::get<KeyInput>(input).amount);
     } else if (input.type() == typeid(MultisignatureInput)) {
       inputsAmounts.push_back(boost::get<MultisignatureInput>(input).amount);
+    } else if (input.type() == typeid(PqMultisigInput)) {
+      inputsAmounts.push_back(boost::get<PqMultisigInput>(input).amount); // PQ deposit principal (CIP-0001)
     }
   }
 

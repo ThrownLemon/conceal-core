@@ -71,6 +71,27 @@ namespace cn
 namespace cn
 {
 
+  // True if the transaction carries any PQ deposit (multisig) variant — used to height-gate PQ
+  // deposits behind UPGRADE_HEIGHT_V9 (CIP-0001).
+  static bool transactionContainsPqMultisig(const Transaction &tx)
+  {
+    for (const auto &in : tx.inputs)
+    {
+      if (in.type() == typeid(PqMultisigInput))
+      {
+        return true;
+      }
+    }
+    for (const auto &out : tx.outputs)
+    {
+      if (out.target.type() == typeid(PqMultisigOutput))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // custom serialization to speedup cache loading
   bool serialize(std::vector<std::pair<Blockchain::TransactionIndex, uint16_t>> &value, common::StringView name, cn::ISerializer &s)
   {
@@ -239,6 +260,11 @@ namespace cn
 
       logger(INFO) << operation << "pq nullifiers";
       s(m_bs.m_spent_pq_nullifiers, "pq_nullifiers");
+
+      // PQ deposit cell index (with per-cell isUsed) MUST persist, else a restart forgets which PQ
+      // deposits were spent and the same cell could be double-spent (CIP-0001 UPGRADE_HEIGHT_V9).
+      logger(INFO) << operation << "pq multisig outputs";
+      s(m_bs.m_pqMultisigOutputs, "pq_multisig_outputs");
 
       logger(INFO) << operation << "deposit index";
       s(m_bs.m_depositIndex, "deposit_index");
@@ -699,6 +725,7 @@ namespace cn
       m_spent_keys.clear();
       m_outputs.clear();
       m_multisignatureOutputs.clear();
+      m_pqMultisigOutputs.clear();
       for (uint32_t b = 0; b < m_blocks.size(); ++b)
       {
         if (b % 1000 == 0)
@@ -734,6 +761,13 @@ namespace cn
               const std::vector<uint8_t> &nf = boost::get<PqKeyInput>(i).nullifier;
               m_spent_pq_nullifiers.insert(std::make_pair(std::string(nf.begin(), nf.end()), b));
             }
+            else if (i.type() == typeid(PqMultisigInput))
+            {
+              // Repopulate the PQ deposit double-spend flag on initial scan / rebuild, mirroring the
+              // MultisignatureInput case so a spent deposit cell stays spent across a reload.
+              const auto &in = boost::get<PqMultisigInput>(i);
+              m_pqMultisigOutputs[in.amount][in.outputIndex].isUsed = true;
+            }
           }
 
           // process outputs
@@ -752,6 +786,12 @@ namespace cn
             else if (out.target.type() == typeid(PqKeyOutput))
             {
               m_pqOutputs[out.amount].push_back(std::make_pair<>(transactionIndex, o));
+            }
+            else if (out.target.type() == typeid(PqMultisigOutput))
+            {
+              // Rebuild the PQ deposit index on initial scan, mirroring the MultisignatureOutput case.
+              MultisignatureOutputUsage usage = {transactionIndex, static_cast<uint16_t>(o), false};
+              m_pqMultisigOutputs[out.amount].push_back(usage);
             }
           }
 
@@ -2334,6 +2374,30 @@ namespace cn
 
         ++inputIndex;
       }
+      else if (txin.type() == typeid(PqMultisigInput))
+      {
+        const PqMultisigInput &pqin = boost::get<PqMultisigInput>(txin);
+        if (!isInCheckpointZone(getCurrentBlockchainHeight()))
+        {
+          // The signed message is the prefix with every inline PQ signature cleared (shared by all
+          // PQ-bearing inputs in this tx) — compute it once on first use, identically to PqKeyInput.
+          if (!pqSigningHashReady)
+          {
+            pqSigningHash = getTransactionPqSigningHash(tx);
+            pqSigningHashReady = true;
+          }
+          if (!check_pq_multisig(pqin, transactionHash, pqSigningHash))
+          {
+            logger(INFO, BRIGHT_WHITE) << "Failed to check PQ multisignature input in transaction " << transactionHash;
+            return false;
+          }
+        }
+
+        // tx.signatures is POSITIONAL; getSignaturesCount(PqMultisigInput) == 0, so this slot is a
+        // real-but-empty entry. Advance inputIndex (mirror PqKeyInput, :2300-2304) so later
+        // KeyInput / MultisignatureInput slots stay aligned in mixed-input transactions.
+        ++inputIndex;
+      }
       else
       {
         logger(INFO, BRIGHT_WHITE) << "Transaction << " << transactionHash << " contains input of unsupported type.";
@@ -2452,6 +2516,13 @@ namespace cn
       if (in.type() == typeid(PqKeyInput))
       {
         boost::get<PqKeyInput>(in).ringSig.clear();
+      }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        // A PQ multisig (deposit) input carries its m ML-DSA sigs INLINE in the prefix, so — exactly
+        // like PqKeyInput.ringSig — they must be cleared before hashing (a signature cannot commit
+        // to itself). The signer (injector / wallet) MUST compute this identical hash.
+        boost::get<PqMultisigInput>(in).signatures.clear();
       }
     }
     return getObjectHash(prefix);
@@ -2931,6 +3002,20 @@ namespace cn
         logger(INFO, BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id << " because it has invalid version " << transactions[i].version;
       }
 
+      // HEIGHT GATE (CIP-0001 UPGRADE_HEIGHT_V9): a PQ deposit (PqMultisigInput/PqMultisigOutput) is
+      // only consensus-valid at or after the V9 upgrade height. Below it, reject any tx carrying one.
+      // Mainnet's V9 height is a far-future sentinel past the last checkpoint, so PQ deposits never
+      // activate on mainnet until audited; testnet activates at TESTNET_UPGRADE_HEIGHT_V9. NEVER apply
+      // retroactively.
+      if (isTransactionValid && transactionContainsPqMultisig(transactions[i]) &&
+          block.height < m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9))
+      {
+        isTransactionValid = false;
+        logger(INFO, BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id
+                                   << " because PQ deposits are not active until height "
+                                   << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9);
+      }
+
 
       if (!checkTransactionInputs(transactions[i]))
       {
@@ -3201,6 +3286,13 @@ namespace cn
         auto &amountOutputs = m_multisignatureOutputs[in.amount];
         amountOutputs[in.outputIndex].isUsed = true;
       }
+      else if (inv.type() == typeid(PqMultisigInput))
+      {
+        // Mark the spent PQ deposit cell used (double-spend guard), mirroring the Ed25519 path.
+        const PqMultisigInput &in = ::boost::get<PqMultisigInput>(inv);
+        auto &amountOutputs = m_pqMultisigOutputs[in.amount];
+        amountOutputs[in.outputIndex].isUsed = true;
+      }
     }
 
     transaction.m_global_output_indexes.resize(transaction.tx.outputs.size());
@@ -3221,6 +3313,15 @@ namespace cn
       else if (transaction.tx.outputs[output].target.type() == typeid(MultisignatureOutput))
       {
         auto &amountOutputs = m_multisignatureOutputs[transaction.tx.outputs[output].amount];
+        transaction.m_global_output_indexes[output] = static_cast<uint32_t>(amountOutputs.size());
+        MultisignatureOutputUsage outputUsage = {transactionIndex, static_cast<uint16_t>(output), false};
+        amountOutputs.push_back(outputUsage);
+      }
+      else if (transaction.tx.outputs[output].target.type() == typeid(PqMultisigOutput))
+      {
+        // PQ deposit cell: index it exactly like a MultisignatureOutput (same usage struct, same
+        // isUsed=false), into the parallel m_pqMultisigOutputs index (CIP-0001 UPGRADE_HEIGHT_V9).
+        auto &amountOutputs = m_pqMultisigOutputs[transaction.tx.outputs[output].amount];
         transaction.m_global_output_indexes[output] = static_cast<uint32_t>(amountOutputs.size());
         MultisignatureOutputUsage outputUsage = {transactionIndex, static_cast<uint16_t>(output), false};
         amountOutputs.push_back(outputUsage);
@@ -3356,6 +3457,54 @@ namespace cn
           m_multisignatureOutputs.erase(amountOutputs);
         }
       }
+      else if (output.target.type() == typeid(PqMultisigOutput))
+      {
+        // REORG SYMMETRY (CRITICAL): pop the PQ deposit cell from m_pqMultisigOutputs exactly the way
+        // the MultisignatureOutput branch above pops m_multisignatureOutputs — same consistency
+        // guards, same isUsed check, same LIFO order. An asymmetric pop corrupts the deposit index on
+        // a reorg (the PoC hit this class of bug for m_pqOutputs, fixed in commit 4af0ec2).
+        auto amountOutputs = m_pqMultisigOutputs.find(output.amount);
+        if (amountOutputs == m_pqMultisigOutputs.end())
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - cannot find specific amount in PQ multisig outputs map.";
+
+          continue;
+        }
+
+        if (amountOutputs->second.empty())
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - PQ multisig output array for specific amount is empty.";
+
+          continue;
+        }
+
+        if (amountOutputs->second.back().isUsed)
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - attempting to remove used PQ multisig output.";
+
+          continue;
+        }
+
+        if (amountOutputs->second.back().transactionIndex.block != transactionIndex.block || amountOutputs->second.back().transactionIndex.transaction != transactionIndex.transaction)
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - invalid PQ multisig transaction index.";
+
+          continue;
+        }
+
+        if (amountOutputs->second.back().outputIndex != transaction.outputs.size() - 1 - outputIndex)
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - invalid PQ multisig output index.";
+
+          continue;
+        }
+
+        amountOutputs->second.pop_back();
+        if (amountOutputs->second.empty())
+        {
+          m_pqMultisigOutputs.erase(amountOutputs);
+        }
+      }
     }
 
     for (auto &input : transaction.inputs)
@@ -3384,6 +3533,20 @@ namespace cn
         if (!amountOutputs[in.outputIndex].isUsed)
         {
           logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - multisignature output not marked as used.";
+        }
+
+        amountOutputs[in.outputIndex].isUsed = false;
+      }
+      else if (input.type() == typeid(PqMultisigInput))
+      {
+        // REORG SYMMETRY (CRITICAL): clear the spent flag on the PQ deposit cell exactly the way the
+        // MultisignatureInput branch does, so a rolled-back spend frees the cell for re-spend after a
+        // reorg. Asymmetry here would wedge a legitimate deposit (cell stuck isUsed=true forever).
+        const PqMultisigInput &in = ::boost::get<PqMultisigInput>(input);
+        auto &amountOutputs = m_pqMultisigOutputs[in.amount];
+        if (!amountOutputs[in.outputIndex].isUsed)
+        {
+          logger(ERROR, BRIGHT_RED) << "Blockchain consistency broken - PQ multisignature output not marked as used.";
         }
 
         amountOutputs[in.outputIndex].isUsed = false;
@@ -3477,6 +3640,126 @@ namespace cn
       }
 
       if (crypto::check_signature(transactionPrefixHash, output.keys[outputKeyIndex], transactionSignatures[inputSignatureIndex]))
+      {
+        ++inputSignatureIndex;
+      }
+
+      ++outputKeyIndex;
+    }
+
+    return true;
+  }
+
+  // PQ DEPOSIT spend validation (CIP-0001, UPGRADE_HEIGHT_V9). A line-for-line port of
+  // validateInput(MultisignatureInput) above, with ONLY the signature primitive swapped:
+  // Ed25519 crypto::check_signature -> ML-DSA-65 ccx_pq_multisig_verify. The m ML-DSA detached sigs
+  // are carried inline in input.signatures (NOT in tx.signatures) and verified over the SAME
+  // transactionPrefixHash. term / interest / lock / double-spend (isUsed) semantics are IDENTICAL.
+  bool Blockchain::check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash)
+  {
+    std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+
+    // input.signatures count must equal the declared signatureCount (the sigs live inline, so
+    // unlike the Ed25519 path there is no tx.signatures slot whose size to assert against).
+    if (input.signatures.size() != input.signatureCount)
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with mismatched inline signature count.";
+      return false;
+    }
+
+    MultisignatureOutputsContainer::const_iterator amountOutputs = m_pqMultisigOutputs.find(input.amount);
+    if (amountOutputs == m_pqMultisigOutputs.end())
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid amount.";
+      return false;
+    }
+
+    if (input.outputIndex >= amountOutputs->second.size())
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid outputIndex.";
+      return false;
+    }
+
+    const MultisignatureOutputUsage &outputIndex = amountOutputs->second[input.outputIndex];
+    if (outputIndex.isUsed)
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains double spending PQ multisignature input.";
+      return false;
+    }
+
+    const Transaction &outputTransaction = m_blocks[outputIndex.transactionIndex.block].transactions[outputIndex.transactionIndex.transaction].tx;
+    if (!is_tx_spendtime_unlocked(outputTransaction.unlockTime))
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input which points to a locked transaction.";
+      return false;
+    }
+
+    // Type guard instead of the Ed25519 path's asserts: a corrupt index must reject, not abort.
+    const TransactionOutputTarget &target = outputTransaction.outputs[outputIndex.outputIndex].target;
+    if (outputTransaction.outputs[outputIndex.outputIndex].amount != input.amount || target.type() != typeid(PqMultisigOutput))
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input pointing to a non-PQ-multisig output.";
+      return false;
+    }
+    const PqMultisigOutput &output = ::boost::get<PqMultisigOutput>(target);
+
+    if (input.signatureCount != output.requiredSignatureCount)
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid signature count.";
+      return false;
+    }
+
+    // BIND the input's term to the on-chain output's term BEFORE any interest is computed. This is
+    // the interest-minting safety guarantee: input_amount_visitor derives interest from input.term,
+    // and output.term has already passed validateOutput's term band — so an attacker cannot mint
+    // arbitrary interest by declaring a larger term than the deposit actually has.
+    if (input.term != output.term)
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid term.";
+      return false;
+    }
+
+    // DEPOSIT LOCK (ported byte-for-byte): a deposit (term != 0) cannot be spent until its term has
+    // fully elapsed since the block that created it. Off-by-one here allows early withdrawal and
+    // over-credits interest, so the comparison must match the Ed25519 path exactly.
+    if (output.term != 0 && outputIndex.transactionIndex.block + output.term > getCurrentBlockchainHeight())
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input that spends locked deposit output";
+      return false;
+    }
+
+    const size_t pkBytes = ccx_pq_multisig_pubkey_bytes();
+    if (pkBytes == 0)
+    {
+      logger(ERROR, BRIGHT_RED) << "ccx-pqc reports zero ML-DSA public-key size";
+      return false;
+    }
+
+    // m-of-n match: the SAME greedy loop as the Ed25519 path (each signature must match a distinct,
+    // in-order key), only check_signature -> ccx_pq_multisig_verify over the prefix hash.
+    size_t inputSignatureIndex = 0;
+    size_t outputKeyIndex = 0;
+    while (inputSignatureIndex < input.signatureCount)
+    {
+      if (outputKeyIndex == output.keys.size())
+      {
+        logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid signatures.";
+        return false;
+      }
+
+      // Exact-length guard at the verify boundary (DoS / malformed-key): the on-chain key was
+      // length-checked in check_outs_valid, but re-check here so a corrupt index can never reach
+      // the FFI with a wrong-length buffer.
+      if (output.keys[outputKeyIndex].size() != pkBytes)
+      {
+        logger(DEBUGGING) << "Transaction << " << transactionHash << " references PQ multisignature key of wrong length.";
+        return false;
+      }
+
+      if (ccx_pq_multisig_verify(
+              reinterpret_cast<const uint8_t *>(&transactionPrefixHash), sizeof(transactionPrefixHash),
+              output.keys[outputKeyIndex].data(), pkBytes,
+              input.signatures[inputSignatureIndex].data(), input.signatures[inputSignatureIndex].size()) == 0)
       {
         ++inputSignatureIndex;
       }

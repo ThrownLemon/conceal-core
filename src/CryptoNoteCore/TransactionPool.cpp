@@ -63,6 +63,16 @@ namespace cn
           (void)r; //just to make compiler to shut up
           assert(r.second);
         }
+        else if (in.type() == typeid(PqMultisigInput))
+        {
+          // PQ deposit cells share the (amount, outputIndex) keyspace of m_usedOutputs here; a same
+          // (amount, outputIndex) Ed25519 vs PQ collision would only conservatively skip a tx in one
+          // block template (never a consensus error), so reusing the set is safe.
+          const auto &pqmsig = boost::get<PqMultisigInput>(in);
+          auto r = m_usedOutputs.insert(std::make_pair(pqmsig.amount, pqmsig.outputIndex));
+          (void)r;
+          assert(r.second);
+        }
       }
 
       m_txHashes.push_back(txid);
@@ -90,6 +100,14 @@ namespace cn
         {
           const auto &msig = boost::get<MultisignatureInput>(in);
           if (m_usedOutputs.count(std::make_pair(msig.amount, msig.outputIndex)))
+          {
+            return false;
+          }
+        }
+        else if (in.type() == typeid(PqMultisigInput))
+        {
+          const auto &pqmsig = boost::get<PqMultisigInput>(in);
+          if (m_usedOutputs.count(std::make_pair(pqmsig.amount, pqmsig.outputIndex)))
           {
             return false;
           }
@@ -132,7 +150,7 @@ namespace cn
     for (const auto &in : tx.inputs)
     {
       const auto &inputType = in.type();
-      if (inputType == typeid(MultisignatureInput))
+      if (inputType == typeid(MultisignatureInput) || inputType == typeid(PqMultisigInput))
       {
         isWithdrawalTransaction = true;
       }
@@ -542,6 +560,7 @@ namespace cn
       m_spent_key_images.clear();
       m_spentOutputs.clear();
       m_spent_pq_nullifiers.clear();
+      m_spentPqDeposits.clear();
 
       m_paymentIdIndex.clear();
       m_timestampIndex.clear();
@@ -623,6 +642,7 @@ namespace cn
     KV_MEMBER(m_spent_key_images);
     KV_MEMBER(m_spentOutputs);
     KV_MEMBER(m_spent_pq_nullifiers);
+    KV_MEMBER(m_spentPqDeposits);
     KV_MEMBER(m_recentlyDeletedTransactions);
   }
 
@@ -757,6 +777,16 @@ namespace cn
           m_spent_pq_nullifiers.erase(nfk);
         }
       }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        if (!keptByBlock)
+        {
+          const auto &pqin = boost::get<PqMultisigInput>(in);
+          auto output = GlobalOutput(pqin.amount, pqin.outputIndex);
+          assert(m_spentPqDeposits.count(output));
+          m_spentPqDeposits.erase(output);
+        }
+      }
     }
 
     return true;
@@ -807,6 +837,16 @@ namespace cn
           assert(r.second);
         }
       }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        if (!keptByBlock)
+        {
+          const auto &pqin = boost::get<PqMultisigInput>(in);
+          auto r = m_spentPqDeposits.insert(GlobalOutput(pqin.amount, pqin.outputIndex));
+          (void)r;
+          assert(r.second);
+        }
+      }
     }
 
     return true;
@@ -837,6 +877,14 @@ namespace cn
       {
         const auto &pqin = boost::get<PqKeyInput>(in);
         if (m_spent_pq_nullifiers.count(std::string(pqin.nullifier.begin(), pqin.nullifier.end())))
+        {
+          return true;
+        }
+      }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        const auto &pqin = boost::get<PqMultisigInput>(in);
+        if (m_spentPqDeposits.count(GlobalOutput(pqin.amount, pqin.outputIndex)))
         {
           return true;
         }

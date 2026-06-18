@@ -267,6 +267,10 @@ bool get_inputs_money_amount(const Transaction& tx, uint64_t& money) {
       amount = boost::get<KeyInput>(in).amount;
     } else if (in.type() == typeid(MultisignatureInput)) {
       amount = boost::get<MultisignatureInput>(in).amount;
+    } else if (in.type() == typeid(PqMultisigInput)) {
+      // PQ deposit input (CIP-0001): non-interest principal only, mirroring the MultisignatureInput
+      // case. The interest is added separately by the Currency interest path.
+      amount = boost::get<PqMultisigInput>(in).amount;
     }
 
     money += amount;
@@ -294,6 +298,11 @@ bool check_inputs_types_supported(const TransactionPrefix& tx) {
       }
     } else if (inputType == typeid(PqKeyInput)) {
       // Post-quantum ring-signature input (CIP-0001), allowed from version 3 on.
+      if (tx.version < TRANSACTION_VERSION_3) {
+        return false;
+      }
+    } else if (inputType == typeid(PqMultisigInput)) {
+      // Post-quantum deposit (multisig) input (CIP-0001 UPGRADE_HEIGHT_V9), allowed from version 3 on.
       if (tx.version < TRANSACTION_VERSION_3) {
         return false;
       }
@@ -365,6 +374,44 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
         }
         return false;
       }
+    } else if (out.target.type() == typeid(PqMultisigOutput)) {
+      // Post-quantum deposit (multisig) output (CIP-0001 UPGRADE_HEIGHT_V9): n ML-DSA-65 public keys
+      // + requiredSignatureCount + term. Bound n, enforce m in [1, n], and enforce exact key lengths
+      // at the boundary so a malformed key cannot poison m_pqMultisigOutputs.
+      if (tx.version < TRANSACTION_VERSION_3) {
+        if (error) {
+          *error = "Transaction contains PQ multisignature output but its version is less than 3";
+        }
+        return false;
+      }
+      if (out.amount == 0) {
+        if (error) {
+          *error = "Zero amount PQ multisignature output";
+        }
+        return false;
+      }
+      const PqMultisigOutput& pqms = boost::get<PqMultisigOutput>(out.target);
+      if (pqms.keys.empty() || pqms.keys.size() > PQ_MULTISIG_MAX_KEYS) {
+        if (error) {
+          *error = "PQ multisignature output with out-of-bounds key count";
+        }
+        return false;
+      }
+      if (pqms.requiredSignatureCount == 0 || pqms.requiredSignatureCount > pqms.keys.size()) {
+        if (error) {
+          *error = "PQ multisignature output with invalid required signature count";
+        }
+        return false;
+      }
+      const size_t pkBytes = ccx_pq_multisig_pubkey_bytes();
+      for (const auto& key : pqms.keys) {
+        if (key.size() != pkBytes) {
+          if (error) {
+            *error = "PQ multisignature output key has wrong length";
+          }
+          return false;
+        }
+      }
     } else {
       if (error) {
         *error = "Output with invalid type";
@@ -378,10 +425,19 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
 
 bool checkMultisignatureInputsDiff(const TransactionPrefix& tx) {
   std::set<std::pair<uint64_t, uint32_t>> inputsUsage;
+  // PQ deposit cells live in a SEPARATE index (m_pqMultisigOutputs), so their (amount, outputIndex)
+  // namespace is distinct from the Ed25519 multisig cells — track them separately to catch a tx that
+  // spends the same PQ deposit cell twice without falsely colliding with an Ed25519 cell.
+  std::set<std::pair<uint64_t, uint32_t>> pqInputsUsage;
   for (const auto& inv : tx.inputs) {
     if (inv.type() == typeid(MultisignatureInput)) {
       const MultisignatureInput& in = ::boost::get<MultisignatureInput>(inv);
       if (!inputsUsage.insert(std::make_pair(in.amount, in.outputIndex)).second) {
+        return false;
+      }
+    } else if (inv.type() == typeid(PqMultisigInput)) {
+      const PqMultisigInput& in = ::boost::get<PqMultisigInput>(inv);
+      if (!pqInputsUsage.insert(std::make_pair(in.amount, in.outputIndex)).second) {
         return false;
       }
     }

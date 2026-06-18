@@ -283,7 +283,11 @@ namespace cn
     size_t m_current_block_cumul_sz_limit = 0;
     blocks_ext_by_hash m_alternative_chains; // crypto::Hash -> block_extended_info
     outputs_container m_outputs;
-    outputs_container m_pqOutputs;                          // PQ output index (PoC: in-memory, forward-only)
+    outputs_container m_pqOutputs;                          // PQ ring-sig output index (PoC: in-memory, forward-only)
+    // PQ multisig (deposit) output index — a faithful mirror of m_multisignatureOutputs, with the
+    // same per-cell isUsed flag for double-spend (CIP-0001, UPGRADE_HEIGHT_V9). NO nullifier set:
+    // a deposit is a named cell, so double-spend is caught here, exactly like the Ed25519 path.
+    MultisignatureOutputsContainer m_pqMultisigOutputs;
 
     std::string m_config_folder;
     Checkpoints m_checkpoints;
@@ -359,6 +363,11 @@ namespace cn
     void popTransaction(const Transaction &transaction, const crypto::Hash &transactionHash);
     void popTransactions(const BlockEntry &block, const crypto::Hash &minerTransactionHash);
     bool validateInput(const MultisignatureInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash, const std::vector<crypto::Signature> &transactionSignatures);
+    // Post-quantum DEPOSIT spend validation (CIP-0001, UPGRADE_HEIGHT_V9): a line-for-line port of
+    // validateInput(MultisignatureInput) with the signature primitive swapped from Ed25519
+    // check_signature to ML-DSA-65 ccx_pq_multisig_verify. term/interest/lock/double-spend logic is
+    // IDENTICAL; the m ML-DSA sigs are carried inline in input.signatures over transactionPrefixHash.
+    bool check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash);
     bool removeLastBlock();
     bool checkCheckpoints(uint32_t &lastValidCheckpointHeight);
     bool storeBlockchainIndices();
@@ -490,6 +499,31 @@ namespace cn
                       { return !check_key(key); }))
       {
         m_error = "contains multisignature output with invalid public key";
+        return false;
+      }
+
+      return true;
+    }
+    // PQ multisig (deposit) output (CIP-0001 UPGRADE_HEIGHT_V9). Mirrors the MultisignatureOutput
+    // check exactly: requires tx version >= 3, enforces the IDENTICAL term band + depositMinAmount
+    // via Currency::validateOutput, and m <= n. Exact key lengths are re-checked in check_outs_valid.
+    bool operator()(const PqMultisigOutput &out) const
+    {
+      if (m_tx.version < TRANSACTION_VERSION_3)
+      {
+        m_error = "contains PQ multisignature output but tx version is less than 3";
+        return false;
+      }
+
+      if (!m_currency.validateOutput(m_amount, out, m_height))
+      {
+        m_error = "contains invalid PQ multisignature output";
+        return false;
+      }
+
+      if (out.requiredSignatureCount == 0 || out.requiredSignatureCount > out.keys.size())
+      {
+        m_error = "contains PQ multisignature with invalid required signature count";
         return false;
       }
 

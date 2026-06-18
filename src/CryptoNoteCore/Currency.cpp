@@ -215,6 +215,10 @@ namespace cn
     {
       return m_upgradeHeightV8;
     }
+    else if (majorVersion == BLOCK_MAJOR_VERSION_9)
+    {
+      return m_upgradeHeightV9;
+    }
     else
     {
       return static_cast<uint32_t>(-1);
@@ -420,6 +424,21 @@ namespace cn
     return calculateInterest(input.amount, input.term, lockHeight);
   }
 
+  /* PQ deposit interest — byte-for-byte the same calculation as the Ed25519 MultisignatureInput
+     path above (same calculateInterest, same lockHeight, same missing-interest special case). The
+     caller binds input.term == output.term before this runs, so interest is computed from a
+     consensus-validated term — this is the interest-minting safety guarantee (CIP-0001). */
+  uint64_t Currency::getInterestForInput(const PqMultisigInput &input, uint32_t height) const
+  {
+    uint32_t lockHeight = height - input.term;
+    if (height == m_blockWithMissingInterest)
+    {
+      lockHeight = height;
+    }
+
+    return calculateInterest(input.amount, input.term, lockHeight);
+  }
+
   /* ---------------------------------------------------------------------------------------------------- */
 
   uint64_t Currency::calculateTotalTransactionInterest(const Transaction &tx, uint32_t height) const
@@ -433,6 +452,14 @@ namespace cn
         if (multisignatureInput.term != 0)
         {
           interest += getInterestForInput(multisignatureInput, height);
+        }
+      }
+      else if (input.type() == typeid(PqMultisigInput))
+      {
+        const PqMultisigInput &pqMultisigInput = boost::get<PqMultisigInput>(input);
+        if (pqMultisigInput.term != 0)
+        {
+          interest += getInterestForInput(pqMultisigInput, height);
         }
       }
     }
@@ -1387,6 +1414,34 @@ namespace cn
     return true;
   }
 
+  /* PQ deposit output validity — byte-for-byte the same term band / depositMinAmount rules as the
+     Ed25519 MultisignatureOutput path above; only the output type differs (CIP-0001). */
+  bool Currency::validateOutput(uint64_t amount, const PqMultisigOutput &output, uint32_t height) const
+  {
+    if (output.term != 0)
+    {
+      if (height > m_depositHeightV4)
+      {
+        if (output.term < m_depositMinTermV3 || output.term > m_depositMaxTermV3 || output.term % m_depositMinTermV3 != 0)
+        {
+          logger(INFO, BRIGHT_WHITE) << "PQ multisignature output has invalid term: " << output.term;
+          return false;
+        }
+      }
+      else if (output.term < m_depositMinTerm || output.term > m_depositMaxTermV1)
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ multisignature output has invalid term: " << output.term;
+        return false;
+      }
+      if (amount < m_depositMinAmount)
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ multisignature output is a deposit output, but it has too small amount: " << amount;
+        return false;
+      }
+    }
+    return true;
+  }
+
   uint64_t Currency::getGenesisTimestamp() const
   {
     if (m_testnet)
@@ -1465,6 +1520,7 @@ namespace cn
     upgradeHeightV6(parameters::UPGRADE_HEIGHT_V6);
     upgradeHeightV7(parameters::UPGRADE_HEIGHT_V7);
     upgradeHeightV8(parameters::UPGRADE_HEIGHT_V8);
+    upgradeHeightV9(parameters::UPGRADE_HEIGHT_V9);
     upgradeVotingThreshold(parameters::UPGRADE_VOTING_THRESHOLD);
     upgradeVotingWindow(parameters::UPGRADE_VOTING_WINDOW);
     upgradeWindow(parameters::UPGRADE_WINDOW);
