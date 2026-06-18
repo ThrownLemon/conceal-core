@@ -74,6 +74,12 @@ fn xof(parts: &[&[u8]]) -> impl XofReader {
     x.finalize_xof()
 }
 fn read_u32(r: &mut impl XofReader) -> u32 { let mut b = [0u8; 4]; r.read(&mut b); u32::from_le_bytes(b) }
+// Unbiased uniform in [0, span) via rejection of the top partial block (removes the modulo bias the
+// review flagged; real and decoy z then share an identical uniform distribution => anonymity holds).
+fn read_uniform(r: &mut impl XofReader, span: u32) -> u32 {
+    let limit = (u32::MAX / span) * span;
+    loop { let x = read_u32(r); if x < limit { return x % span; } }
+}
 
 // Public matrices A (K x L) and A2 (K x L) derived from fixed domain-separated seeds.
 fn gen_matrix(domain: &[u8]) -> [[Poly; L]; K] {
@@ -82,8 +88,7 @@ fn gen_matrix(domain: &[u8]) -> [[Poly; L]; K] {
         for l in 0..L {
             let mut r = xof(&[domain, &[k as u8, l as u8]]);
             for i in 0..N {
-                // rejection-free: reduce a 32-bit draw mod Q (slight bias, fine for a demo)
-                a[k][l][i] = (read_u32(&mut r) as i64) % Q - Q / 2;
+                a[k][l][i] = cmod(read_uniform(&mut r, Q as u32) as i64);
             }
         }
     }
@@ -97,15 +102,17 @@ fn sample_secret(seed: &[u8]) -> PolyVecL {
     let mut s: PolyVecL = [poly_zero(); L];
     let mut r = xof(&[b"ccx-lring-s", seed]);
     let span = (2 * ETA + 1) as u32;
-    for l in 0..L { for i in 0..N { s[l][i] = (read_u32(&mut r) % span) as i64 - ETA; } }
+    for l in 0..L { for i in 0..N { s[l][i] = read_uniform(&mut r, span) as i64 - ETA; } }
     s
 }
-// Mask y in [-GAMMA,GAMMA]^(L*N) from seed+nonce.
-fn sample_mask(seed: &[u8], nonce: u32) -> PolyVecL {
+// Mask y uniform in [-GAMMA,GAMMA]^(L*N) from a per-signature seed `rho`. `rho` MUST be bound to the
+// message+ring (see sign) so the same mask is never reused across two messages — nonce reuse would
+// leak the secret via z-z'=(c-c')*s.
+fn sample_mask(rho: &[u8], nonce: u32) -> PolyVecL {
     let mut y: PolyVecL = [poly_zero(); L];
-    let mut r = xof(&[b"ccx-lring-y", seed, &nonce.to_le_bytes()]);
+    let mut r = xof(&[b"ccx-lring-y", rho, &nonce.to_le_bytes()]);
     let span = (2 * GAMMA + 1) as u32;
-    for l in 0..L { for i in 0..N { y[l][i] = (read_u32(&mut r) % span) as i64 - GAMMA; } }
+    for l in 0..L { for i in 0..N { y[l][i] = read_uniform(&mut r, span) as i64 - GAMMA; } }
     y
 }
 // SampleInBall: challenge poly with TAU coeffs in {-1,+1}, rest 0, from a 32-byte seed.
@@ -167,9 +174,13 @@ pub fn sign(msg: &[u8], ring_pks: &[Vec<u8>], idx: usize, sk_seed: &[u8; 32]) ->
     for p in ring_pks { let mut off = 0; t_list.push(get_veck(p, &mut off)); }
 
     for attempt in 0..256u32 {
+        // Per-signature randomness bound to (secret, message, ring, attempt): makes the mask unique
+        // per message (no nonce reuse) and the decoys independent of any single input.
+        let mut rho = [0u8; 32];
+        { let mut rr = xof(&[b"ccx-lring-rho", sk_seed, msg, &ring_blob, &attempt.to_le_bytes()]); rr.read(&mut rho); }
         let mut z: Vec<PolyVecL> = vec![[poly_zero(); L]; n];
         // real branch commit
-        let y = sample_mask(sk_seed, attempt);
+        let y = sample_mask(&rho, 0);
         let w_j = mat_vec(&a, &y);
         let w2_j = mat_vec(&a2, &y);
         let mut seed = [[0u8; 32]; 1];
@@ -183,7 +194,7 @@ pub fn sign(msg: &[u8], ring_pks: &[Vec<u8>], idx: usize, sk_seed: &[u8; 32]) ->
         while i != idx {
             let c = sample_challenge(&seeds[i]);
             // simulate z_i uniform in [-ZBOUND, ZBOUND]
-            let zi = sample_mask_bounded(sk_seed, attempt, i as u32);
+            let zi = sample_mask_bounded(&rho, 0, i as u32);
             z[i] = zi;
             // w_i = A*z_i - c*t_i ; w2_i = A2*z_i - c*I
             let azi = mat_vec(&a, &z[i]);
@@ -217,12 +228,14 @@ pub fn sign(msg: &[u8], ring_pks: &[Vec<u8>], idx: usize, sk_seed: &[u8; 32]) ->
     None
 }
 
-// A second bounded mask used to simulate z_i (uniform in [-ZBOUND, ZBOUND]).
-fn sample_mask_bounded(seed: &[u8], attempt: u32, idx: u32) -> PolyVecL {
+// Simulated (decoy) response z_i: UNBIASED uniform in [-ZBOUND, ZBOUND], from a per-signature seed.
+// Matches the distribution of an accepted real z_j (uniform on the same range after rejection), so
+// the verifier cannot distinguish the real branch from the decoys.
+fn sample_mask_bounded(rho: &[u8], attempt: u32, idx: u32) -> PolyVecL {
     let mut y: PolyVecL = [poly_zero(); L];
-    let mut r = xof(&[b"ccx-lring-zsim", seed, &attempt.to_le_bytes(), &idx.to_le_bytes()]);
+    let mut r = xof(&[b"ccx-lring-zsim", rho, &attempt.to_le_bytes(), &idx.to_le_bytes()]);
     let span = (2 * ZBOUND + 1) as u32;
-    for l in 0..L { for i in 0..N { y[l][i] = (read_u32(&mut r) % span) as i64 - ZBOUND; } }
+    for l in 0..L { for i in 0..N { y[l][i] = read_uniform(&mut r, span) as i64 - ZBOUND; } }
     y
 }
 
@@ -258,4 +271,40 @@ pub fn verify(msg: &[u8], ring_pks: &[Vec<u8>], sig: &[u8]) -> Option<Vec<u8>> {
         seed = hash_seed(msg, &ring_blob, &tag_bytes, &w_i, &w2_i, nx);
     }
     if seed == seed0 { Some(tag_bytes) } else { None }
+}
+
+/// Adversarial test of the security review's CRITICAL claim ("simulate all branches with no secret,
+/// walk the chain forward, publish seed0 := seed_n -> ring closes for any ring and any I").
+/// Returns true iff the forged signature VERIFIES (i.e. the scheme is universally forgeable).
+pub fn forge_no_secret(msg: &[u8], ring_pks: &[Vec<u8>]) -> bool {
+    let n = ring_pks.len();
+    let a = matrix_a();
+    let a2 = matrix_a2();
+    let mut t_list: Vec<PolyVecK> = Vec::with_capacity(n);
+    for p in ring_pks { let mut o = 0; t_list.push(get_veck(p, &mut o)); }
+
+    // Forger's free choices: random in-range z_i and an arbitrary tag I (no secret used).
+    let mut z: Vec<PolyVecL> = Vec::with_capacity(n);
+    for i in 0..n { z.push(sample_mask_bounded(b"forge-z", 7, i as u32)); }
+    let mut i_tag: PolyVecK = [poly_zero(); K];
+    { let mut r = xof(&[b"forge-I"]); for k in 0..K { for j in 0..N { i_tag[k][j] = cmod(read_u32(&mut r) as i64); } } }
+    let mut tag_bytes = Vec::new(); put_veck(&mut tag_bytes, &i_tag);
+    let mut ring_blob = Vec::new(); for p in ring_pks { ring_blob.extend_from_slice(p); }
+
+    // Walk the chain forward from an arbitrary start, then publish seed0 := seed_n (the exact attack).
+    let mut seed = [0u8; 32];
+    for i in 0..n {
+        let c = sample_challenge(&seed);
+        let w = veck_sub(&mat_vec(&a, &z[i]), &veck_scale(&c, &t_list[i]));
+        let w2 = veck_sub(&mat_vec(&a2, &z[i]), &veck_scale(&c, &i_tag));
+        let nx = (i + 1) % n;
+        seed = hash_seed(msg, &ring_blob, &tag_bytes, &w, &w2, nx);
+    }
+    let seed0 = seed;
+
+    let mut sig = Vec::new();
+    sig.extend_from_slice(&seed0);
+    put_veck(&mut sig, &i_tag);
+    for zi in &z { put_vecl(&mut sig, zi); }
+    verify(msg, ring_pks, &sig).is_some()
 }

@@ -298,6 +298,15 @@ pub extern "C" fn ccx_pqr_ringsig_selftest() -> CcxPqSizes {
     CcxPqSizes { pk: ringsig::PK_BYTES, sk: 32, ct_or_sig: ringsig::sig_bytes(n), ss: ringsig::TAG_BYTES, ok }
 }
 
+/// Returns 1 if a no-secret forgery VERIFIES (scheme universally forgeable / BROKEN), else 0.
+/// Tests the security review's CRITICAL universal-forgery claim directly.
+#[no_mangle]
+pub extern "C" fn ccx_pqr_forgery_test() -> i32 {
+    let mut pks: Vec<Vec<u8>> = Vec::new();
+    for i in 0..4u8 { let mut sd = [0u8; 32]; sd[0] = i; sd[1] = 0x55; let (pk, _s, _t) = ringsig::keygen(&sd); pks.push(pk); }
+    ringsig::forge_no_secret(b"forge-msg", &pks) as i32
+}
+
 /// End-to-end C-ABI selftest: keygen -> sign -> verify (ring size 1) and the verify-recovered
 /// nullifier equals ccx_pq_nullifier(sk). Exercises the lattice backend through the public ABI.
 #[no_mangle]

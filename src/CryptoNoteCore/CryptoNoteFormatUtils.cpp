@@ -21,6 +21,7 @@
 #include "CryptoNoteBasicImpl.h"
 #include "CryptoNoteSerialization.h"
 #include "TransactionExtra.h"
+#include "pq_ring_sig.h" // ccx-pqc FFI: PQ output key/kemCt length checks (CIP-0001)
 #include "CryptoNoteTools.h"
 #include "Currency.h"
 
@@ -342,16 +343,25 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
         }
       }
     } else if (out.target.type() == typeid(PqKeyOutput)) {
-      // Post-quantum output (CIP-0001): plaintext amount, variable-length lattice public key.
+      // Post-quantum output (CIP-0001): plaintext amount, fixed-length lattice public key + KEM ct.
+      const PqKeyOutput& pqo = boost::get<PqKeyOutput>(out.target);
       if (out.amount == 0) {
         if (error) {
           *error = "Zero amount PQ output";
         }
         return false;
       }
-      if (boost::get<PqKeyOutput>(out.target).key.empty()) {
+      // Enforce exact lengths so a malformed (wrong-length) key cannot poison m_pqOutputs (the index
+      // would bloat and shift global offsets even though the output can never be spent).
+      if (pqo.key.size() != ccx_pq_pubkey_bytes()) {
         if (error) {
-          *error = "PQ output with empty key";
+          *error = "PQ output key has wrong length";
+        }
+        return false;
+      }
+      if (!pqo.kemCt.empty() && pqo.kemCt.size() != ccx_pq_kem_ct_bytes()) {
+        if (error) {
+          *error = "PQ output kemCt has wrong length";
         }
         return false;
       }

@@ -161,6 +161,8 @@ namespace cn
 	const uint8_t TRANSACTION_VERSION_2 = 2;
 		const uint8_t TRANSACTION_VERSION_3 = 3; /* PQ transactions (CIP-0001) */
 	const size_t  PQ_NULLIFIER_SIZE = 32;       /* ccx-pq nullifier length (bytes); bounds m_spent_pq_nullifiers keys */
+	const size_t  PQ_MIN_RING_SIZE = 2;         /* min distinct ring members for a PQ input (anonymity floor) */
+	const size_t  PQ_MAX_RING_SIZE = 16;        /* max ring members for a PQ input (bounds verify-cost CPU-DoS) */
 	/* Testnet PoC only (CIP-0001): deterministic seed for the PQ keypair that owns testnet coinbase
 	   PQ outputs. The daemon (coinbase) derives the public key; the injector derives the secret key.
 	   NOT a stealth/KEM scheme — a single shared known key, sufficient to exercise the spend path. */

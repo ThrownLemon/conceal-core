@@ -232,6 +232,14 @@ namespace cn
       logger(INFO) << operation << "multi-signature outputs";
       s(m_bs.m_multisignatureOutputs, "multisig_outputs");
 
+      // Post-quantum output index + spent-nullifier set MUST persist, else a restart forgets every
+      // spent PQ nullifier and the same PQ output can be double-spent (CIP-0001).
+      logger(INFO) << operation << "pq outputs";
+      s(m_bs.m_pqOutputs, "pq_outputs");
+
+      logger(INFO) << operation << "pq nullifiers";
+      s(m_bs.m_spent_pq_nullifiers, "pq_nullifiers");
+
       logger(INFO) << operation << "deposit index";
       s(m_bs.m_depositIndex, "deposit_index");
 
@@ -721,6 +729,11 @@ namespace cn
               const auto &out = boost::get<MultisignatureInput>(i);
               m_multisignatureOutputs[out.amount][out.outputIndex].isUsed = true;
             }
+            else if (i.type() == typeid(PqKeyInput))
+            {
+              const std::vector<uint8_t> &nf = boost::get<PqKeyInput>(i).nullifier;
+              m_spent_pq_nullifiers.insert(std::make_pair(std::string(nf.begin(), nf.end()), b));
+            }
           }
 
           // process outputs
@@ -735,6 +748,10 @@ namespace cn
             {
               MultisignatureOutputUsage usage = {transactionIndex, static_cast<uint16_t>(o), false};
               m_multisignatureOutputs[out.amount].push_back(usage);
+            }
+            else if (out.target.type() == typeid(PqKeyOutput))
+            {
+              m_pqOutputs[out.amount].push_back(std::make_pair<>(transactionIndex, o));
             }
           }
 
@@ -2299,8 +2316,10 @@ namespace cn
           }
         }
 
-        // PQ inputs carry no entry in tx.signatures (getSignaturesCount == 0), so inputIndex
-        // (which indexes tx.signatures) is intentionally NOT advanced here.
+        // tx.signatures is POSITIONAL (resized to inputs.size()); the PQ slot is a real but empty
+        // entry. Advance inputIndex so later KeyInput/MultisignatureInput slots stay aligned in
+        // mixed-input transactions (else input i is validated against the wrong signature slot).
+        ++inputIndex;
       }
       else if (txin.type() == typeid(MultisignatureInput))
       {
@@ -2458,8 +2477,28 @@ namespace cn
       return false;
     }
 
+    // Ring-size bounds: a floor for anonymity, a ceiling to bound the (linear) verify CPU cost so a
+    // single oversized PQ input cannot become a cheap CPU-DoS on every validating node.
+    if (txin.outputIndexes.size() < cn::PQ_MIN_RING_SIZE || txin.outputIndexes.size() > cn::PQ_MAX_RING_SIZE)
+    {
+      logger(INFO, BRIGHT_WHITE) << "PQ input ring size " << txin.outputIndexes.size()
+                                 << " out of bounds [" << cn::PQ_MIN_RING_SIZE << "," << cn::PQ_MAX_RING_SIZE << "]";
+      return false;
+    }
+
     const std::vector<uint32_t> absolute_offsets = relative_output_offsets_to_absolute(txin.outputIndexes);
     const std::vector<std::pair<TransactionIndex, uint16_t>> &amount_outs_vec = it->second;
+
+    // Reject duplicate / non-increasing ring members (a zero relative offset collapses the ring to
+    // size 1, silently destroying anonymity).
+    for (size_t k = 1; k < absolute_offsets.size(); ++k)
+    {
+      if (absolute_offsets[k] <= absolute_offsets[k - 1])
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ input has duplicate / non-increasing ring offsets";
+        return false;
+      }
+    }
 
     const size_t pkBytes = ccx_pq_pubkey_bytes();
     if (pkBytes == 0)
