@@ -3,11 +3,13 @@
 #
 # Brings up the same isolated 2-node testnet as run-poc-testnet.sh, then drives the concealwallet CLI
 # (NOT the pq_injector tool) to:
-#   [1] pq_balance        -> the wallet sees the spendable PQ coinbase outputs
-#   [2] pq_transfer 4 1000 -> the wallet BUILDS + RELAYS a v3 PQ tx (ring of 4)         => accepted
-#   [3] pq_transfer 4 2000 -> same signer (lowest index) => SAME nullifier               => rejected
-# Proving the wallet path is byte-consensus-identical to the injector path (same builder) and that
-# the in-pool double-spend guard fires for a wallet-built tx too.
+#   [1] pq_balance        -> the wallet sees the unlocked PQ coinbase outputs
+#   [2] pq_transfer 4 1000 -> the wallet BUILDS + RELAYS a v3 PQ tx (ring of 4)          => accepted
+#   [3] pq_transfer 4 2000 -> picks a DIFFERENT random signer (post review-fix: random   => accepted
+#                             signer + retry-on-failure), spending a second distinct output
+# Proving the wallet path is byte-consensus-identical to the injector (same shared builder). The
+# in-pool double-spend guard is demonstrated separately by run-poc-testnet.sh (the injector forces
+# the same signer); the wallet deliberately avoids re-picking a spent output.
 #
 # Usage:  pqc/verify-wallet-spend.sh /path/to/build/src
 set -uo pipefail
