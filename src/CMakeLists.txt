@@ -117,6 +117,15 @@ target_link_libraries(PqInjector CryptoNoteCore Serialization System Logging Com
 target_link_libraries(PqInjector ${CCX_PQC_LIB} pthread dl m)
 set_property(TARGET PqInjector PROPERTY OUTPUT_NAME "pq_injector")
 
+# Classical-tx measurement tool (CIP-0001 measured-numbers): builds a real classical
+# CryptoNote tx via cn::constructTransaction and prints its live-serialized size/structure.
+add_executable(ClassicalTxMeasure ${CMAKE_SOURCE_DIR}/pqc/tools/classical_tx_measure.cpp)
+add_dependencies(ClassicalTxMeasure ccx_pqc)
+target_include_directories(ClassicalTxMeasure PRIVATE ${CCX_PQC_INCLUDE})
+target_link_libraries(ClassicalTxMeasure CryptoNoteCore Serialization System Logging Common crypto ${Boost_LIBRARIES})
+target_link_libraries(ClassicalTxMeasure ${CCX_PQC_LIB} pthread dl m)
+set_property(TARGET ClassicalTxMeasure PROPERTY OUTPUT_NAME "classical_tx_measure")
+
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR APPLE AND NOT ANDROID)
   target_link_libraries(ConcealWallet -lresolv)
   target_link_libraries(Daemon -lresolv)
