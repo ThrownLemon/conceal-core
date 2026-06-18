@@ -103,6 +103,24 @@ namespace boost
   }
 
   template <class Archive>
+  inline void serialize(Archive &a, cn::PqMultisigInput &x, const boost::serialization::version_type ver)
+  {
+    a & x.amount;
+    a & x.signatureCount;
+    a & x.outputIndex;
+    a & x.term;
+    a & x.signatures;
+  }
+
+  template <class Archive>
+  inline void serialize(Archive &a, cn::PqMultisigOutput &x, const boost::serialization::version_type ver)
+  {
+    a & x.keys;
+    a & x.requiredSignatureCount;
+    a & x.term;
+  }
+
+  template <class Archive>
   inline void serialize(Archive &a, cn::TransactionOutput &x, const boost::serialization::version_type ver)
   {
     a & x.amount;
