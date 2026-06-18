@@ -1248,8 +1248,13 @@ namespace payment_service
     const std::vector<uint8_t> recipientKemPubKey(
         cn::PQ_TESTNET_KEM_PK, cn::PQ_TESTNET_KEM_PK + sizeof(cn::PQ_TESTNET_KEM_PK));
 
+    // walletd spends the fixed-key (coinbase) testnet outputs only, as before. The candidate list is
+    // the single fixed testnet KEM secret; concealwallet additionally passes its own seed-derived key.
+    const std::vector<std::vector<uint8_t>> candidateKemSecretKeys(
+        1, std::vector<uint8_t>(cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
+
     bool ok = cn::pqSpendViaDaemon(dispatcher, m_daemonHost, m_daemonPort,
-                                   amount, fee, ringSize, recipientKemPubKey,
+                                   amount, fee, ringSize, candidateKemSecretKeys, recipientKemPubKey,
                                    transactionHash, status, err);
     if (!ok)
     {

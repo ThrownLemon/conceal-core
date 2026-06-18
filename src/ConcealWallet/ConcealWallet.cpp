@@ -9,6 +9,7 @@
 #include "TransferCmd.h"
 #include "Const.h"
 
+#include <algorithm>
 #include <fstream>
 #include <future>
 #include <iomanip>
@@ -40,7 +41,13 @@
 #include "Rpc/PqSpendClient.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteConfig.h"
-#include "pq_testnet_kem_keypair.h"           // PQ_TESTNET_KEM_PK (real testnet stealth recipient)
+#include "Wallet/PqAccount.h"                 // cn::PqAccount (deterministic, mnemonic-restorable PQ KEM keypair)
+#include "pq_testnet_kem_keypair.h"           // PQ_TESTNET_KEM_PK / PQ_TESTNET_KEM_SK (fixed testnet KEM keypair)
+
+extern "C"
+{
+#include "pq_ring_sig.h"                      // ccx_pq_kem_scan / ccx_pq_keygen (pq_receive output scan)
+}
 
 #include "Wallet/WalletGreen.h"
 #include "Wallet/WalletRpcServer.h"
@@ -326,8 +333,10 @@ conceal_wallet::conceal_wallet(platform_system::Dispatcher& dispatcher, const cn
   m_consoleHandler.setHandler("deposit_info", boost::bind(&conceal_wallet::deposit_info, this, boost::arg<1>()), "deposit_info <id> - Get infomation for deposit <id>");
   m_consoleHandler.setHandler("save_txs_to_file", boost::bind(&conceal_wallet::save_all_txs_to_file, this, boost::arg<1>()), "save_txs_to_file - Saves all known transactions to <wallet_name>_conceal_transactions.txt");
   m_consoleHandler.setHandler("check_address", boost::bind(&conceal_wallet::check_address, this, boost::arg<1>()), "check_address <address> - Checks to see if given wallet is valid.");
-  m_consoleHandler.setHandler("pq_balance", boost::bind(&conceal_wallet::pq_balance, this, boost::arg<1>()), "pq_balance - Show unlocked post-quantum (testnet PoC) outputs from the remote node");
-  m_consoleHandler.setHandler("pq_transfer", boost::bind(&conceal_wallet::pq_transfer, this, boost::arg<1>()), "pq_transfer [ringSize] [fee] - Build + relay a post-quantum (testnet PoC) spend via the remote node");
+  m_consoleHandler.setHandler("pq_balance", boost::bind(&conceal_wallet::pq_balance, this, boost::arg<1>()), "pq_balance [mine] - Show unlocked post-quantum (testnet PoC) outputs from the remote node; 'mine' counts only outputs this wallet can scan");
+  m_consoleHandler.setHandler("pq_address", boost::bind(&conceal_wallet::pq_address, this, boost::arg<1>()), "pq_address - Show this wallet's deterministic post-quantum (testnet PoC) receive address (ccxp)");
+  m_consoleHandler.setHandler("pq_transfer", boost::bind(&conceal_wallet::pq_transfer, this, boost::arg<1>()), "pq_transfer <pq_address | self> [ringSize] [fee] - Build + relay a post-quantum (testnet PoC) spend to a PQ address (or back to this wallet) via the remote node");
+  m_consoleHandler.setHandler("pq_receive", boost::bind(&conceal_wallet::pq_receive, this, boost::arg<1>()), "pq_receive - Show post-quantum (testnet PoC) outputs received to THIS wallet's PQ address");
 }
 
 std::string conceal_wallet::wallet_menu(bool do_ext)
@@ -1792,49 +1801,118 @@ bool conceal_wallet::check_address(const std::vector<std::string> &args)
 }
 
 /* Post-quantum (testnet PoC) commands. These talk directly to the remote node's PQ JSON-RPC and
-   the shared cn::buildPqSpendTransaction builder via cn::pqSpendViaDaemon — no wallet-side crypto. */
+   the shared cn::buildPqSpendTransaction builder via cn::pqSpendViaDaemon — no wallet-side crypto
+   for the spend. The wallet's OWN PQ KEM keypair (address-bearing receive key) is derived
+   deterministically from the legacy spend secret key, mirroring cn::PqAccount — so the SAME
+   mnemonic always reproduces the SAME PQ address (mnemonic-restorable). */
+
+/* Derive this wallet's deterministic PQ KEM keypair from the legacy spend secret key. The seed
+   discipline lives in cn::PqAccount (cn_fast_hash("ccx-pq-kem-acct" || spendSecret) -> ML-KEM
+   det-keygen); we reuse it verbatim so the wallet address matches what PqAccount would produce. */
+cn::PqAccountKeys conceal_wallet::getPqAccountKeys() const
+{
+  const crypto::SecretKey spendSecretKey = m_wallet->getAddressSpendKey(0).secretKey;
+  return cn::PqAccount::generateFromSeed(spendSecretKey);
+}
+
+/* The amounts a PQ output can carry on the testnet PoC: the coinbase denomination, plus the
+   post-fee denominations produced by the default pq_transfer fees. The daemon enumerates per-amount,
+   so we ask for each candidate amount. */
+static std::vector<uint64_t> pqCandidateAmounts()
+{
+  std::vector<uint64_t> amounts;
+  amounts.push_back(cn::PQ_TESTNET_COINBASE_AMOUNT);
+  // A spend's single output = inputAmount - fee. The common default fees yield these denominations;
+  // include them so received funds at the post-fee amount are visible too. Duplicates / amounts the
+  // daemon has no outputs for are harmless (it simply returns an empty list for them).
+  const uint64_t defaultFees[] = {1000, 100, 10};
+  for (size_t i = 0; i < sizeof(defaultFees) / sizeof(defaultFees[0]); ++i)
+  {
+    if (cn::PQ_TESTNET_COINBASE_AMOUNT > defaultFees[i])
+    {
+      amounts.push_back(cn::PQ_TESTNET_COINBASE_AMOUNT - defaultFees[i]);
+    }
+  }
+  return amounts;
+}
+
+bool conceal_wallet::pq_address(const std::vector<std::string> &args)
+{
+  try
+  {
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    const cn::PqAccountPublicAddress addr = cn::PqAccount::toPublicAddress(keys);
+
+    // Testnet PoC: format with the testnet PQ-address prefix ("ctp..." class).
+    const std::string addrStr = cn::getPqAccountAddressAsStr(
+        cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, addr);
+
+    success_msg_writer() << "PQ address (testnet PoC): " << addrStr;
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to derive PQ address: " << e.what();
+  }
+
+  return true;
+}
+
 bool conceal_wallet::pq_balance(const std::vector<std::string> &args)
 {
-  const uint64_t amount = cn::PQ_TESTNET_COINBASE_AMOUNT;
+  // Optional "mine" mode counts only the unlocked outputs THIS wallet can actually scan (owned by
+  // either the fixed testnet KEM key or the wallet's own seed-derived key). Default = all unlocked.
+  const bool mineOnly = (!args.empty() && (args[0] == "mine" || args[0] == "owned"));
 
   try
   {
+    // Build the candidate KEM secrets once (only needed in "mine" mode).
+    std::vector<std::vector<uint8_t>> kemSecrets;
+    if (mineOnly)
+    {
+      const cn::PqAccountKeys keys = getPqAccountKeys();
+      kemSecrets.push_back(keys.kemSecretKey);
+      kemSecrets.push_back(std::vector<uint8_t>(
+          cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
+    }
+
     HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
 
     cn::COMMAND_RPC_GET_PQ_OUTPUTS::request req;
-    req.amounts.push_back(amount);
+    req.amounts = pqCandidateAmounts();
     cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
     cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
 
+    // Sum unlocked outputs * their amount, guarding against uint64 overflow on the running total.
+    uint64_t total = 0;
     size_t spendable = 0;
+    bool overflow = false;
     for (const auto& ofa : res.outs)
     {
-      if (ofa.amount != amount)
-      {
-        continue;
-      }
       for (const auto& e : ofa.outs)
       {
-        if (e.spendable)
+        if (!e.spendable)
         {
-          ++spendable;
+          continue;
+        }
+        if (mineOnly && !pqOutputIsMine(e, kemSecrets))
+        {
+          continue;
+        }
+        ++spendable;
+        if (ofa.amount != 0 && total > (UINT64_MAX - ofa.amount))
+        {
+          overflow = true;
+        }
+        else
+        {
+          total += ofa.amount;
         }
       }
     }
 
-    // The daemon reports outputs whose unlock time has passed (unlock-spendable), not
-    // "unspent-by-you" — label accordingly so the count is not misread as a wallet balance.
-    // Guard the count*amount product against uint64 overflow before formatting.
-    std::string totalStr;
-    if (amount != 0 && spendable > (UINT64_MAX / amount))
-    {
-      totalStr = "(overflow)";
-    }
-    else
-    {
-      totalStr = m_currency.formatAmount(static_cast<uint64_t>(spendable) * amount);
-    }
-    success_msg_writer() << "unlocked PQ outputs: " << spendable << ", total " << totalStr;
+    const std::string totalStr = overflow ? "(overflow)" : m_currency.formatAmount(total);
+    success_msg_writer() << (mineOnly ? "unlocked PQ outputs (mine): " : "unlocked PQ outputs: ")
+                         << spendable << ", total " << totalStr;
   }
   catch (const std::exception& e)
   {
@@ -1844,40 +1922,225 @@ bool conceal_wallet::pq_balance(const std::vector<std::string> &args)
   return true;
 }
 
+/* Scan a single get_pq_outputs entry against a list of candidate KEM secrets, the SAME way the
+   shared builder recovers a signer's one-time key: ccx_pq_kem_scan(secret, kemCt) -> 32-byte seed,
+   ccx_pq_keygen(seed) -> one-time pubkey, compare to the on-chain output key. Returns true iff any
+   candidate owns the output. Read-only; no signing. */
+bool conceal_wallet::pqOutputIsMine(const cn::COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry &e,
+                                    const std::vector<std::vector<uint8_t>> &kemSecrets) const
+{
+  // An output with no kemCt is a throwaway/injector output — not scannable, never "ours".
+  if (e.kem.empty())
+  {
+    return false;
+  }
+
+  std::vector<uint8_t> kemCt;
+  if (!common::fromHex(e.kem, kemCt))
+  {
+    return false; // malformed on-chain kem hex — skip
+  }
+  std::vector<uint8_t> outKey;
+  if (!common::fromHex(e.key, outKey))
+  {
+    return false; // malformed on-chain key hex — skip
+  }
+
+  const size_t pkBytes = ccx_pq_pubkey_bytes();
+  const size_t skBytes = ccx_pq_seckey_bytes();
+  const size_t kemSkBytes = ccx_pq_kem_seckey_bytes();
+  if (pkBytes == 0 || skBytes == 0 || kemSkBytes == 0 || outKey.size() != pkBytes)
+  {
+    return false;
+  }
+
+  for (size_t c = 0; c < kemSecrets.size(); ++c)
+  {
+    const std::vector<uint8_t> &kemSk = kemSecrets[c];
+    if (kemSk.size() != kemSkBytes)
+    {
+      continue; // wrong-size candidate — skip (defensive; never hand a bad length to the FFI)
+    }
+
+    uint8_t otSeed[32];
+    if (ccx_pq_kem_scan(kemSk.data(), kemSk.size(), kemCt.data(), kemCt.size(),
+                        otSeed, sizeof(otSeed)) != 0)
+    {
+      continue; // not ours under this candidate
+    }
+    std::vector<uint8_t> otPk(pkBytes, 0), otSk(skBytes, 0);
+    const int32_t rc = ccx_pq_keygen(otSeed, sizeof(otSeed), otPk.data(), otPk.size(),
+                                     otSk.data(), otSk.size());
+    // Wipe the recovered secret material immediately; pq_receive/pq_balance never sign with it.
+    std::fill(otSeed, otSeed + sizeof(otSeed), 0);
+    std::fill(otSk.begin(), otSk.end(), 0);
+    if (rc != 0)
+    {
+      continue;
+    }
+    if (otPk == outKey)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool conceal_wallet::pq_receive(const std::vector<std::string> &args)
+{
+  try
+  {
+    // Candidate secrets to scan with: the wallet's own seed-derived key first (received funds), then
+    // the fixed testnet key (so coinbase outputs the wallet bootstrapped from also show up).
+    std::vector<std::vector<uint8_t>> kemSecrets;
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    kemSecrets.push_back(keys.kemSecretKey);
+    kemSecrets.push_back(std::vector<uint8_t>(
+        cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
+
+    HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
+
+    cn::COMMAND_RPC_GET_PQ_OUTPUTS::request req;
+    req.amounts = pqCandidateAmounts();
+    cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
+    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
+
+    size_t count = 0;
+    uint64_t total = 0;
+    bool overflow = false;
+    for (const auto& ofa : res.outs)
+    {
+      for (const auto& e : ofa.outs)
+      {
+        if (!pqOutputIsMine(e, kemSecrets))
+        {
+          continue;
+        }
+        ++count;
+        const char* lock = e.spendable ? "unlocked" : "locked";
+        success_msg_writer() << "  global_index=" << e.global_index
+                             << " amount=" << m_currency.formatAmount(ofa.amount)
+                             << " (" << lock << ")";
+        if (ofa.amount != 0 && total > (UINT64_MAX - ofa.amount))
+        {
+          overflow = true;
+        }
+        else
+        {
+          total += ofa.amount;
+        }
+      }
+    }
+
+    if (count == 0)
+    {
+      success_msg_writer() << "No PQ outputs received to this wallet.";
+    }
+    else
+    {
+      const std::string totalStr = overflow ? "(overflow)" : m_currency.formatAmount(total);
+      success_msg_writer() << "Received PQ outputs: " << count << ", total " << totalStr;
+    }
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to scan PQ outputs: " << e.what();
+  }
+
+  return true;
+}
+
 bool conceal_wallet::pq_transfer(const std::vector<std::string> &args)
 {
+  if (args.empty())
+  {
+    fail_msg_writer() << "Usage: pq_transfer <pq_address | self> [ringSize] [fee]";
+    return true;
+  }
+
   uint32_t ringSize = 4;
   uint64_t fee = 1000;
 
   try
   {
-    if (args.size() >= 1)
-    {
-      ringSize = boost::lexical_cast<uint32_t>(args[0]);
-    }
     if (args.size() >= 2)
     {
-      fee = boost::lexical_cast<uint64_t>(args[1]);
+      ringSize = boost::lexical_cast<uint32_t>(args[1]);
+    }
+    if (args.size() >= 3)
+    {
+      fee = boost::lexical_cast<uint64_t>(args[2]);
     }
   }
   catch (const boost::bad_lexical_cast&)
   {
-    fail_msg_writer() << "Usage: pq_transfer [ringSize] [fee]";
+    fail_msg_writer() << "Usage: pq_transfer <pq_address | self> [ringSize] [fee]";
     return true;
   }
+
+  // Resolve the recipient KEM public key. Spend to a REAL, scannable, re-spendable stealth output —
+  // NOT a burn. An empty recipient key would destroy the funds (injector-only A/B path).
+  std::vector<uint8_t> recipientKemPubKey;
+  try
+  {
+    if (args[0] == "self")
+    {
+      // Self-send: recipient = this wallet's own PQ KEM public key (re-spendable by this wallet).
+      const cn::PqAccountKeys keys = getPqAccountKeys();
+      recipientKemPubKey = keys.kemPublicKey;
+    }
+    else
+    {
+      // Parse the recipient's PQ-only ("ctp"/"ccxp") or hybrid ("cth"/"ccxh") address -> KEM pubkey.
+      // The PoC runs on testnet, but accept the mainnet PQ/hybrid prefixes too so an address from
+      // either network is usable; parsePqAccountAddressString already pins version + scheme ids.
+      uint64_t prefix = 0;
+      cn::PqAccountPublicAddress addr;
+      if (!cn::parsePqAccountAddressString(prefix, addr, args[0]))
+      {
+        fail_msg_writer() << "Invalid PQ address: " << args[0];
+        return true;
+      }
+      if (prefix != cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX &&
+          prefix != cn::TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX &&
+          prefix != cn::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX &&
+          prefix != cn::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX)
+      {
+        fail_msg_writer() << "PQ address has an unexpected prefix (not a PQ/hybrid address): " << args[0];
+        return true;
+      }
+      recipientKemPubKey = addr.kemPublicKey;
+    }
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to resolve recipient: " << e.what();
+    return true;
+  }
+
+  // Candidate KEM secrets the spend may need: the wallet's OWN seed-derived key (to spend funds it
+  // received) AND the fixed testnet key (to spend the bootstrapped coinbase outputs). The builder
+  // tries each per signer; a wrong one just fails the scan and the next is tried.
+  std::vector<std::vector<uint8_t>> candidateKemSecretKeys;
+  try
+  {
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    candidateKemSecretKeys.push_back(keys.kemSecretKey);
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to derive wallet PQ key: " << e.what();
+    return true;
+  }
+  candidateKemSecretKeys.push_back(std::vector<uint8_t>(
+      cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
 
   std::string txHash;
   std::string status;
   std::string err;
-  // Spend to the fixed testnet KEM identity so the output is a REAL, scannable, re-spendable
-  // stealth output — NOT a burn. (An empty key would discard the one-time secret => destroyed
-  // funds; that throwaway path belongs to pq_injector only, as the A/B parity oracle.)
-  const std::vector<uint8_t> recipientKemPubKey(
-      cn::PQ_TESTNET_KEM_PK, cn::PQ_TESTNET_KEM_PK + sizeof(cn::PQ_TESTNET_KEM_PK));
-
   if (cn::pqSpendViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
                            cn::PQ_TESTNET_COINBASE_AMOUNT, fee, ringSize,
-                           recipientKemPubKey, txHash, status, err))
+                           candidateKemSecretKeys, recipientKemPubKey, txHash, status, err))
   {
     success_msg_writer() << "PQ tx relayed: " << txHash << " status=" << status;
   }

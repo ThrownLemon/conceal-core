@@ -13,10 +13,11 @@
 //   3. sendrawtransaction to relay the signed tx.
 //
 // No crypto lives here: the builder does the KEM scan + lattice ring-sign internally and returns
-// false if the chosen signer output is not spendable with the supplied KEM secret.
+// false if the chosen signer output is not spendable with the supplied KEM secret. The helper
+// therefore tries each candidate KEM secret in turn for a chosen signer until one scans.
 //
-// Testnet only / experimental: the KEM secret is the hardcoded testnet keypair and the lattice
-// ring signature is unaudited. Not for mainnet funds.
+// Testnet only / experimental: the candidate KEM secrets include the hardcoded testnet keypair and
+// the lattice ring signature is unaudited. Not for mainnet funds.
 
 #pragma once
 
@@ -30,10 +31,17 @@ namespace cn
 {
   // Build + relay a PQ spend of one `amount`-denominated output via the daemon at host:port.
   //
-  // recipientKemPubKey: ML-KEM-768 public key of the real recipient. The wallet front-ends pass the
-  //   fixed testnet KEM public key (cn::PQ_TESTNET_KEM_PK) so the spend output is a real, scannable,
-  //   re-spendable stealth output to the testnet identity. An EMPTY key makes the builder emit a
-  //   throwaway output whose one-time secret is discarded (the funds are destroyed) — used only by
+  // candidateKemSecretKeys: a list of ML-KEM-768 SECRET keys that may own a spendable signer output.
+  //   For each chosen signer the helper hands the builder one candidate at a time; a wrong secret
+  //   makes the builder's KEM scan fail (output not ours), so the next candidate is tried. This lets
+  //   one wallet spend BOTH the fixed-key coinbase outputs (cn::PQ_TESTNET_KEM_SK) AND outputs
+  //   received to its own seed-derived PQ address (the wallet's own KEM secret) — pass both. The
+  //   list must be non-empty; empty/wrong-size entries are skipped.
+  //
+  // recipientKemPubKey: ML-KEM-768 public key of the real recipient. The wallet front-ends pass a
+  //   real KEM public key (the recipient's, or their own for a self-send) so the spend output is a
+  //   real, scannable, re-spendable stealth output. An EMPTY key makes the builder emit a throwaway
+  //   output whose one-time secret is discarded (the funds are destroyed) — used only by
   //   pq_injector as the A/B parity oracle, NEVER by the wallet front-ends.
   //
   // The helper randomly selects the signer + decoys via a CSPRNG and retries with a different
@@ -48,6 +56,7 @@ namespace cn
                         uint64_t amount,
                         uint64_t fee,
                         uint32_t ringSize,
+                        const std::vector<std::vector<uint8_t>>& candidateKemSecretKeys,
                         const std::vector<uint8_t>& recipientKemPubKey,
                         std::string& outTxHashHex,
                         std::string& outStatus,
