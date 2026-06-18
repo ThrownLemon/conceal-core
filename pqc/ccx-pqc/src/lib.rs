@@ -184,6 +184,21 @@ const KEM_CT: usize = 1088;
 #[no_mangle] pub extern "C" fn ccx_pq_kem_seckey_bytes() -> usize { KEM_SK }
 #[no_mangle] pub extern "C" fn ccx_pq_kem_ct_bytes() -> usize { KEM_CT }
 
+/// Generate a fresh ML-KEM-768 keypair (RNG-based). Used once to mint the deterministic testnet
+/// recipient keypair that is then hardcoded in CryptoNoteConfig.h.
+#[no_mangle]
+pub extern "C" fn ccx_pq_kem_keypair(pk_out: *mut u8, pk_cap: usize,
+                                     sk_out: *mut u8, sk_cap: usize) -> i32 {
+    if pk_out.is_null() || sk_out.is_null() { return -1; }
+    if pk_cap < KEM_PK || sk_cap < KEM_SK { return -2; }
+    let (pk, sk) = kyber768::keypair();
+    unsafe {
+        std::ptr::copy_nonoverlapping(pk.as_bytes().as_ptr(), pk_out, KEM_PK);
+        std::ptr::copy_nonoverlapping(sk.as_bytes().as_ptr(), sk_out, KEM_SK);
+    }
+    0
+}
+
 /// Sender: encapsulate to `kem_pk`, write the Kyber ciphertext to `ct_out`, and SHAKE256-derive a
 /// 32-byte one-time signing seed from the shared secret into `seed_out`.
 #[no_mangle]

@@ -23,6 +23,7 @@
 #include "UpgradeDetector.h"
 #include "pq_ring_sig.h" // ccx-pqc FFI: testnet coinbase emits a PQ output (CIP-0001 PoC)
 #include "pq_testnet_keys.h" // shared per-output PQ coinbase seed derivation (daemon == injector)
+#include "pq_testnet_kem_keypair.h" // hardcoded testnet recipient ML-KEM keypair (stealth outputs)
 
 #undef ERROR
 
@@ -605,21 +606,31 @@ namespace cn
       uint64_t pqAmount = PQ_TESTNET_COINBASE_AMOUNT;
       if (pqAmount > blockReward) pqAmount = blockReward;
 
-      uint8_t pqSeed[32];
-      derivePqCoinbaseSeed(PQ_TESTNET_COINBASE_SEED, sizeof(PQ_TESTNET_COINBASE_SEED),
-                           static_cast<uint64_t>(height), 0u, pqSeed);
+      // ML-KEM-768 stealth: encapsulate to the testnet recipient and derive a one-time output key
+      // from the shared secret. The Kyber ciphertext (kemCt) is published; only the KEM-secret
+      // holder can decapsulate it, recover the seed, and re-derive the keypair to spend. Each block
+      // gets a unique, recipient-unlinkable PQ output.
+      std::vector<uint8_t> kemCt(ccx_pq_kem_ct_bytes(), 0);
+      uint8_t otSeed[32];
+      if (ccx_pq_kem_derive_output(PQ_TESTNET_KEM_PK, sizeof(PQ_TESTNET_KEM_PK),
+                                   kemCt.data(), kemCt.size(), otSeed, sizeof(otSeed)) != 0)
+      {
+        logger(ERROR, BRIGHT_RED) << "while creating outs: KEM derive_output failed";
+        return false;
+      }
       const size_t pkBytes = ccx_pq_pubkey_bytes();
       const size_t skBytes = ccx_pq_seckey_bytes();
       std::vector<uint8_t> pqPk(pkBytes, 0);
       std::vector<uint8_t> pqSk(skBytes, 0);
-      if (ccx_pq_keygen(pqSeed, sizeof(pqSeed), pqPk.data(), pqPk.size(), pqSk.data(), pqSk.size()) != 0)
+      if (ccx_pq_keygen(otSeed, sizeof(otSeed), pqPk.data(), pqPk.size(), pqSk.data(), pqSk.size()) != 0)
       {
         logger(ERROR, BRIGHT_RED) << "while creating outs: failed to derive testnet PQ coinbase key";
         return false;
       }
 
       PqKeyOutput pqOut;
-      pqOut.key = pqPk; // kemCt intentionally left empty (no stealth in this gap)
+      pqOut.key = pqPk;
+      pqOut.kemCt = kemCt; // real Kyber-768 ciphertext: recipient-unlinkable stealth output
       TransactionOutput pqo;
       summaryAmounts += pqo.amount = pqAmount;
       pqo.target = pqOut;

@@ -42,27 +42,41 @@ setsid "$CONCEALD" --testnet --data-dir "$N2" --no-console --hide-my-port --p2p-
   --add-exclusive-node 127.0.0.1:15500 --rpc-bind-port 16601 --p2p-bind-port 15600 \
   --log-level 0 --log-file "$N2/d.log" >/tmp/ccx-n2.out 2>&1 </dev/null &
 
-# Fixed PQ coinbase denomination (must match cn::PQ_TESTNET_COINBASE_AMOUNT) and ring shape.
+# Fixed PQ coinbase denomination (must match cn::PQ_TESTNET_COINBASE_AMOUNT).
 AMT=100000
-RING=4
-SIGNER=2   # spend the ring member at global index 2 == the PQ output mined at height 3
+SIGNER=2   # spend the ring member at line 2 == global index 2 == the PQ output mined at height 3
 
-echo ">> waiting for ring members (global indices 0..$((RING-1)) = heights 1..$RING) to unlock"
-# coinbase outputs unlock at height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW (10); need height > RING+10
-NEED=$((RING + 12))
-while true; do H=$(height || true); [ "${H:-0}" -ge "$NEED" ] 2>/dev/null && break; sleep 3; done
+submit() { curl -s -X POST "http://127.0.0.1:$RPC1/sendrawtransaction" -H 'Content-Type: application/json' -d "{\"tx_as_hex\":\"$1\"}"; }
+
+# build_ring <outfile> <h1> <h2> ... : fetch each block's coinbase tx hex (the PQ stealth output) into a file.
+build_ring() {
+  local out=$1; shift; : > "$out"
+  for h in "$@"; do
+    local bh cb hex
+    bh=$(hdr "$h" | grep -oE '"hash":"[0-9a-f]+"' | head -1 | cut -d'"' -f4)
+    cb=$(rpc "{\"jsonrpc\":\"2.0\",\"id\":\"0\",\"method\":\"f_block_json\",\"params\":{\"hash\":\"$bh\"}}" \
+         | grep -oE '"hash":"[0-9a-f]+"' | sed -n 2p | cut -d'"' -f4)
+    hex=$(curl -s -X POST "http://127.0.0.1:$RPC1/gettransactions" -H 'Content-Type: application/json' \
+          -d "{\"txs_hashes\":[\"$cb\"]}" | grep -oE '\["[0-9a-f]+"' | grep -oE '[0-9a-f]{50,}')
+    echo "$hex" >> "$out"
+  done
+}
+
+# Largest ring used below is heights 1..5; coinbase outputs unlock at height + 10.
+echo ">> waiting for ring members (heights 1..5) to unlock"
+while true; do H=$(height || true); [ "${H:-0}" -ge 17 ] 2>/dev/null && break; sleep 3; done
 echo "   height=$H"
 
-echo ">> [1] spend PQ output (amount=$AMT) in a ring of $RING members, signer index $SIGNER (fee 1000)"
-HEX=$("$INJECTOR" "$AMT" 1000 "$SIGNER" "$RING")
+build_ring /tmp/ccx-ring4.txt 1 2 3 4
+echo ">> [1] spend a KEM-stealth PQ output (amount=$AMT) in a ring of 4, signer line $SIGNER (fee 1000)"
+HEX=$("$INJECTOR" "$AMT" 1000 "$SIGNER" /tmp/ccx-ring4.txt)
 echo "   tx bytes=$(( ${#HEX} / 2 ))"
-echo "   submit: $(curl -s -X POST http://127.0.0.1:$RPC1/sendrawtransaction \
-  -H 'Content-Type: application/json' -d "{\"tx_as_hex\":\"$HEX\"}")"
+echo "   submit: $(submit "$HEX")"
 
-echo ">> [2] IN-POOL DOUBLE-SPEND: distinct tx (fee 2000, different ring), SAME signer/nullifier"
-HEX2=$("$INJECTOR" "$AMT" 2000 "$SIGNER" "$((RING+1))")
-echo "   submit: $(curl -s -X POST http://127.0.0.1:$RPC1/sendrawtransaction \
-  -H 'Content-Type: application/json' -d "{\"tx_as_hex\":\"$HEX2\"}")"
+build_ring /tmp/ccx-ring5.txt 1 2 3 4 5
+echo ">> [2] IN-POOL DOUBLE-SPEND: distinct tx (fee 2000, ring of 5), SAME signer output/nullifier"
+HEX2=$("$INJECTOR" "$AMT" 2000 "$SIGNER" /tmp/ccx-ring5.txt)
+echo "   submit: $(submit "$HEX2")"
 echo "   tx_pool_size=$(info | grep -oE '"tx_pool_size":[0-9]+' | grep -oE '[0-9]+') (expect 1 — only tx1)"
 
 echo ">> waiting for the PQ tx to be mined"
@@ -70,9 +84,8 @@ S=$(height); while true; do P=$(info | grep -oE '"tx_pool_size":[0-9]+' | grep -
   { [ "${P:-1}" = 0 ] && [ "${H:-0}" -gt "${S:-0}" ]; } && break; sleep 2; done
 echo "   mined; tx_count=$(info | grep -oE '"tx_count":[0-9]+' | grep -oE '[0-9]+') (expect 1)"
 
-echo ">> [3] spend a DIFFERENT output (signer index 0) -> independent nullifier, must be ACCEPTED"
-HEX3=$("$INJECTOR" "$AMT" 1000 0 "$RING")
-echo "   submit: $(curl -s -X POST http://127.0.0.1:$RPC1/sendrawtransaction \
-  -H 'Content-Type: application/json' -d "{\"tx_as_hex\":\"$HEX3\"}")"
+echo ">> [3] spend a DIFFERENT output (signer line 0) -> independent nullifier, must be ACCEPTED"
+HEX3=$("$INJECTOR" "$AMT" 1000 0 /tmp/ccx-ring4.txt)
+echo "   submit: $(submit "$HEX3")"
 
 echo ">> done. Stop with: pkill -x conceald"
