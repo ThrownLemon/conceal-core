@@ -2472,6 +2472,14 @@ namespace cn
       }
 
       const TransactionEntry &te = transactionByIndex(amount_outs_vec[i].first);
+
+      // The referenced output must be spendable (e.g. coinbase outputs respect the unlock window).
+      if (!is_tx_spendtime_unlocked(te.tx.unlockTime))
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ ring member output is not yet spendable (unlockTime=" << te.tx.unlockTime << ")";
+        return false;
+      }
+
       const uint16_t outIdx = amount_outs_vec[i].second;
       if (!(outIdx < te.tx.outputs.size()))
       {

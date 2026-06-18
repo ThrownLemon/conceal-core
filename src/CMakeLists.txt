@@ -84,6 +84,14 @@ target_link_libraries(PaymentGateService ${CCX_PQC_LIB} pthread dl m)
 target_link_libraries(Optimizer PaymentGate Rpc Http CryptoNoteCore Logging Serialization crypto System Common ${Boost_LIBRARIES})
 target_link_libraries(Optimizer ${CCX_PQC_LIB} pthread dl m)
 
+# PQ injector — testnet PoC tool (CIP-0001): builds+signs a v3 PQ tx, prints raw hex.
+add_executable(PqInjector ${CMAKE_SOURCE_DIR}/pqc/tools/pq_injector.cpp)
+add_dependencies(PqInjector ccx_pqc)
+target_include_directories(PqInjector PRIVATE ${CCX_PQC_INCLUDE})
+target_link_libraries(PqInjector CryptoNoteCore Serialization System Logging Common crypto ${Boost_LIBRARIES})
+target_link_libraries(PqInjector ${CCX_PQC_LIB} pthread dl m)
+set_property(TARGET PqInjector PROPERTY OUTPUT_NAME "pq_injector")
+
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR APPLE AND NOT ANDROID)
   target_link_libraries(ConcealWallet -lresolv)
   target_link_libraries(Daemon -lresolv)

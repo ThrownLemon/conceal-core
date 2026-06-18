@@ -21,6 +21,7 @@
 #include "CryptoNoteTools.h"
 #include "TransactionExtra.h"
 #include "UpgradeDetector.h"
+#include "pq_ring_sig.h" // ccx-pqc FFI: testnet coinbase emits a PQ output (CIP-0001 PoC)
 
 #undef ERROR
 
@@ -593,6 +594,33 @@ namespace cn
     }
 
     uint64_t summaryAmounts = 0;
+    if (m_testnet && height > 0)
+    {
+      // Testnet PoC (CIP-0001): emit the whole reward as a single post-quantum output owned by the
+      // deterministic testnet PQ keypair, so the injector tool has spendable on-chain PQ outputs.
+      // This is NOT stealth/KEM — a single shared known key — and exists only to exercise the PQ
+      // consensus lifecycle (index -> spend -> double-spend reject) without a wallet.
+      const size_t pkBytes = ccx_pq_pubkey_bytes();
+      const size_t skBytes = ccx_pq_seckey_bytes();
+      std::vector<uint8_t> pqPk(pkBytes, 0);
+      std::vector<uint8_t> pqSk(skBytes, 0);
+      if (ccx_pq_keygen(PQ_TESTNET_COINBASE_SEED, sizeof(PQ_TESTNET_COINBASE_SEED),
+                        pqPk.data(), pqPk.size(), pqSk.data(), pqSk.size()) != 0)
+      {
+        logger(ERROR, BRIGHT_RED) << "while creating outs: failed to derive testnet PQ coinbase key";
+        return false;
+      }
+
+      PqKeyOutput pqOut;
+      pqOut.key = pqPk; // kemCt intentionally left empty (no stealth for the PoC)
+
+      TransactionOutput out;
+      summaryAmounts += out.amount = blockReward;
+      out.target = pqOut;
+      tx.outputs.push_back(out);
+    }
+    else
+    {
     for (size_t no = 0; no < outAmounts.size(); no++)
     {
       crypto::KeyDerivation derivation = boost::value_initialized<crypto::KeyDerivation>();
@@ -628,6 +656,7 @@ namespace cn
       summaryAmounts += out.amount = outAmounts[no];
       out.target = tk;
       tx.outputs.push_back(out);
+    }
     }
 
     if (!(summaryAmounts == blockReward))

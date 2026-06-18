@@ -161,6 +161,14 @@ namespace cn
 	const uint8_t TRANSACTION_VERSION_2 = 2;
 		const uint8_t TRANSACTION_VERSION_3 = 3; /* PQ transactions (CIP-0001) */
 	const size_t  PQ_NULLIFIER_SIZE = 32;       /* ccx-pq nullifier length (bytes); bounds m_spent_pq_nullifiers keys */
+	/* Testnet PoC only (CIP-0001): deterministic seed for the PQ keypair that owns testnet coinbase
+	   PQ outputs. The daemon (coinbase) derives the public key; the injector derives the secret key.
+	   NOT a stealth/KEM scheme — a single shared known key, sufficient to exercise the spend path. */
+	const uint8_t PQ_TESTNET_COINBASE_SEED[32] = {
+		0xc0, 0xde, 0x00, 0x01, 0xcc, 0x05, 0x7e, 0x57,
+		0x4e, 0x74, 0x70, 0x71, 0x75, 0x61, 0x6e, 0x74,
+		0x75, 0x6d, 0x70, 0x6f, 0x63, 0x73, 0x65, 0x65,
+		0x64, 0x21, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x00};
 	const uint8_t BLOCK_MAJOR_VERSION_1 = 1; // (Consensus I)
 	const uint8_t BLOCK_MAJOR_VERSION_2 = 2; // (Consensus II)
 	const uint8_t BLOCK_MAJOR_VERSION_3 = 3; // (Consensus III)
