@@ -22,6 +22,7 @@
 #include "TransactionExtra.h"
 #include "UpgradeDetector.h"
 #include "pq_ring_sig.h" // ccx-pqc FFI: testnet coinbase emits a PQ output (CIP-0001 PoC)
+#include "pq_testnet_keys.h" // shared per-output PQ coinbase seed derivation (daemon == injector)
 
 #undef ERROR
 
@@ -596,28 +597,56 @@ namespace cn
     uint64_t summaryAmounts = 0;
     if (m_testnet && height > 0)
     {
-      // Testnet PoC (CIP-0001): emit the whole reward as a single post-quantum output owned by the
-      // deterministic testnet PQ keypair, so the injector tool has spendable on-chain PQ outputs.
-      // This is NOT stealth/KEM — a single shared known key — and exists only to exercise the PQ
-      // consensus lifecycle (index -> spend -> double-spend reject) without a wallet.
+      // Testnet PoC (CIP-0001): emit ONE fixed-denomination post-quantum output with a DISTINCT
+      // one-time key per (height,outIndex) — so many blocks' PQ outputs share a single
+      // m_pqOutputs[amount] bucket and the injector can form a real ring of N distinct members.
+      // The reward remainder is paid to a normal KeyOutput. NOT stealth/KEM — a deterministic
+      // demo key the injector re-derives via the shared derivePqCoinbaseSeed() helper.
+      uint64_t pqAmount = PQ_TESTNET_COINBASE_AMOUNT;
+      if (pqAmount > blockReward) pqAmount = blockReward;
+
+      uint8_t pqSeed[32];
+      derivePqCoinbaseSeed(PQ_TESTNET_COINBASE_SEED, sizeof(PQ_TESTNET_COINBASE_SEED),
+                           static_cast<uint64_t>(height), 0u, pqSeed);
       const size_t pkBytes = ccx_pq_pubkey_bytes();
       const size_t skBytes = ccx_pq_seckey_bytes();
       std::vector<uint8_t> pqPk(pkBytes, 0);
       std::vector<uint8_t> pqSk(skBytes, 0);
-      if (ccx_pq_keygen(PQ_TESTNET_COINBASE_SEED, sizeof(PQ_TESTNET_COINBASE_SEED),
-                        pqPk.data(), pqPk.size(), pqSk.data(), pqSk.size()) != 0)
+      if (ccx_pq_keygen(pqSeed, sizeof(pqSeed), pqPk.data(), pqPk.size(), pqSk.data(), pqSk.size()) != 0)
       {
         logger(ERROR, BRIGHT_RED) << "while creating outs: failed to derive testnet PQ coinbase key";
         return false;
       }
 
       PqKeyOutput pqOut;
-      pqOut.key = pqPk; // kemCt intentionally left empty (no stealth for the PoC)
+      pqOut.key = pqPk; // kemCt intentionally left empty (no stealth in this gap)
+      TransactionOutput pqo;
+      summaryAmounts += pqo.amount = pqAmount;
+      pqo.target = pqOut;
+      tx.outputs.push_back(pqo);
 
-      TransactionOutput out;
-      summaryAmounts += out.amount = blockReward;
-      out.target = pqOut;
-      tx.outputs.push_back(out);
+      uint64_t remainder = blockReward - pqAmount;
+      if (remainder > 0)
+      {
+        crypto::KeyDerivation derivation = boost::value_initialized<crypto::KeyDerivation>();
+        crypto::PublicKey outEphemeralPubKey = boost::value_initialized<crypto::PublicKey>();
+        if (!crypto::generate_key_derivation(minerAddress.viewPublicKey, txkey.secretKey, derivation))
+        {
+          logger(ERROR, BRIGHT_RED) << "while creating PQ-coinbase remainder out: generate_key_derivation failed";
+          return false;
+        }
+        if (!crypto::derive_public_key(derivation, tx.outputs.size(), minerAddress.spendPublicKey, outEphemeralPubKey))
+        {
+          logger(ERROR, BRIGHT_RED) << "while creating PQ-coinbase remainder out: derive_public_key failed";
+          return false;
+        }
+        KeyOutput tk;
+        tk.key = outEphemeralPubKey;
+        TransactionOutput out;
+        summaryAmounts += out.amount = remainder;
+        out.target = tk;
+        tx.outputs.push_back(out);
+      }
     }
     else
     {

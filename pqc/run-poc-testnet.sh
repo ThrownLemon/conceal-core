@@ -42,28 +42,37 @@ setsid "$CONCEALD" --testnet --data-dir "$N2" --no-console --hide-my-port --p2p-
   --add-exclusive-node 127.0.0.1:15500 --rpc-bind-port 16601 --p2p-bind-port 15600 \
   --log-level 0 --log-file "$N2/d.log" >/tmp/ccx-n2.out 2>&1 </dev/null &
 
-echo ">> waiting for the coinbase of block 1 to unlock (height >= 13)"
-while true; do H=$(height || true); [ "${H:-0}" -ge 13 ] 2>/dev/null && break; sleep 3; done
+# Fixed PQ coinbase denomination (must match cn::PQ_TESTNET_COINBASE_AMOUNT) and ring shape.
+AMT=100000
+RING=4
+SIGNER=2   # spend the ring member at global index 2 == the PQ output mined at height 3
+
+echo ">> waiting for ring members (global indices 0..$((RING-1)) = heights 1..$RING) to unlock"
+# coinbase outputs unlock at height + CRYPTONOTE_MINED_MONEY_UNLOCK_WINDOW (10); need height > RING+10
+NEED=$((RING + 12))
+while true; do H=$(height || true); [ "${H:-0}" -ge "$NEED" ] 2>/dev/null && break; sleep 3; done
 echo "   height=$H"
 
-AMT=$(hdr 1 | grep -oE '"reward":[0-9]+' | grep -oE '[0-9]+')
-echo ">> block 1 PQ coinbase amount = $AMT"
-
-echo ">> [1] spend block 1's PQ output (fee 1000000)"
-HEX=$("$INJECTOR" "$AMT" 1000000 0)
+echo ">> [1] spend PQ output (amount=$AMT) in a ring of $RING members, signer index $SIGNER (fee 1000)"
+HEX=$("$INJECTOR" "$AMT" 1000 "$SIGNER" "$RING")
+echo "   tx bytes=$(( ${#HEX} / 2 ))"
 echo "   submit: $(curl -s -X POST http://127.0.0.1:$RPC1/sendrawtransaction \
   -H 'Content-Type: application/json' -d "{\"tx_as_hex\":\"$HEX\"}")"
+
+echo ">> [2] IN-POOL DOUBLE-SPEND: distinct tx (fee 2000, different ring), SAME signer/nullifier"
+HEX2=$("$INJECTOR" "$AMT" 2000 "$SIGNER" "$((RING+1))")
+echo "   submit: $(curl -s -X POST http://127.0.0.1:$RPC1/sendrawtransaction \
+  -H 'Content-Type: application/json' -d "{\"tx_as_hex\":\"$HEX2\"}")"
+echo "   tx_pool_size=$(info | grep -oE '"tx_pool_size":[0-9]+' | grep -oE '[0-9]+') (expect 1 — only tx1)"
 
 echo ">> waiting for the PQ tx to be mined"
 S=$(height); while true; do P=$(info | grep -oE '"tx_pool_size":[0-9]+' | grep -oE '[0-9]+'); H=$(height); \
   { [ "${P:-1}" = 0 ] && [ "${H:-0}" -gt "${S:-0}" ]; } && break; sleep 2; done
-echo "   mined; tx_count=$(info | grep -oE '"tx_count":[0-9]+' | grep -oE '[0-9]+')"
+echo "   mined; tx_count=$(info | grep -oE '"tx_count":[0-9]+' | grep -oE '[0-9]+') (expect 1)"
 
-echo ">> [2] DOUBLE-SPEND: distinct tx (fee 2000000), SAME nullifier -> must be rejected"
-HEX2=$("$INJECTOR" "$AMT" 2000000 0)
+echo ">> [3] spend a DIFFERENT output (signer index 0) -> independent nullifier, must be ACCEPTED"
+HEX3=$("$INJECTOR" "$AMT" 1000 0 "$RING")
 echo "   submit: $(curl -s -X POST http://127.0.0.1:$RPC1/sendrawtransaction \
-  -H 'Content-Type: application/json' -d "{\"tx_as_hex\":\"$HEX2\"}")"
-echo "   tx_pool_size=$(info | grep -oE '"tx_pool_size":[0-9]+' | grep -oE '[0-9]+') (expect 0)"
-echo "   tx_count=$(info | grep -oE '"tx_count":[0-9]+' | grep -oE '[0-9]+') (expect 1 — double-spend not mined)"
+  -H 'Content-Type: application/json' -d "{\"tx_as_hex\":\"$HEX3\"}")"
 
 echo ">> done. Stop with: pkill -x conceald"

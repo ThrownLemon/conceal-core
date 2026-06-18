@@ -169,6 +169,10 @@ namespace cn
 		0x4e, 0x74, 0x70, 0x71, 0x75, 0x61, 0x6e, 0x74,
 		0x75, 0x6d, 0x70, 0x6f, 0x63, 0x73, 0x65, 0x65,
 		0x64, 0x21, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x00};
+	/* Fixed denomination for the testnet PQ coinbase output: a constant amount means many blocks'
+	   PQ outputs share one m_pqOutputs[amount] bucket, so the injector can form a real ring of N
+	   distinct members. The block reward remainder goes to a normal KeyOutput. (0.1 CCX @ 6 dp.) */
+	const uint64_t PQ_TESTNET_COINBASE_AMOUNT = 100000;
 	const uint8_t BLOCK_MAJOR_VERSION_1 = 1; // (Consensus I)
 	const uint8_t BLOCK_MAJOR_VERSION_2 = 2; // (Consensus II)
 	const uint8_t BLOCK_MAJOR_VERSION_3 = 3; // (Consensus III)
