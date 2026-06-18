@@ -67,13 +67,22 @@ if (MINGW)
   target_link_libraries(System ws2_32)
 endif ()
 
+# CryptoNoteCore now references the ccx-pqc FFI (PQ ring-sig verification in Blockchain.cpp),
+# so it needs the header at compile time and every executable that links CryptoNoteCore must
+# also link libccx_pqc.a (+ its system deps). The .a must follow CryptoNoteCore on each link line.
+add_dependencies(CryptoNoteCore ccx_pqc)
+target_include_directories(CryptoNoteCore PRIVATE ${CCX_PQC_INCLUDE})
+
 target_link_libraries(Daemon CryptoNoteCore P2P Rpc System Http Logging Common crypto libminiupnpc-static BlockchainExplorer ${Boost_LIBRARIES} Serialization)
 add_dependencies(Daemon ccx_pqc)
 target_include_directories(Daemon PRIVATE ${CCX_PQC_INCLUDE})
 target_link_libraries(Daemon ${CCX_PQC_LIB} pthread dl m)
 target_link_libraries(ConcealWallet Wallet NodeRpcProxy Transfers Rpc Http CryptoNoteCore System Logging Common crypto ${Boost_LIBRARIES} Serialization Mnemonics)
+target_link_libraries(ConcealWallet ${CCX_PQC_LIB} pthread dl m)
 target_link_libraries(PaymentGateService PaymentGate JsonRpcServer Wallet NodeRpcProxy Transfers CryptoNoteCore crypto P2P Rpc Http System Logging Common InProcessNode libminiupnpc-static BlockchainExplorer ${Boost_LIBRARIES} Serialization)
+target_link_libraries(PaymentGateService ${CCX_PQC_LIB} pthread dl m)
 target_link_libraries(Optimizer PaymentGate Rpc Http CryptoNoteCore Logging Serialization crypto System Common ${Boost_LIBRARIES})
+target_link_libraries(Optimizer ${CCX_PQC_LIB} pthread dl m)
 
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR APPLE AND NOT ANDROID)
   target_link_libraries(ConcealWallet -lresolv)

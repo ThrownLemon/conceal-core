@@ -24,6 +24,7 @@
 #include "TransactionExtra.h"
 #include "CryptoNoteConfig.h"
 #include "parallel_hashmap/phmap_dump.h"
+#include "pq_ring_sig.h" // ccx-pqc FFI (post-quantum ring-sig verify); resolved at executable link
 
 using namespace logging;
 using namespace common;
@@ -2225,11 +2226,13 @@ namespace cn
     }
 
     crypto::Hash transactionHash = getObjectHash(tx);
+    crypto::Hash pqSigningHash;
+    bool pqSigningHashReady = false;
     for (const auto &txin : tx.inputs)
     {
-      assert(inputIndex < tx.signatures.size());
       if (txin.type() == typeid(KeyInput))
       {
+        assert(inputIndex < tx.signatures.size());
         const KeyInput &in_to_key = boost::get<KeyInput>(txin);
         if (!(!in_to_key.outputIndexes.empty()))
         {
@@ -2254,8 +2257,45 @@ namespace cn
 
         ++inputIndex;
       }
+      else if (txin.type() == typeid(PqKeyInput))
+      {
+        const PqKeyInput &pqin = boost::get<PqKeyInput>(txin);
+        if (pqin.outputIndexes.empty())
+        {
+          logger(ERROR, BRIGHT_RED) << "empty PQ input outputIndexes in transaction with id " << transactionHash;
+          return false;
+        }
+
+        // Double-spend guard: reject if this PQ nullifier is already recorded as spent.
+        const std::string nfk(pqin.nullifier.begin(), pqin.nullifier.end());
+        if (m_spent_pq_nullifiers.count(nfk) != 0)
+        {
+          logger(DEBUGGING) << "PQ nullifier already spent in blockchain.";
+          return false;
+        }
+
+        if (!isInCheckpointZone(getCurrentBlockchainHeight()))
+        {
+          // The signed message is the prefix with all PqKeyInput.ringSig cleared (shared by every
+          // PQ input in this tx) — compute it once on first use.
+          if (!pqSigningHashReady)
+          {
+            pqSigningHash = getTransactionPqSigningHash(tx);
+            pqSigningHashReady = true;
+          }
+          if (!check_pq_tx_input(pqin, pqSigningHash, pmax_used_block_height))
+          {
+            logger(INFO, BRIGHT_WHITE) << "Failed to check PQ input in transaction " << transactionHash;
+            return false;
+          }
+        }
+
+        // PQ inputs carry no entry in tx.signatures (getSignaturesCount == 0), so inputIndex
+        // (which indexes tx.signatures) is intentionally NOT advanced here.
+      }
       else if (txin.type() == typeid(MultisignatureInput))
       {
+        assert(inputIndex < tx.signatures.size());
         if (!isInCheckpointZone(getCurrentBlockchainHeight()))
         {
           if (!validateInput(::boost::get<MultisignatureInput>(txin), transactionHash, tx_prefix_hash, tx.signatures[inputIndex]))
@@ -2371,6 +2411,120 @@ namespace cn
     }
 
     return crypto::check_ring_signature(tx_prefix_hash, txin.keyImage, output_keys, sig.data());
+  }
+
+  crypto::Hash Blockchain::getTransactionPqSigningHash(const Transaction &tx) const
+  {
+    // The PQ ring signature signs the tx prefix with every PqKeyInput.ringSig cleared (a signature
+    // cannot commit to itself). Everything else in the prefix — amounts, output keys, nullifiers —
+    // remains part of the signed message. Injector and validator MUST compute this identically.
+    TransactionPrefix prefix = tx; // slice-copy the prefix
+    for (auto &in : prefix.inputs)
+    {
+      if (in.type() == typeid(PqKeyInput))
+      {
+        boost::get<PqKeyInput>(in).ringSig.clear();
+      }
+    }
+    return getObjectHash(prefix);
+  }
+
+  bool Blockchain::check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash, uint32_t *pmax_related_block_height)
+  {
+    std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+
+    // Nullifier length must equal the scheme's fixed spend-tag size.
+    if (txin.nullifier.size() != cn::PQ_NULLIFIER_SIZE)
+    {
+      logger(INFO, BRIGHT_WHITE) << "PQ input nullifier has wrong length " << txin.nullifier.size();
+      return false;
+    }
+
+    // Resolve the ring's one-time PQ public keys from m_pqOutputs (mirrors scanOutputKeysForIndexes,
+    // but against the PQ output index and extracting PqKeyOutput keys).
+    auto it = m_pqOutputs.find(txin.amount);
+    if (it == m_pqOutputs.end())
+    {
+      logger(INFO, BRIGHT_WHITE) << "No PQ outputs indexed for amount " << txin.amount;
+      return false;
+    }
+
+    const std::vector<uint32_t> absolute_offsets = relative_output_offsets_to_absolute(txin.outputIndexes);
+    const std::vector<std::pair<TransactionIndex, uint16_t>> &amount_outs_vec = it->second;
+
+    const size_t pkBytes = ccx_pq_pubkey_bytes();
+    if (pkBytes == 0)
+    {
+      logger(ERROR, BRIGHT_RED) << "ccx-pqc reports zero public-key size";
+      return false;
+    }
+
+    std::vector<uint8_t> ring;
+    ring.reserve(absolute_offsets.size() * pkBytes);
+
+    size_t count = 0;
+    for (uint64_t i : absolute_offsets)
+    {
+      if (i >= amount_outs_vec.size())
+      {
+        logger(INFO, BRIGHT_WHITE) << "Wrong PQ output index in input: " << i << ", expected maximum " << amount_outs_vec.size() - 1;
+        return false;
+      }
+
+      const TransactionEntry &te = transactionByIndex(amount_outs_vec[i].first);
+      const uint16_t outIdx = amount_outs_vec[i].second;
+      if (!(outIdx < te.tx.outputs.size()))
+      {
+        logger(ERROR, BRIGHT_RED) << "Wrong PQ output index in referenced transaction: " << outIdx;
+        return false;
+      }
+
+      const TransactionOutputTarget &target = te.tx.outputs[outIdx].target;
+      if (target.type() != typeid(PqKeyOutput))
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ ring member is not a PqKeyOutput";
+        return false;
+      }
+
+      const std::vector<uint8_t> &memberKey = boost::get<PqKeyOutput>(target).key;
+      if (memberKey.size() != pkBytes)
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ ring member key has wrong length " << memberKey.size() << ", expected " << pkBytes;
+        return false;
+      }
+      ring.insert(ring.end(), memberKey.begin(), memberKey.end());
+
+      if (count++ == absolute_offsets.size() - 1 && pmax_related_block_height && *pmax_related_block_height < amount_outs_vec[i].first.block)
+      {
+        *pmax_related_block_height = amount_outs_vec[i].first.block;
+      }
+    }
+
+    const size_t ringCount = absolute_offsets.size();
+
+    // Verify the lattice linkable ring signature and recover the spend tag (nullifier).
+    std::vector<uint8_t> recoveredNf(cn::PQ_NULLIFIER_SIZE, 0);
+    const int32_t rc = ccx_pq_verify(
+        reinterpret_cast<const uint8_t *>(&pq_signing_hash), sizeof(pq_signing_hash),
+        ring.data(), ringCount, pkBytes,
+        txin.ringSig.data(), txin.ringSig.size(),
+        recoveredNf.data(), recoveredNf.size());
+    if (rc != 0)
+    {
+      logger(INFO, BRIGHT_WHITE) << "PQ ring signature verification failed (rc=" << rc << ")";
+      return false;
+    }
+
+    // Bind the claimed nullifier to the signature: the tag recovered from the signature must equal
+    // the input's declared nullifier, otherwise an attacker could swap nullifiers to evade the
+    // double-spend set while presenting a valid signature.
+    if (recoveredNf != txin.nullifier)
+    {
+      logger(INFO, BRIGHT_WHITE) << "PQ recovered nullifier does not match declared input nullifier";
+      return false;
+    }
+
+    return true;
   }
 
   uint64_t Blockchain::get_adjusted_time() const

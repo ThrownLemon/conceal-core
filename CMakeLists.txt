@@ -183,6 +183,13 @@ endif()
 
 # option(BUILD_TESTS "Build tests." ON)
 
+# Post-quantum crypto module (ccx-pqc, Rust C-ABI) path vars — defined here, BEFORE the
+# BUILD_TESTS block, so tests/CMakeLists.txt can link ${CCX_PQC_LIB} (CryptoNoteCore now
+# references the FFI). The cargo build command/target itself is wired up further below.
+set(CCX_PQC_DIR ${CMAKE_SOURCE_DIR}/pqc/ccx-pqc)
+set(CCX_PQC_LIB ${CCX_PQC_DIR}/target/release/libccx_pqc.a)
+set(CCX_PQC_INCLUDE ${CMAKE_SOURCE_DIR}/pqc/include)
+
 if(BUILD_TESTS)
   add_subdirectory(tests)
   add_subdirectory(external/gtest)
@@ -228,11 +235,15 @@ endif()
 
 add_subdirectory(external)
 # --- Post-quantum crypto module (ccx-pqc, Rust C-ABI) — testnet PoC (CIP-0001) ---
-set(CCX_PQC_DIR ${CMAKE_SOURCE_DIR}/pqc/ccx-pqc)
-set(CCX_PQC_LIB ${CCX_PQC_DIR}/target/release/libccx_pqc.a)
-set(CCX_PQC_INCLUDE ${CMAKE_SOURCE_DIR}/pqc/include)
+# (CCX_PQC_DIR / CCX_PQC_LIB / CCX_PQC_INCLUDE are defined earlier, before the BUILD_TESTS block.)
+# Locate cargo by absolute path: non-interactive build shells (e.g. ssh "make") often lack
+# ~/.cargo/bin on PATH, which made the bare `cargo` invocation fail with exit 127.
+find_program(CARGO_EXECUTABLE cargo HINTS "$ENV{HOME}/.cargo/bin" "$ENV{CARGO_HOME}/bin")
+if(NOT CARGO_EXECUTABLE)
+  set(CARGO_EXECUTABLE cargo)
+endif()
 add_custom_command(OUTPUT ${CCX_PQC_LIB}
-  COMMAND cargo build --release
+  COMMAND ${CARGO_EXECUTABLE} build --release
   WORKING_DIRECTORY ${CCX_PQC_DIR}
   COMMENT "Building ccx-pqc (post-quantum crypto module, Rust)" VERBATIM)
 add_custom_target(ccx_pqc DEPENDS ${CCX_PQC_LIB})

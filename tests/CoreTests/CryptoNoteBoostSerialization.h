@@ -87,6 +87,22 @@ namespace boost
   }
 
   template <class Archive>
+  inline void serialize(Archive &a, cn::PqKeyInput &x, const boost::serialization::version_type ver)
+  {
+    a & x.amount;
+    a & x.outputIndexes;
+    a & x.nullifier;
+    a & x.ringSig;
+  }
+
+  template <class Archive>
+  inline void serialize(Archive &a, cn::PqKeyOutput &x, const boost::serialization::version_type ver)
+  {
+    a & x.key;
+    a & x.kemCt;
+  }
+
+  template <class Archive>
   inline void serialize(Archive &a, cn::TransactionOutput &x, const boost::serialization::version_type ver)
   {
     a & x.amount;

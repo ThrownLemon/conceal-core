@@ -341,6 +341,12 @@ namespace cn
     bool getBlockCumulativeSize(const Block &block, size_t &cumulativeSize);
     bool update_next_comulative_size_limit();
     bool check_tx_input(const KeyInput &txin, const crypto::Hash &tx_prefix_hash, const std::vector<crypto::Signature> &sig, uint32_t *pmax_related_block_height = nullptr);
+    // Post-quantum input validation (CIP-0001, testnet PoC): resolve the PQ ring from
+    // m_pqOutputs and verify the lattice linkable ring signature via the ccx-pqc FFI.
+    bool check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash, uint32_t *pmax_related_block_height = nullptr);
+    // Hash signed by PQ ring signatures: the tx prefix with every PqKeyInput.ringSig cleared
+    // (the ringSig cannot commit to itself). Injector and validator must compute this identically.
+    crypto::Hash getTransactionPqSigningHash(const Transaction &tx) const;
     bool checkTransactionInputs(const Transaction &tx, const crypto::Hash &tx_prefix_hash, uint32_t *pmax_used_block_height = nullptr);
     bool checkTransactionInputs(const Transaction &tx, uint32_t *pmax_used_block_height = nullptr);
 

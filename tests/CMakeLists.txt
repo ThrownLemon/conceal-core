@@ -53,6 +53,13 @@ target_link_libraries(DifficultyTests CryptoNoteCore Serialization crypto Loggin
 target_link_libraries(HashTargetTests CryptoNoteCore crypto)
 target_link_libraries(HashTests crypto)
 
+# CryptoNoteCore now references the ccx-pqc FFI (PQ ring-sig verification in Blockchain.cpp),
+# so every test executable that links CryptoNoteCore must also link libccx_pqc.a (+ system deps).
+# The .a is appended after CryptoNoteCore on each link line (resolves undefined ccx_pq_* symbols).
+foreach(pqtgt CoreTests IntegrationTests NodeRpcProxyTests PerformanceTests TransfersTests UnitTests DifficultyTests HashTargetTests)
+  target_link_libraries(${pqtgt} ${CCX_PQC_LIB} pthread dl m)
+endforeach()
+
 
 add_custom_target(tests DEPENDS NodeRpcProxyTests PerformanceTests SystemTests UnitTests DifficultyTests HashTargetTests)
 
