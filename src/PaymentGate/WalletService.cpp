@@ -1706,6 +1706,10 @@ namespace payment_service
           crypto::SecretKey secretKey = wallet.getAddressSpendKey(wallet.getAddress(i)).secretKey;
           std::vector<std::string> m = cn::get_messages_from_extra(extraBin, publicKey, &secretKey);
           messages.insert(std::end(messages), std::begin(m), std::end(m));
+          // Also read authenticated 0x07 messages (same ECDH key material as 0x04). New messages are
+          // emitted as 0x07; legacy 0x04 stays decode-only for history.
+          std::vector<std::string> mAuth = cn::get_authenticated_messages_from_extra(extraBin, publicKey, &secretKey);
+          messages.insert(std::end(messages), std::begin(mAuth), std::end(mAuth));
         }
       }
       catch (std::exception &e)
@@ -2012,6 +2016,11 @@ namespace payment_service
           {
             crypto::SecretKey secretKey = wallet.getAddressSpendKey(address).secretKey;
             std::vector<std::string> m = cn::get_messages_from_extra(extraBin, publicKey, &secretKey);
+            // Also read authenticated 0x07 messages (same ECDH key material as 0x04). New messages
+            // are emitted as 0x07; legacy 0x04 stays decode-only for history. Merge both so the first
+            // decoded message is surfaced regardless of which field carried it.
+            std::vector<std::string> mAuth = cn::get_authenticated_messages_from_extra(extraBin, publicKey, &secretKey);
+            m.insert(m.end(), mAuth.begin(), mAuth.end());
             if (!m.empty())
             {
               rpcTransfer.message = m[0];

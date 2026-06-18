@@ -216,9 +216,27 @@ bool constructTransaction(
       if (!append_pq_message_to_extra(tx.extra, pqTag)) {
         return false;
       }
+    } else if (msg.encrypt) {
+      // Authenticated classical message: emit a tx_extra_authenticated_message (0x07). It keeps the
+      // SAME Curve25519 ECDH key agreement as the legacy 0x04 field but seals the payload with
+      // ChaCha20-Poly1305 AEAD, so tampering is detected. 0x04 is frozen to decrypt-only for history;
+      // all NEW encrypted messages use 0x07. tx-extra is not consensus-validated, so this is a
+      // backward-compatible, non-consensus change.
+      tx_extra_authenticated_message authTag;
+      if (!authTag.encrypt(i, msg.message, &msg.addr, txkey)) {
+        return false;
+      }
+
+      if (!append_authenticated_message_to_extra(tx.extra, authTag)) {
+        return false;
+      }
     } else {
+      // Unencrypted message (msg.encrypt == false): no recipient ECDH is available, so the
+      // authenticated 0x07 field (which requires a recipient) cannot be produced. Fall back to the
+      // legacy 0x04 field carrying plaintext + the 4-zero owner-check, matching the historical
+      // behaviour for messages sent without a recipient.
       tx_extra_message tag;
-      if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
+      if (!tag.encrypt(i, msg.message, NULL, txkey)) {
         return false;
       }
 

@@ -255,12 +255,16 @@ the serialization layer. The `0x06` PQ message and the `0x07` authenticated clas
 both replace this with real ChaCha20-Poly1305 AEAD integrity; `0x07` keeps the same classical ECDH key
 agreement as `0x04` (but a domain-separated seed, §4.6), so it is the drop-in classical successor.
 
-> **Cross-cutting follow-up (not in this branch):** the wallet send path
-> (`src/CryptoNoteCore/CryptoNoteFormatUtils.cpp`, `src/Wallet/WalletGreen.cpp`) still *emits* `0x04`
-> when sending messages. Migrating the send path to emit `0x07` instead is the wallet's job (owned by
-> a different agent); this branch only adds the `0x07` type + parser/serializer/decrypt and freezes
-> `0x04` at the field level. tx-extra is not consensus-validated, so the migration is non-consensus.
-> See `docs/reviews/tier1/serializer-review-response.md`.
+> **Send-path migration (done):** the wallet send path now *emits* the authenticated `0x07` field for
+> new encrypted messages instead of the legacy `0x04` field. `src/CryptoNoteCore/CryptoNoteFormatUtils.cpp`
+> (`constructTransaction`, WalletLegacy path) and `src/Wallet/WalletGreen.cpp` both build a
+> `tx_extra_authenticated_message` via `append_authenticated_message_to_extra` whenever a message has a
+> recipient (`tx_message_entry::encrypt == true`). The legacy `0x04` field is **decrypt-only**: it is no
+> longer emitted for encrypted messages, only still produced for the rare *unencrypted broadcast*
+> message (`encrypt == false`, no recipient ECDH) which cannot use the authenticated field. The receive
+> path (`TransfersConsumer`, `WalletGreen::getMessagesFromExtra`, `PaymentGate/WalletService`) reads both
+> `0x04` (history) and `0x07` (new) and merges the results. tx-extra is not consensus-validated, so the
+> migration is backward-compatible and non-consensus. See `docs/reviews/tier1/serializer-review-response.md`.
 
 ---
 

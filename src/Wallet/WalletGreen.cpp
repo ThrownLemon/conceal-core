@@ -2234,6 +2234,10 @@ namespace cn
       crypto::SecretKey secretKey = getAddressSpendKey(getAddress(i)).secretKey;
       std::vector<std::string> m = cn::get_messages_from_extra(extraBin, publicKey, &secretKey);
       messages.insert(std::end(messages), std::begin(m), std::end(m));
+      // Also read authenticated 0x07 messages (same ECDH key material as 0x04, so the same spend
+      // secret decrypts them). New messages are emitted as 0x07; 0x04 is decode-only for history.
+      std::vector<std::string> mAuth = cn::get_authenticated_messages_from_extra(extraBin, publicKey, &secretKey);
+      messages.insert(std::end(messages), std::begin(mAuth), std::end(mAuth));
     }
     return messages;
   }
@@ -3037,11 +3041,14 @@ namespace cn
       cn::AccountPublicAddress addressBin;
       if (!m_currency.parseAccountAddressString(messages[i].address, addressBin))
         continue;
-      cn::tx_extra_message tag;
+      // Emit the authenticated classical message (tx-extra 0x07) keyed by the same Curve25519 ECDH as
+      // the legacy 0x04 field but sealed with ChaCha20-Poly1305 AEAD. 0x04 is frozen to decrypt-only;
+      // all new messages use 0x07. tx-extra is not consensus-validated, so this is backward-compatible.
+      cn::tx_extra_authenticated_message tag;
       if (!tag.encrypt(i, messages[i].message, &addressBin, kp))
         continue;
       BinaryArray ba;
-      if (cn::append_message_to_extra(ba, tag))
+      if (cn::append_authenticated_message_to_extra(ba, tag))
       {
         tx->appendExtra(ba);
       }
