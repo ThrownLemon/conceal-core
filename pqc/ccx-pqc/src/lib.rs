@@ -21,14 +21,13 @@ use pqcrypto_kyber::kyber768;
 use pqcrypto_dilithium::dilithium3;
 use pqcrypto_traits::kem::{PublicKey as KP, SecretKey as KS, Ciphertext as KC, SharedSecret as KSS};
 use pqcrypto_traits::sign::{PublicKey as SP, SecretKey as SS, SignedMessage as SM};
-use ml_dsa::{MlDsa65, KeyGen, B32, EncodedVerifyingKey, EncodedSignature, VerifyingKey, Signature};
-use ml_dsa::signature::Verifier;
 
-const PK: usize = 1952;          // ML-DSA-65 verifying key bytes
-const SK: usize = 32;            // 32-byte master seed (the ML-DSA keypair is expanded on demand)
-const SIG: usize = 3309;         // ML-DSA-65 signature bytes
-const NF: usize = 32;            // link tag (nullifier)
-const SCHEME_ID: u32 = 0xC0DE_0002; // bumped: real ML-DSA backend (0x...0001 was the stub)
+mod ringsig; // EXPERIMENTAL lattice linkable ring signature (anonymous + soundly linkable)
+
+const PK: usize = ringsig::PK_BYTES; // lattice public key (t) bytes
+const SK: usize = 32;                // 32-byte seed (the short secret s is re-derived from it)
+const NF: usize = 32;                // link tag (nullifier) = SHAKE256 of the lattice tag I
+const SCHEME_ID: u32 = 0xC0DE_0003;  // lattice linkable-ring-signature backend (anonymous)
 
 fn shake(parts: &[&[u8]], out: &mut [u8]) {
     let mut x = Shake256::default();
@@ -37,15 +36,17 @@ fn shake(parts: &[&[u8]], out: &mut [u8]) {
 }
 fn seed32(seed: &[u8]) -> [u8; 32] {
     let mut m = [0u8; 32];
-    shake(&[b"ccx-mldsa-seed", seed], &mut m);
+    shake(&[b"ccx-lring-seed", seed], &mut m);
     m
 }
-fn nullifier_of(seed32: &[u8; 32]) -> [u8; NF] {
+// 32-byte nullifier = SHAKE256(serialized lattice tag I). Same input on sign (ccx_pq_nullifier) and
+// verify (recovered tag), so the daemon's double-spend set is consistent.
+fn nf_from_tag(tag_bytes: &[u8]) -> [u8; NF] {
     let mut nf = [0u8; NF];
-    shake(&[b"ccx-pq-nf", seed32], &mut nf);
+    shake(&[b"ccx-pq-nf", tag_bytes], &mut nf);
     nf
 }
-fn ring_sig_size(_n: usize) -> usize { SIG + NF } // one real ML-DSA sig + the link tag (size is N-independent)
+fn ring_sig_size(n: usize) -> usize { ringsig::sig_bytes(n) }
 
 #[no_mangle] pub extern "C" fn ccx_pq_scheme_id() -> u32 { SCHEME_ID }
 #[no_mangle] pub extern "C" fn ccx_pq_pubkey_bytes() -> usize { PK }
@@ -60,11 +61,10 @@ pub extern "C" fn ccx_pq_keygen(seed: *const u8, seed_len: usize,
     if pk_cap < PK || sk_cap < SK { return -2; }
     let seed = if seed.is_null() { &[][..] } else { unsafe { std::slice::from_raw_parts(seed, seed_len) } };
     let master = seed32(seed);
-    let xi = B32::try_from(&master[..]).map_err(|_| ()).unwrap();
-    let kp = MlDsa65::key_gen_internal(&xi);
-    let pk = kp.verifying_key().encode();      // 1952 bytes
+    let (pk, _s, _t) = ringsig::keygen(&master);
+    if pk.len() != PK { return -7; }
     unsafe {
-        std::ptr::copy_nonoverlapping(master.as_ptr(), sk_out, SK);   // sk == the 32-byte master seed
+        std::ptr::copy_nonoverlapping(master.as_ptr(), sk_out, SK); // sk == the 32-byte seed
         std::ptr::copy_nonoverlapping(pk.as_ptr(), pk_out, PK);
     }
     0
@@ -78,42 +78,44 @@ pub extern "C" fn ccx_pq_nullifier(sk: *const u8, sk_len: usize,
     if nf_cap < NF || sk_len < SK { return -2; }
     let skb = unsafe { std::slice::from_raw_parts(sk, SK) };
     let mut master = [0u8; 32]; master.copy_from_slice(&skb[..SK]);
-    let nf = nullifier_of(&master);            // secret-bound: SHAKE256(seed), NOT H(pubkey)
+    let (_pk, s, _t) = ringsig::keygen(&master);
+    let nf = nf_from_tag(&ringsig::tag_bytes_of(&s)); // tag I = A2*s, bound to the secret
     unsafe { std::ptr::copy_nonoverlapping(nf.as_ptr(), nf_out, NF); }
     0
 }
 
+fn split_ring(ringb: &[u8], ring_count: usize, stride: usize) -> Vec<Vec<u8>> {
+    let mut pks = Vec::with_capacity(ring_count);
+    for i in 0..ring_count { let off = i * stride; pks.push(ringb[off..off + PK].to_vec()); }
+    pks
+}
+
 #[no_mangle]
 pub extern "C" fn ccx_pq_sign(msg: *const u8, msg_len: usize,
-                              ring: *const u8, ring_count: usize, _member_stride: usize,
-                              sk: *const u8, sk_len: usize, _signer_index: usize,
+                              ring: *const u8, ring_count: usize, member_stride: usize,
+                              sk: *const u8, sk_len: usize, signer_index: usize,
                               sig_out: *mut u8, sig_len: *mut usize) -> i32 {
     if sig_len.is_null() { return -1; }
     let need = ring_sig_size(ring_count);
     if sig_out.is_null() { unsafe { *sig_len = need; } return 0; }          // two-call size query
     if unsafe { *sig_len } < need { unsafe { *sig_len = need; } return -2; }
     if msg.is_null() || ring.is_null() || sk.is_null() { return -1; }
-    if sk_len < SK { return -1; }
+    if sk_len < SK || ring_count == 0 || member_stride < PK || signer_index >= ring_count { return -1; }
     let msg = unsafe { std::slice::from_raw_parts(msg, msg_len) };
     let skb = unsafe { std::slice::from_raw_parts(sk, SK) };
     let mut master = [0u8; 32]; master.copy_from_slice(&skb[..SK]);
-
-    let nf = nullifier_of(&master);
-    let mut signed = Vec::with_capacity(msg.len() + NF);
-    signed.extend_from_slice(msg);
-    signed.extend_from_slice(&nf);             // bind the link tag into the signed transcript
-
-    let xi = match B32::try_from(&master[..]) { Ok(x) => x, Err(_) => return -1 };
-    let kp = MlDsa65::key_gen_internal(&xi);
-    let sig = match kp.signing_key().sign_deterministic(&signed, &[]) { Ok(s) => s, Err(_) => return -6 };
-    let sigb = sig.encode();                   // 3309 bytes
-    if sigb.len() != SIG { return -7; }
-
-    let out = unsafe { std::slice::from_raw_parts_mut(sig_out, need) };
-    out[..SIG].copy_from_slice(&sigb);
-    out[SIG..SIG + NF].copy_from_slice(&nf);
-    unsafe { *sig_len = need; }
-    0
+    let ringb = unsafe { std::slice::from_raw_parts(ring, ring_count * member_stride) };
+    let pks = split_ring(ringb, ring_count, member_stride);
+    match ringsig::sign(msg, &pks, signer_index, &master) {
+        Some(sig) => {
+            if sig.len() != need { return -7; }
+            let out = unsafe { std::slice::from_raw_parts_mut(sig_out, need) };
+            out.copy_from_slice(&sig);
+            unsafe { *sig_len = need; }
+            0
+        }
+        None => -6, // signing aborted too many times (rejection sampling)
+    }
 }
 
 #[no_mangle]
@@ -121,35 +123,24 @@ pub extern "C" fn ccx_pq_verify(msg: *const u8, msg_len: usize,
                                 ring: *const u8, ring_count: usize, member_stride: usize,
                                 sig: *const u8, sig_len: usize, nf_out: *mut u8, nf_cap: usize) -> i32 {
     if msg.is_null() || ring.is_null() || sig.is_null() { return -1; }
-    if sig_len != ring_sig_size(ring_count) { return -3; }
     if ring_count == 0 || member_stride < PK { return -1; }
+    if sig_len != ring_sig_size(ring_count) { return -3; }
     let msg = unsafe { std::slice::from_raw_parts(msg, msg_len) };
     let sigb = unsafe { std::slice::from_raw_parts(sig, sig_len) };
     let ringb = unsafe { std::slice::from_raw_parts(ring, ring_count * member_stride) };
-
-    let nf = &sigb[SIG..SIG + NF];
-    let mut signed = Vec::with_capacity(msg.len() + NF);
-    signed.extend_from_slice(msg);
-    signed.extend_from_slice(nf);
-
-    let enc_sig = match EncodedSignature::<MlDsa65>::try_from(&sigb[..SIG]) { Ok(s) => s, Err(_) => return -3 };
-    let signature = match Signature::<MlDsa65>::decode(&enc_sig) { Some(s) => s, None => return -3 };
-
-    // Real verification: accept iff the ML-DSA signature is valid under SOME ring member's key.
-    // (Identifying WHICH member is the honest demo limitation — see module docs.)
-    for i in 0..ring_count {
-        let off = i * member_stride;
-        let enc_pk = match EncodedVerifyingKey::<MlDsa65>::try_from(&ringb[off..off + PK]) { Ok(p) => p, Err(_) => continue };
-        let vk = VerifyingKey::<MlDsa65>::decode(&enc_pk);
-        if vk.verify(&signed, &signature).is_ok() {
+    let pks = split_ring(ringb, ring_count, member_stride);
+    // Anonymous verify: walks the symmetric ring chain; it NEVER learns which member signed.
+    match ringsig::verify(msg, &pks, sigb) {
+        Some(tag_bytes) => {
             if !nf_out.is_null() {
                 if nf_cap < NF { return -2; }
+                let nf = nf_from_tag(&tag_bytes);
                 unsafe { std::ptr::copy_nonoverlapping(nf.as_ptr(), nf_out, NF); }
             }
-            return 0;
+            0
         }
+        None => -5,
     }
-    -5 // no ring member's key validates the signature
 }
 
 #[repr(C)] pub struct CcxPqSizes { pub pk: usize, pub sk: usize, pub ct_or_sig: usize, pub ss: usize, pub ok: i32 }
@@ -266,17 +257,60 @@ pub extern "C" fn ccx_pq_kem_stealth_selftest() -> CcxPqSizes {
     CcxPqSizes { pk: KEM_PK, sk: KEM_SK, ct_or_sig: KEM_CT, ss: 32, ok }
 }
 
-/// Selftest for the real ring-sig backend: keygen -> sign -> verify (ring size 1) + nullifier determinism.
+/// Selftest for the EXPERIMENTAL lattice linkable ring signature: proves a ring-of-4 signature
+/// verifies, is linkable (same signer -> same tag), distinguishes signers (different signer ->
+/// different tag), and rejects a tampered signature. Anonymity is structural (the ring chain is
+/// symmetric across members). ok=1 means all checks passed.
+#[no_mangle]
+pub extern "C" fn ccx_pqr_ringsig_selftest() -> CcxPqSizes {
+    let n = 4usize;
+    let mut pks: Vec<Vec<u8>> = Vec::new();
+    let mut seeds: Vec<[u8; 32]> = Vec::new();
+    for i in 0..n {
+        let mut sd = [0u8; 32]; sd[0] = i as u8; sd[1] = 0xab; sd[2] = 0xcd;
+        let (pk, _s, _t) = ringsig::keygen(&sd);
+        pks.push(pk); seeds.push(sd);
+    }
+    let msg = b"ccx-lring-selftest";
+    let signer = 2usize;
+    let fail = CcxPqSizes { pk: ringsig::PK_BYTES, sk: 32, ct_or_sig: ringsig::sig_bytes(n), ss: ringsig::TAG_BYTES, ok: 0 };
+    let sig = match ringsig::sign(msg, &pks, signer, &seeds[signer]) { Some(s) => s, None => return fail };
+    let tag1 = match ringsig::verify(msg, &pks, &sig) { Some(t) => t, None => return fail };
+    // linkable: a second signature by the SAME signer recovers the SAME tag
+    let sig2 = match ringsig::sign(msg, &pks, signer, &seeds[signer]) { Some(s) => s, None => return fail };
+    let tag2 = match ringsig::verify(msg, &pks, &sig2) { Some(t) => t, None => return fail };
+    // a DIFFERENT signer (index 0) yields a DIFFERENT tag
+    let sig3 = match ringsig::sign(msg, &pks, 0, &seeds[0]) { Some(s) => s, None => return fail };
+    let tag3 = match ringsig::verify(msg, &pks, &sig3) { Some(t) => t, None => return fail };
+    // a tampered signature must fail to verify (flip a byte in the z region)
+    let mut bad = sig.clone(); let zoff = 32 + ringsig::TAG_BYTES + 4; bad[zoff] ^= 0xff;
+    let forge_rejected = ringsig::verify(msg, &pks, &bad).is_none();
+    // wrong message must fail
+    let wrongmsg_rejected = ringsig::verify(b"different-message", &pks, &sig).is_none();
+    // non-member (signing with a secret whose pk is NOT the ring member at that index) must fail
+    let mut wrong_seed = seeds[signer]; wrong_seed[5] ^= 0xff;
+    let nonmember_rejected = match ringsig::sign(msg, &pks, signer, &wrong_seed) {
+        Some(s) => ringsig::verify(msg, &pks, &s).is_none(),
+        None => true,
+    };
+
+    let ok = (tag1 == tag2 && tag1 != tag3 && forge_rejected && wrongmsg_rejected && nonmember_rejected) as i32;
+    CcxPqSizes { pk: ringsig::PK_BYTES, sk: 32, ct_or_sig: ringsig::sig_bytes(n), ss: ringsig::TAG_BYTES, ok }
+}
+
+/// End-to-end C-ABI selftest: keygen -> sign -> verify (ring size 1) and the verify-recovered
+/// nullifier equals ccx_pq_nullifier(sk). Exercises the lattice backend through the public ABI.
 #[no_mangle]
 pub extern "C" fn ccx_pq_ringsig_selftest() -> CcxPqSizes {
     let mut pk = vec![0u8; PK];
     let mut sk = vec![0u8; SK];
     let seed = b"ccx-ringsig-selftest";
+    let need = ring_sig_size(1);
     if ccx_pq_keygen(seed.as_ptr(), seed.len(), pk.as_mut_ptr(), PK, sk.as_mut_ptr(), SK) != 0 {
-        return CcxPqSizes { pk: PK, sk: SK, ct_or_sig: SIG + NF, ss: NF, ok: 0 };
+        return CcxPqSizes { pk: PK, sk: SK, ct_or_sig: need, ss: NF, ok: 0 };
     }
     let msg = b"ccx-ringsig-msg";
-    let mut sig = vec![0u8; SIG + NF];
+    let mut sig = vec![0u8; need];
     let mut sl = sig.len();
     let s = ccx_pq_sign(msg.as_ptr(), msg.len(), pk.as_ptr(), 1, PK, sk.as_ptr(), SK, 0, sig.as_mut_ptr(), &mut sl);
     let mut nf = [0u8; NF];
