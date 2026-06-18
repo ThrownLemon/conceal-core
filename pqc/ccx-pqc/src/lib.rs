@@ -170,6 +170,87 @@ pub extern "C" fn ccx_mldsa_selftest() -> CcxPqSizes {
     CcxPqSizes { pk: pk.as_bytes().len(), sk: sk.as_bytes().len(), ct_or_sig: sm.as_bytes().len(), ss: 0, ok }
 }
 
+// --- ML-KEM-768 stealth one-time outputs (Gap 4) -----------------------------------------------
+// Real recipient-unlinkability: the sender encapsulates to the recipient's long-term ML-KEM key,
+// derives a one-time signing seed from the shared secret (-> a unique on-chain PqKeyOutput.key),
+// and publishes the Kyber ciphertext as kemCt. Only the KEM-secret holder can decapsulate, recover
+// the seed, and re-derive the one-time keypair to spend. This is genuine PQ confidentiality and is
+// independent of the (still-stubbed-for-anonymity) ring signature.
+const KEM_PK: usize = 1184;
+const KEM_SK: usize = 2400;
+const KEM_CT: usize = 1088;
+
+#[no_mangle] pub extern "C" fn ccx_pq_kem_pubkey_bytes() -> usize { KEM_PK }
+#[no_mangle] pub extern "C" fn ccx_pq_kem_seckey_bytes() -> usize { KEM_SK }
+#[no_mangle] pub extern "C" fn ccx_pq_kem_ct_bytes() -> usize { KEM_CT }
+
+/// Sender: encapsulate to `kem_pk`, write the Kyber ciphertext to `ct_out`, and SHAKE256-derive a
+/// 32-byte one-time signing seed from the shared secret into `seed_out`.
+#[no_mangle]
+pub extern "C" fn ccx_pq_kem_derive_output(kem_pk: *const u8, kem_pk_len: usize,
+                                           ct_out: *mut u8, ct_cap: usize,
+                                           seed_out: *mut u8, seed_cap: usize) -> i32 {
+    if kem_pk.is_null() || ct_out.is_null() || seed_out.is_null() { return -1; }
+    if seed_cap < 32 { return -2; }
+    let pkb = unsafe { std::slice::from_raw_parts(kem_pk, kem_pk_len) };
+    let pk = match <kyber768::PublicKey as KP>::from_bytes(pkb) { Ok(p) => p, Err(_) => return -1 };
+    let (ss, ct) = kyber768::encapsulate(&pk);
+    let ctb = ct.as_bytes();
+    if ct_cap < ctb.len() { return -2; }
+    let mut seed = [0u8; 32];
+    shake(&[b"ccx-stealth-otk", ss.as_bytes()], &mut seed);
+    unsafe {
+        std::ptr::copy_nonoverlapping(ctb.as_ptr(), ct_out, ctb.len());
+        std::ptr::copy_nonoverlapping(seed.as_ptr(), seed_out, 32);
+    }
+    0
+}
+
+/// Recipient: decapsulate `ct` with `kem_sk` and re-derive the same 32-byte one-time signing seed.
+#[no_mangle]
+pub extern "C" fn ccx_pq_kem_scan(kem_sk: *const u8, kem_sk_len: usize,
+                                  ct: *const u8, ct_len: usize,
+                                  seed_out: *mut u8, seed_cap: usize) -> i32 {
+    if kem_sk.is_null() || ct.is_null() || seed_out.is_null() { return -1; }
+    if seed_cap < 32 { return -2; }
+    let skb = unsafe { std::slice::from_raw_parts(kem_sk, kem_sk_len) };
+    let ctb = unsafe { std::slice::from_raw_parts(ct, ct_len) };
+    let sk = match <kyber768::SecretKey as KS>::from_bytes(skb) { Ok(s) => s, Err(_) => return -1 };
+    let ctt = match <kyber768::Ciphertext as KC>::from_bytes(ctb) { Ok(c) => c, Err(_) => return -1 };
+    let ss = kyber768::decapsulate(&ctt, &sk);
+    let mut seed = [0u8; 32];
+    shake(&[b"ccx-stealth-otk", ss.as_bytes()], &mut seed);
+    unsafe { std::ptr::copy_nonoverlapping(seed.as_ptr(), seed_out, 32); }
+    0
+}
+
+/// Selftest: recipient recovers the SAME one-time keypair the sender derived; a wrong recipient
+/// recovers a DIFFERENT seed (cannot derive the output key). Proves real ML-KEM stealth.
+#[no_mangle]
+pub extern "C" fn ccx_pq_kem_stealth_selftest() -> CcxPqSizes {
+    let (pk, sk) = kyber768::keypair();
+    let (pkb, skb) = (pk.as_bytes(), sk.as_bytes());
+    let mut ct = vec![0u8; KEM_CT];
+    let mut sa = [0u8; 32];
+    let r1 = ccx_pq_kem_derive_output(pkb.as_ptr(), pkb.len(), ct.as_mut_ptr(), ct.len(), sa.as_mut_ptr(), 32);
+    let mut sb = [0u8; 32];
+    let r2 = ccx_pq_kem_scan(skb.as_ptr(), skb.len(), ct.as_ptr(), ct.len(), sb.as_mut_ptr(), 32);
+
+    // one-time pubkeys derived from the sender/recipient seeds must match
+    let mut pk_a = vec![0u8; PK]; let mut sk_a = vec![0u8; SK];
+    ccx_pq_keygen(sa.as_ptr(), 32, pk_a.as_mut_ptr(), PK, sk_a.as_mut_ptr(), SK);
+    let mut pk_b = vec![0u8; PK]; let mut sk_b = vec![0u8; SK];
+    ccx_pq_keygen(sb.as_ptr(), 32, pk_b.as_mut_ptr(), PK, sk_b.as_mut_ptr(), SK);
+
+    // a non-owner cannot recover the seed
+    let (_pk2, sk2) = kyber768::keypair();
+    let mut sc = [0u8; 32];
+    ccx_pq_kem_scan(sk2.as_bytes().as_ptr(), sk2.as_bytes().len(), ct.as_ptr(), ct.len(), sc.as_mut_ptr(), 32);
+
+    let ok = (r1 == 0 && r2 == 0 && sa == sb && pk_a == pk_b && sa != sc) as i32;
+    CcxPqSizes { pk: KEM_PK, sk: KEM_SK, ct_or_sig: KEM_CT, ss: 32, ok }
+}
+
 /// Selftest for the real ring-sig backend: keygen -> sign -> verify (ring size 1) + nullifier determinism.
 #[no_mangle]
 pub extern "C" fn ccx_pq_ringsig_selftest() -> CcxPqSizes {

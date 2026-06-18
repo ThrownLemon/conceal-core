@@ -22,10 +22,21 @@ int32_t ccx_pq_sign(const uint8_t *msg, size_t msg_len,
 int32_t ccx_pq_verify(const uint8_t *msg, size_t msg_len,
                       const uint8_t *ring, size_t ring_count, size_t member_stride,
                       const uint8_t *sig, size_t sig_len, uint8_t *nf_out, size_t nf_cap);
-/* Real PQ primitives (stealth KEM, deposit sig) self-tests — sizes via out-struct. */
+/* ML-KEM-768 stealth one-time outputs (Gap 4): sender derives a one-time signing seed + ciphertext;
+   recipient re-derives the seed by decapsulating. Real PQ recipient-unlinkability. */
+size_t ccx_pq_kem_pubkey_bytes(void);
+size_t ccx_pq_kem_seckey_bytes(void);
+size_t ccx_pq_kem_ct_bytes(void);
+int32_t ccx_pq_kem_derive_output(const uint8_t *kem_pk, size_t kem_pk_len,
+                                 uint8_t *ct_out, size_t ct_cap, uint8_t *seed_out, size_t seed_cap);
+int32_t ccx_pq_kem_scan(const uint8_t *kem_sk, size_t kem_sk_len,
+                        const uint8_t *ct, size_t ct_len, uint8_t *seed_out, size_t seed_cap);
+/* Real PQ primitives self-tests — sizes via out-struct. */
 typedef struct { size_t pk, sk, ct_or_sig, ss; int32_t ok; } ccx_pq_sizes;
 ccx_pq_sizes ccx_mlkem768_selftest(void);
 ccx_pq_sizes ccx_mldsa_selftest(void);
+ccx_pq_sizes ccx_pq_ringsig_selftest(void);
+ccx_pq_sizes ccx_pq_kem_stealth_selftest(void);
 #ifdef __cplusplus
 }
 #endif
