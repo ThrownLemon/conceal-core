@@ -29,6 +29,7 @@
 #include "CryptoNoteCore/MessageQueue.h"
 #include "CryptoNoteCore/BlockchainMessages.h"
 #include "CryptoNoteCore/IntrusiveLinkedList.h"
+#include "CryptoNoteCore/ICore.h" // PqOutputEntry (for getPqOutputs read-only enumeration)
 
 #include <Logging/LoggerRef.h>
 
@@ -107,6 +108,8 @@ namespace cn
     bool getBackwardBlocksSize(size_t from_height, std::vector<size_t> &sz, size_t count);
     bool getTransactionOutputGlobalIndexes(const crypto::Hash &tx_id, std::vector<uint32_t> &indexs);
     bool get_out_by_msig_gindex(uint64_t amount, uint64_t gindex, MultisignatureOutput &out);
+    // Read-only: enumerate every PqKeyOutput indexed under 'amount' from m_pqOutputs (PQ ring assembly).
+    bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry> &outs);
     bool checkTransactionInputs(const Transaction &tx, uint32_t &pmax_used_block_height, crypto::Hash &max_used_block_id, BlockInfo *tail = nullptr);
     uint64_t getCurrentCumulativeBlocksizeLimit() const;
     uint64_t blockDifficulty(size_t i);

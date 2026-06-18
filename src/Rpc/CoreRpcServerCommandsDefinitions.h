@@ -286,6 +286,58 @@ struct COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_JSON {
 };
 
 //-----------------------------------------------
+// Read-only enumeration of spendable post-quantum (PqKeyOutput) outputs for a set of amounts, so a
+// wallet can assemble a PQ ring (CIP-0001 testnet PoC). Mirrors get_random_outs but walks the full
+// m_pqOutputs[amount] index and emits the PQ one-time key + ML-KEM ciphertext for each entry.
+struct COMMAND_RPC_GET_PQ_OUTPUTS {
+  struct request {
+    std::vector<uint64_t> amounts;
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(amounts)
+    }
+  };
+
+  struct pq_out_entry {
+    uint32_t global_index;   // position in m_pqOutputs[amount]
+    std::string key;         // hex of PqKeyOutput.key
+    std::string kem;         // hex of PqKeyOutput.kemCt
+    std::string tx_hash;     // hex
+    uint32_t height;
+    bool spendable;          // is_tx_spendtime_unlocked(unlockTime)
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(global_index)
+      KV_MEMBER(key)
+      KV_MEMBER(kem)
+      KV_MEMBER(tx_hash)
+      KV_MEMBER(height)
+      KV_MEMBER(spendable)
+    }
+  };
+
+  struct outs_for_amount {
+    uint64_t amount;
+    std::vector<pq_out_entry> outs;
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(amount)
+      KV_MEMBER(outs)
+    }
+  };
+
+  struct response {
+    std::vector<outs_for_amount> outs;
+    std::string status;
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(outs)
+      KV_MEMBER(status)
+    }
+  };
+};
+
+//-----------------------------------------------
 struct COMMAND_RPC_SEND_RAW_TX {
   struct request {
     std::string tx_as_hex;

@@ -42,6 +42,17 @@ struct KeyInput;
 struct TransactionPrefixInfo;
 struct tx_verification_context;
 
+// One spendable post-quantum (PqKeyOutput) output, as enumerated for the get_pq_outputs RPC so a
+// wallet can assemble a PQ ring (CIP-0001 testnet PoC). Read-only projection of m_pqOutputs[amount].
+struct PqOutputEntry {
+  uint32_t globalIndex;          // position in m_pqOutputs[amount]
+  std::vector<uint8_t> key;      // PqKeyOutput.key (PQ one-time public key)
+  std::vector<uint8_t> kemCt;    // PqKeyOutput.kemCt (ML-KEM ciphertext)
+  crypto::Hash txHash;           // hash of the containing transaction
+  uint32_t height;               // block height of the containing transaction
+  bool spendable;                // is_tx_spendtime_unlocked(unlockTime)
+};
+
 class ICore {
 public:
   virtual ~ICore() {}
@@ -101,6 +112,8 @@ public:
   virtual bool getBlockTimestamp(uint32_t height, uint64_t &timestamp) = 0;
   virtual bool getBlockContainingTx(const crypto::Hash& txId, crypto::Hash& blockId, uint32_t& blockHeight) = 0;
   virtual bool getMultisigOutputReference(const MultisignatureInput& txInMultisig, std::pair<crypto::Hash, size_t>& outputReference) = 0;
+  // Read-only: enumerate every spendable PqKeyOutput indexed under 'amount' (for PQ ring assembly).
+  virtual bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry>& outs) = 0;
   virtual bool getTransaction(const crypto::Hash &id, Transaction &tx, bool checkTxPool = false) = 0;
   virtual bool getGeneratedTransactionsNumber(uint32_t height, uint64_t& generatedTransactions) = 0;
   virtual bool getOrphanBlocksByHeight(uint32_t height, std::vector<Block>& blocks) = 0;
