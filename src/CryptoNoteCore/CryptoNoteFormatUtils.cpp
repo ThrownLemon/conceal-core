@@ -640,6 +640,13 @@ bool get_block_longhash(cn_context &context, const Block& b, Hash& res) {
 }
 
 std::vector<uint32_t> relative_output_offsets_to_absolute(const std::vector<uint32_t>& off) {
+  // NOTE (defense-in-depth): the running sum is an unchecked uint32 add, so a crafted input could
+  // wrap mod 2^32 to a different in-range slot. This is NOT exploitable in any current path: honest
+  // builders form deltas from real in-range global indices (no wrap possible), and for the PQ ring-sig
+  // path a maliciously wrapped index would resolve a DIFFERENT ring member key than the signer signed
+  // over, so ccx_pq_verify fails AND the recovered nullifier would not match the declared one
+  // (Blockchain::check_pq_tx_input). The classic KeyInput path is likewise bounded by the output count.
+  // Left unchecked to preserve the exact legacy wire behavior; flagged here for any future audit.
   std::vector<uint32_t> res = off;
   for (size_t i = 1; i < res.size(); i++)
     res[i] += res[i - 1];
