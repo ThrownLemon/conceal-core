@@ -205,13 +205,26 @@ bool constructTransaction(
 
   for (size_t i = 0; i < messages.size(); i++) {
     const tx_message_entry &msg = messages[i];
-    tx_extra_message tag;
-    if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
-      return false;
-    }
+    if (msg.pq && !msg.kemPub.empty()) {
+      // Post-quantum message: emit a tx_extra_pq_message (0x06) keyed by ML-KEM-768. The KEM
+      // ciphertext is self-contained, so the legacy 0x04 field is NOT emitted for this message.
+      tx_extra_pq_message pqTag;
+      if (!pqTag.encrypt(i, msg.message, msg.kemPub)) {
+        return false;
+      }
 
-    if (!append_message_to_extra(tx.extra, tag)) {
-      return false;
+      if (!append_pq_message_to_extra(tx.extra, pqTag)) {
+        return false;
+      }
+    } else {
+      tx_extra_message tag;
+      if (!tag.encrypt(i, msg.message, msg.encrypt ? &msg.addr : NULL, txkey)) {
+        return false;
+      }
+
+      if (!append_message_to_extra(tx.extra, tag)) {
+        return false;
+      }
     }
   }
 
