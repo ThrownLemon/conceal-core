@@ -79,6 +79,7 @@ private:
   std::error_code handleGetUnconfirmedTransactionHashes(const GetUnconfirmedTransactionHashes::Request& request, GetUnconfirmedTransactionHashes::Response& response);
   std::error_code handleGetTransaction(const GetTransaction::Request& request, GetTransaction::Response& response);
   std::error_code handleSendTransaction(const SendTransaction::Request& request, SendTransaction::Response& response);
+  std::error_code handleSendPqTransaction(const SendPqTransaction::Request& request, SendPqTransaction::Response& response);
   std::error_code handleCreateDelayedTransaction(const CreateDelayedTransaction::Request& request, CreateDelayedTransaction::Response& response);
   std::error_code handleGetDelayedTransactionHashes(const GetDelayedTransactionHashes::Request& request, GetDelayedTransactionHashes::Response& response);
   std::error_code handleDeleteDelayedTransaction(const DeleteDelayedTransaction::Request& request, const DeleteDelayedTransaction::Response& response);

@@ -416,6 +416,19 @@ void SendTransaction::Response::serialize(cn::ISerializer &serializer)
   serializer(transactionSecretKey, "transactionSecretKey");
 }
 
+void SendPqTransaction::Request::serialize(cn::ISerializer &serializer)
+{
+  serializer(amount, "amount");
+  serializer(fee, "fee");
+  serializer(ringSize, "ringSize");
+}
+
+void SendPqTransaction::Response::serialize(cn::ISerializer &serializer)
+{
+  serializer(transactionHash, "transactionHash");
+  serializer(status, "status");
+}
+
 void CreateDelayedTransaction::Request::serialize(cn::ISerializer &serializer)
 {
   serializer(addresses, "addresses");

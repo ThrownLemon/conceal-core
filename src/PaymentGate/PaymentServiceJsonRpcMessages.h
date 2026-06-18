@@ -517,6 +517,29 @@ struct SendTransaction
   };
 };
 
+/* Post-quantum (testnet PoC, CIP-0001) spend. Builds + relays a PQ spend of a fixed-denomination
+   PQ output via the remote daemon (get_pq_outputs + the shared cn::buildPqSpendTransaction). The
+   amount is the testnet PQ coinbase amount; ringSize/fee fall back to defaults when zero. */
+struct SendPqTransaction
+{
+  struct Request
+  {
+    uint64_t amount = 0;
+    uint64_t fee = 0;
+    uint32_t ringSize = 0;
+
+    void serialize(cn::ISerializer &serializer);
+  };
+
+  struct Response
+  {
+    std::string transactionHash;
+    std::string status;
+
+    void serialize(cn::ISerializer &serializer);
+  };
+};
+
 struct CreateDelayedTransaction
 {
   struct Request
