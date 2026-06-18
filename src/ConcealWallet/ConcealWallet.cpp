@@ -37,7 +37,9 @@
 #include "NodeRpcProxy/NodeRpcProxy.h"
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
 #include "Rpc/HttpClient.h"
+#include "Rpc/PqSpendClient.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
+#include "CryptoNoteConfig.h"
 
 #include "Wallet/WalletGreen.h"
 #include "Wallet/WalletRpcServer.h"
@@ -323,6 +325,8 @@ conceal_wallet::conceal_wallet(platform_system::Dispatcher& dispatcher, const cn
   m_consoleHandler.setHandler("deposit_info", boost::bind(&conceal_wallet::deposit_info, this, boost::arg<1>()), "deposit_info <id> - Get infomation for deposit <id>");
   m_consoleHandler.setHandler("save_txs_to_file", boost::bind(&conceal_wallet::save_all_txs_to_file, this, boost::arg<1>()), "save_txs_to_file - Saves all known transactions to <wallet_name>_conceal_transactions.txt");
   m_consoleHandler.setHandler("check_address", boost::bind(&conceal_wallet::check_address, this, boost::arg<1>()), "check_address <address> - Checks to see if given wallet is valid.");
+  m_consoleHandler.setHandler("pq_balance", boost::bind(&conceal_wallet::pq_balance, this, boost::arg<1>()), "pq_balance - Show spendable post-quantum (testnet PoC) outputs from the remote node");
+  m_consoleHandler.setHandler("pq_transfer", boost::bind(&conceal_wallet::pq_transfer, this, boost::arg<1>()), "pq_transfer [ringSize] [fee] - Build + relay a post-quantum (testnet PoC) spend via the remote node");
 }
 
 std::string conceal_wallet::wallet_menu(bool do_ext)
@@ -1782,6 +1786,89 @@ bool conceal_wallet::check_address(const std::vector<std::string> &args)
   }
 
   logger(INFO) << "The wallet " << addr << " seems to be valid, please still be cautious still.";
+
+  return true;
+}
+
+/* Post-quantum (testnet PoC) commands. These talk directly to the remote node's PQ JSON-RPC and
+   the shared cn::buildPqSpendTransaction builder via cn::pqSpendViaDaemon — no wallet-side crypto. */
+bool conceal_wallet::pq_balance(const std::vector<std::string> &args)
+{
+  const uint64_t amount = cn::PQ_TESTNET_COINBASE_AMOUNT;
+
+  try
+  {
+    HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
+
+    cn::COMMAND_RPC_GET_PQ_OUTPUTS::request req;
+    req.amounts.push_back(amount);
+    cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
+    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
+
+    size_t spendable = 0;
+    for (const auto& ofa : res.outs)
+    {
+      if (ofa.amount != amount)
+      {
+        continue;
+      }
+      for (const auto& e : ofa.outs)
+      {
+        if (e.spendable)
+        {
+          ++spendable;
+        }
+      }
+    }
+
+    success_msg_writer() << "PQ balance: " << spendable << " outputs, total "
+                         << m_currency.formatAmount(spendable * amount);
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to query PQ outputs: " << e.what();
+  }
+
+  return true;
+}
+
+bool conceal_wallet::pq_transfer(const std::vector<std::string> &args)
+{
+  uint32_t ringSize = 4;
+  uint64_t fee = 1000;
+
+  try
+  {
+    if (args.size() >= 1)
+    {
+      ringSize = boost::lexical_cast<uint32_t>(args[0]);
+    }
+    if (args.size() >= 2)
+    {
+      fee = boost::lexical_cast<uint64_t>(args[1]);
+    }
+  }
+  catch (const boost::bad_lexical_cast&)
+  {
+    fail_msg_writer() << "Usage: pq_transfer [ringSize] [fee]";
+    return true;
+  }
+
+  std::string txHash;
+  std::string status;
+  std::string err;
+  const std::vector<uint8_t> recipientKemPubKey; // empty => throwaway/self output
+
+  if (cn::pqSpendViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
+                           cn::PQ_TESTNET_COINBASE_AMOUNT, fee, ringSize,
+                           recipientKemPubKey, txHash, status, err))
+  {
+    success_msg_writer() << "PQ tx relayed: " << txHash << " status=" << status;
+  }
+  else
+  {
+    fail_msg_writer() << err;
+  }
 
   return true;
 }

@@ -83,6 +83,11 @@ target_include_directories(Wallet PRIVATE ${CCX_PQC_INCLUDE})
 add_dependencies(Transfers ccx_pqc)
 target_include_directories(Transfers PRIVATE ${CCX_PQC_INCLUDE})
 
+# PqSpendClient (Rpc lib) builds + relays a PQ spend via the shared CryptoNoteCore builder and the
+# hardcoded testnet ML-KEM secret header, so the Rpc lib also needs the ccx-pqc include dir.
+add_dependencies(Rpc ccx_pqc)
+target_include_directories(Rpc PRIVATE ${CCX_PQC_INCLUDE})
+
 target_link_libraries(Daemon CryptoNoteCore P2P Rpc System Http Logging Common crypto libminiupnpc-static BlockchainExplorer ${Boost_LIBRARIES} Serialization)
 add_dependencies(Daemon ccx_pqc)
 target_include_directories(Daemon PRIVATE ${CCX_PQC_INCLUDE})
