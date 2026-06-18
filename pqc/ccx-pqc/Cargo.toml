@@ -32,9 +32,14 @@ pqcrypto-traits = "0.3"
 # KeyGen-from-seed entry points (ML-KEM: 64-byte d||z; ML-DSA: 32-byte xi). We export the keys in the
 # SAME byte encoding pqcrypto uses (FIPS pk; expanded sk) and prove interop in a selftest, so the
 # existing pqcrypto-based encap/decap/sign/verify path is unchanged and on-chain formats are identical.
-ml-kem = "0.3"
-ml-dsa = "0.1"
+# EXACT pins (FIX 4): detkeygen's #[allow(deprecated)] rides ml-kem 0.3 / ml-dsa 0.1 encoding entry
+# points (to_expanded_bytes / to_expanded) that upstream WILL change next minor. A silent `cargo update`
+# that altered the wallet-key byte encoding would make mnemonics unrestorable => funds loss. Pin the
+# exact versions Cargo.lock resolves to; the committed Cargo.lock + the detkeygen-through-pqcrypto
+# interop selftest are the belt-and-suspenders. Bump these deliberately, with a re-run of the selftest.
+ml-kem = "=0.3.2"
+ml-dsa = "=0.1.1"
 # Both ml-kem and ml-dsa expose their seed/key byte buffers as hybrid_array::Array; we construct the
-# fixed-size FIPS seed arrays through it. Pinned to the same minor the PQ crates resolve to.
-hybrid-array = "0.4"
+# fixed-size FIPS seed arrays through it. Pinned exact to the version the PQ crates resolve to.
+hybrid-array = "=0.4.12"
 rand_core = "0.6"

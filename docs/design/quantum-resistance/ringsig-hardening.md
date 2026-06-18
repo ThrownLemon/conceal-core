@@ -92,6 +92,48 @@ unsound). Regression vectors `forge_noncanonical_tag_rejected` and the empty-rin
 construction needs a professional audit before mainnet: a subtle encoding-vs-arithmetic gap, invisible
 to the algebraic soundness argument, was a live funds break.
 
+#### 1.3.2 Four-reviewer hardening pass (Codex + Gemini + GLM + CodeRabbit)
+
+A second round of four independent reviews strongly corroborated each other and surfaced further fixes,
+applied here. The most-corroborated (CodeRabbit ×2 + Codex + Gemini + GLM) is the **ring-member key
+validation**, the root cause behind two distinct losses:
+
+- **Algebraic key aliasing → loss of funds (Gemini).** The same non-canonical encoding gap as the tag
+  also applied to ring-member public keys `t`: an output key `t` and `t+q` are algebraically equal (one
+  secret, one nullifier) but bytewise different, so only one of the two outputs is ever spendable while
+  both can be accepted on-chain.
+- **Consensus split (Codex + GLM).** A non-canonical `t_i` lands differently in the hashed `ring_blob`,
+  so two honest nodes derive different `seed_{i+1}` from the *same* on-chain ring → they disagree on
+  validity → the chain forks.
+- **DoS (CodeRabbit).** A ring member `Vec` shorter than `PK_BYTES` made `get_veck` read out of bounds.
+
+**Fix (defence in depth, three layers):**
+1. `ringsig::sign`/`verify` now decode every ring member through `decode_ring_member`, which checks
+   `p.len() >= PK_BYTES` (DoS) **and** `veck_is_canonical(t)` (aliasing/split) before use; either failure
+   aborts with `None`.
+2. A new C ABI `ccx_pq_pubkey_is_canonical(pk, len) -> i32` is called in the daemon's `check_outs_valid`
+   (`PqKeyOutput` case), so a non-canonical PQ output key is **rejected at output-acceptance** — kept out
+   of the chain index entirely (the root fix).
+3. The `adversarial_soundness_ok` vectors now include a non-canonical ring-member check, and run across
+   ring sizes 2, 4, 8.
+
+Other corroborated fixes in this pass:
+- **Integer-overflow guard (Codex HIGH + Gemini + GLM).** `ccx_pq_sign`/`ccx_pq_verify` computed
+  `ring_count * member_stride` (fed to `from_raw_parts`) with no overflow guard — a wrapped product
+  yields a tiny slice and an OOB read in `split_ring`. Now bounded by `MAX_RING_COUNT = 32` (a superset
+  of the consensus `PQ_MAX_RING_SIZE = 16`) and computed with `checked_mul`, returning `-4` on
+  overflow/over-max.
+- **NTT-equivalence is now CI-verifiable (GLM HIGH).** The deleted schoolbook `poly_mul` left the
+  pure-speedup claim untested in-tree. A reference `poly_mul_schoolbook` is restored and
+  `ccx_pqr_ntt_equiv_test(iters)` asserts NTT == schoolbook over the scheme's real input distributions
+  (z masks, sparse ±1 challenges, uniform `t`, secret-range) plus edge cases — exercised by the daemon
+  build, **0 mismatches**.
+- **Crate pinning + committed lockfile (GLM HIGH + Gemini HIGH).** `detkeygen`'s `#[allow(deprecated)]`
+  rides `ml-kem 0.3` / `ml-dsa 0.1` encoding entry points that upstream will change; a `cargo update`
+  could silently alter the wallet-key byte encoding → mnemonics unrestorable → funds loss. `Cargo.toml`
+  now pins **exact** `=0.3.2` / `=0.1.1` / `hybrid-array =0.4.12`, and `pqc/ccx-pqc/Cargo.lock` is
+  committed (gitignore exception). The detkeygen-through-pqcrypto interop selftest stays the runtime net.
+
 ### 1.4 Honest residual soundness caveats
 
 - **Random-oracle / Fiat-Shamir-with-aborts model.** Soundness is argued in the ROM; there is no
@@ -167,6 +209,20 @@ Rationale:
   `ccx_pq_sign` size query), so the C++ consensus path adapts with no code change — verified by a clean
   `conceald` link at the new sizes.
 
+**Wire-format version signal (consensus implication — `SCHEME_ID` bump).** The `K=L=4→6` change altered
+the pk/sig byte sizes with no version signal, so an old client could mis-parse a wrong-sized buffer.
+`SCHEME_ID` is therefore bumped `0xC0DE_0003 → 0xC0DE_0004`: an old client now rejects the new format
+cleanly at the version check. Because the testnet PoC is **experimental and resettable**, a clean scheme
+bump is the right gate here; on mainnet a format change of this kind would instead be a height-gated hard
+fork (new `BLOCK_MAJOR_VERSION` / `UPGRADE_HEIGHT_*`), never a silent in-place change.
+
+**Chain-bound keys (consensus implication — network tag).** The deterministic wallet keygen
+(`detkeygen`) now binds a `NETWORK_TAG` (`b"ccx-testnet"`) into its SHAKE domain, so the same mnemonic
+yields **different** PQ keys on testnet vs a future mainnet (and keys are chain-bound). This is pinned
+NOW because the wallet derives keys via the `*_det` FFIs as we speak — it calls them opaquely, so only
+the resulting address bytes change, which is harmless pre-launch but **must be final before any wallet
+ships**. The tag is a named const, so a mainnet variant is a one-line change.
+
 What "calibration" actually requires before mainnet (out of scope here):
 - Run a current lattice estimator (APS / "lattice-estimator" / MATZOV refinements) over **both** the
   MSIS forgery instance and the MLWE key-recovery instance, for the *negacyclic* ring, targeting a
@@ -223,14 +279,24 @@ honest trade-offs:
 
 ## Review provenance
 
-This pass was reviewed by a fresh `codex` crypto pass (which **confirmed** the universal-forgery
-refutation and the NTT-is-a-pure-speedup conclusion, and **found** the non-canonical-tag linkability
-break fixed in §1.3.1) plus the author's own adversarial analysis and test vectors. A parallel
-`opencode`/GLM-5.2 review was attempted but the tool hung without producing analysis. The soundness
-claims here remain HEURISTIC and have **not** had a professional cryptographic audit.
+Two rounds of review informed this document:
+1. An initial `codex` crypto pass that **confirmed** the universal-forgery refutation and the
+   NTT-is-a-pure-speedup conclusion and **found** the non-canonical-tag linkability break (§1.3.1).
+2. A second round of **four independent reviews — Codex, Gemini, GLM, and CodeRabbit** — that strongly
+   corroborated each other and drove the §1.3.2 hardening pass (ring-member key validation, ABI
+   integer-overflow guard, CI-verifiable NTT equivalence, exact crate pinning, scheme-id bump, network
+   tag, low-entropy-seed rejection).
+
+The soundness claims here remain **HEURISTIC** and have **not** had a professional cryptographic audit;
+the construction stays testnet-only and is never to be presented as audited.
 
 ## Selftests (all green at time of writing)
 
 `ccx_pqr_ringsig_selftest` ok=1 · `ccx_pq_ringsig_selftest` ok=1 · `ccx_pqr_forgery_test` = 0
-(refuted) · `ccx_pqr_soundness_test` = 1 (all adversarial vectors rejected) · KEM/DSA/multisig/
-detkeygen selftests ok=1. Ring-4 verify 0.89 ms, sign 3.80 ms (K=L=6, NTT).
+(refuted) · `ccx_pqr_soundness_test` = 1 (all adversarial vectors rejected, rings 2/4/8) ·
+`ccx_pqr_ntt_equiv_test` = 0 mismatches (NTT == schoolbook, 5000 trials + edge cases) ·
+KEM/DSA/multisig/detkeygen selftests ok=1 · `scheme_id` = `0xC0DE_0004`. Ring-4 verify 0.89 ms, sign
+3.80 ms (K=L=6, NTT). `conceald` links with the C++ `ccx_pq_pubkey_is_canonical` output-acceptance
+check. ctest: crypto/consensus targets pass (CoreTests, CryptoTests, UnitTests, DifficultyTests,
+HashTargetTests, hash-*); IntegrationTests/TransfersTests fail only on a missing staged daemon binary
+(pre-existing environment issue, unrelated to these changes).

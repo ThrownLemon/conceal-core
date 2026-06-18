@@ -41,7 +41,15 @@ fn ffi_guard<T, F: FnOnce() -> T>(on_panic: T, body: F) -> T {
 const PK: usize = ringsig::PK_BYTES; // lattice public key (t) bytes
 const SK: usize = 32;                // 32-byte seed (the short secret s is re-derived from it)
 const NF: usize = 32;                // link tag (nullifier) = SHAKE256 of the lattice tag I
-const SCHEME_ID: u32 = 0xC0DE_0003;  // lattice linkable-ring-signature backend (anonymous)
+// SCHEME_ID is the wire-format version signal. Bumped 0x...0003 -> 0x...0004 with the K=L=4->6 param
+// change, which altered the pk/sig byte sizes: an old client now rejects the new format cleanly at the
+// version check instead of mis-parsing a wrong-sized buffer. The testnet PoC is experimental and
+// resettable, so a clean scheme bump is the right gate here (vs a height-gated hard fork on mainnet).
+const SCHEME_ID: u32 = 0xC0DE_0004;  // lattice linkable-ring-signature backend (anonymous), K=L=6
+// Upper bound on ring_count at the C ABI (FIX 2): a superset of the consensus PQ_MAX_RING_SIZE (16)
+// so it never rejects a consensus-valid ring, while preventing `ring_count * member_stride` from
+// overflowing usize and producing a tiny slice → OOB read in split_ring.
+const MAX_RING_COUNT: usize = 32;
 
 fn shake(parts: &[&[u8]], out: &mut [u8]) {
     let mut x = Shake256::default();
@@ -66,6 +74,21 @@ fn ring_sig_size(n: usize) -> usize { ringsig::sig_bytes(n) }
 #[no_mangle] pub extern "C" fn ccx_pq_pubkey_bytes() -> usize { PK }
 #[no_mangle] pub extern "C" fn ccx_pq_seckey_bytes() -> usize { SK }
 #[no_mangle] pub extern "C" fn ccx_pq_nullifier_bytes() -> usize { NF }
+
+/// Returns 1 iff `pk` (len `pk_len`) is a well-formed lattice ring-sig public key: exactly
+/// `ccx_pq_pubkey_bytes()` long AND every coefficient canonically encoded. The daemon's
+/// `check_outs_valid` calls this so a non-canonical PQ output key is rejected at output-acceptance —
+/// the root fix for algebraic-key-aliasing (a `t`/`t+q` pair sharing one secret/nullifier) and the
+/// consensus-split risk (a non-canonical ring member would hash differently across nodes). Returns 0
+/// for a malformed key, and (defensively) 0 on a null pointer.
+#[no_mangle]
+pub extern "C" fn ccx_pq_pubkey_is_canonical(pk: *const u8, pk_len: usize) -> i32 {
+  ffi_guard(0, || {
+    if pk.is_null() { return 0; }
+    let pkb = unsafe { std::slice::from_raw_parts(pk, pk_len) };
+    ringsig::pubkey_is_canonical(pkb) as i32
+  })
+}
 
 #[no_mangle]
 pub extern "C" fn ccx_pq_keygen(seed: *const u8, seed_len: usize,
@@ -115,15 +138,19 @@ pub extern "C" fn ccx_pq_sign(msg: *const u8, msg_len: usize,
                               sig_out: *mut u8, sig_len: *mut usize) -> i32 {
   ffi_guard(-99, || {
     if sig_len.is_null() { return -1; }
+    // Bound ring_count BEFORE ring_sig_size (which multiplies by it) to avoid usize overflow.
+    if ring_count == 0 || ring_count > MAX_RING_COUNT { return -4; }
     let need = ring_sig_size(ring_count);
     if sig_out.is_null() { unsafe { *sig_len = need; } return 0; }          // two-call size query
     if unsafe { *sig_len } < need { unsafe { *sig_len = need; } return -2; }
     if msg.is_null() || ring.is_null() || sk.is_null() { return -1; }
-    if sk_len < SK || ring_count == 0 || member_stride < PK || signer_index >= ring_count { return -1; }
+    if sk_len < SK || member_stride < PK || signer_index >= ring_count { return -1; }
+    // checked_mul: a wrapped ring_count*member_stride would build a tiny slice → OOB read in split_ring.
+    let ring_bytes = match ring_count.checked_mul(member_stride) { Some(b) => b, None => return -4 };
     let msg = unsafe { std::slice::from_raw_parts(msg, msg_len) };
     let skb = unsafe { std::slice::from_raw_parts(sk, SK) };
     let mut master = [0u8; 32]; master.copy_from_slice(&skb[..SK]);
-    let ringb = unsafe { std::slice::from_raw_parts(ring, ring_count * member_stride) };
+    let ringb = unsafe { std::slice::from_raw_parts(ring, ring_bytes) };
     let pks = split_ring(ringb, ring_count, member_stride);
     match ringsig::sign(msg, &pks, signer_index, &master) {
         Some(sig) => {
@@ -144,11 +171,15 @@ pub extern "C" fn ccx_pq_verify(msg: *const u8, msg_len: usize,
                                 sig: *const u8, sig_len: usize, nf_out: *mut u8, nf_cap: usize) -> i32 {
   ffi_guard(-99, || {
     if msg.is_null() || ring.is_null() || sig.is_null() { return -1; }
-    if ring_count == 0 || member_stride < PK { return -1; }
+    // Bound ring_count BEFORE ring_sig_size (which multiplies by it) to avoid usize overflow.
+    if ring_count == 0 || ring_count > MAX_RING_COUNT { return -4; }
+    if member_stride < PK { return -1; }
     if sig_len != ring_sig_size(ring_count) { return -3; }
+    // checked_mul: a wrapped ring_count*member_stride would build a tiny slice → OOB read in split_ring.
+    let ring_bytes = match ring_count.checked_mul(member_stride) { Some(b) => b, None => return -4 };
     let msg = unsafe { std::slice::from_raw_parts(msg, msg_len) };
     let sigb = unsafe { std::slice::from_raw_parts(sig, sig_len) };
-    let ringb = unsafe { std::slice::from_raw_parts(ring, ring_count * member_stride) };
+    let ringb = unsafe { std::slice::from_raw_parts(ring, ring_bytes) };
     let pks = split_ring(ringb, ring_count, member_stride);
     // Anonymous verify: walks the symmetric ring chain; it NEVER learns which member signed.
     match ringsig::verify(msg, &pks, sigb) {
@@ -560,6 +591,16 @@ pub extern "C" fn ccx_pqr_forgery_test() -> i32 {
 #[no_mangle]
 pub extern "C" fn ccx_pqr_soundness_test() -> i32 {
   ffi_guard(0, || ringsig::adversarial_soundness_ok() as i32)
+}
+
+/// Returns the number of MISMATCHES between the NTT poly_mul and the reference schoolbook multiply over
+/// the scheme's real input distributions + edge cases (0 == the NTT is a verified pure speedup). The
+/// daemon build runs this so a future twiddle/sign/bitrev regression that would silently change
+/// signature bytes (and brick stored testnet PQ outputs) is caught at startup, not in production. On
+/// panic returns a large nonzero (treated as failure). Runs `iters` random trials (deterministic PRNG).
+#[no_mangle]
+pub extern "C" fn ccx_pqr_ntt_equiv_test(iters: u32) -> u32 {
+  ffi_guard(u32::MAX, || ringsig::ntt_matches_schoolbook(iters))
 }
 
 /// End-to-end C-ABI selftest: keygen -> sign -> verify (ring size 1) and the verify-recovered

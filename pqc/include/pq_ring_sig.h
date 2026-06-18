@@ -11,6 +11,12 @@ uint32_t ccx_pq_scheme_id(void);
 size_t ccx_pq_pubkey_bytes(void);
 size_t ccx_pq_seckey_bytes(void);
 size_t ccx_pq_nullifier_bytes(void);
+/* Returns 1 iff pk is a well-formed lattice ring-sig public key: exactly ccx_pq_pubkey_bytes() long
+   AND every coefficient canonically encoded. Output-acceptance (check_outs_valid) MUST call this so a
+   non-canonical PQ output key is rejected at acceptance — prevents algebraic-key-aliasing (t / t+q
+   sharing one secret+nullifier => only one ever spendable) and the consensus split a non-canonical
+   ring member would cause (nodes hash it differently). Returns 0 on malformed key or null pointer. */
+int32_t ccx_pq_pubkey_is_canonical(const uint8_t *pk, size_t pk_len);
 int32_t ccx_pq_keygen(const uint8_t *seed, size_t seed_len,
                       uint8_t *pk_out, size_t pk_cap, uint8_t *sk_out, size_t sk_cap);
 int32_t ccx_pq_nullifier(const uint8_t *sk, size_t sk_len, const uint8_t *pk, size_t pk_len,
@@ -92,6 +98,11 @@ ccx_pq_sizes ccx_pqr_ringsig_selftest(void);
    forgery_test==0 and soundness_test==1. HEURISTIC: empirical checks, not a proof or a security audit. */
 int32_t ccx_pqr_forgery_test(void);
 int32_t ccx_pqr_soundness_test(void);
+/* Returns the number of MISMATCHES between the NTT poly_mul and the reference schoolbook multiply over
+   the scheme's real input distributions + edge cases (0 == NTT is a verified pure speedup). Guards
+   against a future twiddle/sign/bitrev regression silently changing signature bytes. Runs `iters`
+   random trials. Expect 0. */
+uint32_t ccx_pqr_ntt_equiv_test(uint32_t iters);
 #ifdef __cplusplus
 }
 #endif

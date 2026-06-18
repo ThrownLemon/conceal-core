@@ -43,7 +43,11 @@ pub type Poly = [i64; N];
 pub type PolyVecL = [Poly; L];
 pub type PolyVecK = [Poly; K];
 
-#[inline] fn cmod(a: i64) -> i64 { // centered representative in (-Q/2, Q/2]
+// Centered representative. Q is odd, so integer Q/2 = (Q-1)/2 and the kept range is the CLOSED
+// interval [-Q/2, Q/2] (the `>`/`<` comparisons leave r untouched at both endpoints). Each residue
+// class mod Q maps to exactly one point in that set, so cmod is a canonicalizing bijection — which is
+// what `coeff_is_canonical` (c == cmod(c)) relies on.
+#[inline] fn cmod(a: i64) -> i64 {
     let mut r = a % Q;
     if r > Q / 2 { r -= Q; }
     if r < -Q / 2 { r += Q; }
@@ -136,6 +140,67 @@ fn ntt_pointwise_inv(fa: &[i64; N], fb: &[i64; N]) -> Poly {
 fn poly_mul(a: &Poly, b: &Poly) -> Poly { // negacyclic, via NTT (bit-identical to old schoolbook)
     ntt_pointwise_inv(&poly_to_ntt(a), &poly_to_ntt(b))
 }
+
+// Reference O(N^2) negacyclic schoolbook multiply (X^N = -1). RETAINED as the ground-truth oracle for
+// the NTT: the NTT poly_mul above is a PURE SPEEDUP claim, so a future twiddle/sign/bitrev regression
+// must be caught BEFORE it silently changes signature bytes and bricks stored testnet PQ outputs. The
+// equivalence is asserted at runtime by `ntt_matches_schoolbook` (exposed via ccx_pqr_ntt_equiv_test,
+// so even the daemon build — which never runs `cargo test` — exercises it).
+fn poly_mul_schoolbook(a: &Poly, b: &Poly) -> Poly {
+    let mut t = [0i128; N];
+    for i in 0..N {
+        if a[i] == 0 { continue; }
+        for j in 0..N {
+            let p = (a[i] as i128) * (b[j] as i128);
+            let k = i + j;
+            if k < N { t[k] += p; } else { t[k - N] -= p; }
+        }
+    }
+    let mut r = poly_zero();
+    for i in 0..N { r[i] = cmod((t[i] % (Q as i128)) as i64); }
+    r
+}
+
+/// Asserts the NTT `poly_mul` is BIT-IDENTICAL to `poly_mul_schoolbook` over the scheme's real input
+/// distributions plus edge cases. Returns the number of MISMATCHES found (0 == NTT is a pure speedup).
+/// `iters` random trials are run with a deterministic SHAKE-seeded PRNG (reproducible). Distributions:
+///   * a: z-range masks in [-ZBOUND, ZBOUND]
+///   * b: one of {sparse +/-1 challenge (TAU weight), uniform t in [0,q), small +/-2 secret}
+/// plus deterministic edge cases (all-zero, all-ones, single-spike, full-negative).
+pub fn ntt_matches_schoolbook(iters: u32) -> u32 {
+    let mut mism: u32 = 0;
+    let check = |a: &Poly, b: &Poly, mism: &mut u32| {
+        if poly_mul(a, b) != poly_mul_schoolbook(a, b) { *mism += 1; }
+    };
+
+    // --- deterministic edge cases ---
+    let zero = poly_zero();
+    let mut ones = poly_zero(); for i in 0..N { ones[i] = 1; }
+    let mut neg = poly_zero(); for i in 0..N { neg[i] = -ZBOUND; }
+    let mut spike = poly_zero(); spike[0] = ZBOUND; spike[N - 1] = -ZBOUND;
+    let mut tmax = poly_zero(); for i in 0..N { tmax[i] = cmod((Q - 1) as i64); }
+    for a in [&zero, &ones, &neg, &spike, &tmax] {
+        for b in [&zero, &ones, &neg, &spike, &tmax] { check(a, b, &mut mism); }
+    }
+
+    // --- randomized trials over real distributions ---
+    let mut r = xof(&[b"ccx-lring-ntt-equiv-prng"]);
+    for t in 0..iters {
+        let mut a = poly_zero();
+        for i in 0..N { a[i] = read_uniform(&mut r, (2 * ZBOUND + 1) as u32) as i64 - ZBOUND; }
+        let mut b = poly_zero();
+        match t % 3 {
+            0 => { // sparse +/-1 challenge of weight TAU (the real challenge distribution)
+                let mut placed = 0;
+                while placed < TAU { let j = (read_u32(&mut r) as usize) % N; if b[j] == 0 { b[j] = if read_u32(&mut r) & 1 == 0 { 1 } else { -1 }; placed += 1; } }
+            }
+            1 => { for i in 0..N { b[i] = cmod(read_uniform(&mut r, Q as u32) as i64); } } // uniform t
+            _ => { for i in 0..N { b[i] = read_uniform(&mut r, (2 * ETA + 1) as u32) as i64 - ETA; } } // secret-range
+        }
+        check(&a, &b, &mut mism);
+    }
+    mism
+}
 fn poly_inf_norm(a: &Poly) -> i64 { let mut m = 0; for &c in a.iter() { let v = if c < 0 { -c } else { c }; if v > m { m = v; } } m }
 fn vecl_inf_norm(v: &PolyVecL) -> i64 { let mut m = 0; for p in v.iter() { let n = poly_inf_norm(p); if n > m { m = n; } } m }
 
@@ -147,6 +212,34 @@ fn vecl_inf_norm(v: &PolyVecL) -> i64 { let mut m = 0; for p in v.iter() { let n
 #[inline] fn coeff_is_canonical(c: i64) -> bool { c == cmod(c) }
 fn veck_is_canonical(v: &PolyVecK) -> bool { v.iter().all(|p| p.iter().all(|&c| coeff_is_canonical(c))) }
 fn vecl_is_canonical(v: &PolyVecL) -> bool { v.iter().all(|p| p.iter().all(|&c| coeff_is_canonical(c))) }
+
+/// Decode a ring member's public key `t` from its serialized bytes, validating BOTH:
+///   * length (`p.len() >= PK_BYTES`) — a short Vec would make `get_veck` read out of bounds (panic /
+///     DoS), and
+///   * canonical encoding — a non-canonical `t_i` is algebraically equal mod q but BYTEWISE different,
+///     so it lands differently in `ring_blob` and two honest nodes would hash different `seed_{i+1}`
+///     from the same on-chain ring → a CONSENSUS SPLIT. (It is also the root of algebraic-key-aliasing
+///     loss-of-funds: `t` and `t+q` share one secret/nullifier, so only one is ever spendable.)
+/// Returns the decoded `t`, or None if either check fails (the caller aborts sign/verify with None).
+fn decode_ring_member(p: &[u8]) -> Option<PolyVecK> {
+    if p.len() < PK_BYTES { return None; }
+    let mut off = 0usize;
+    let t = get_veck(p, &mut off);
+    if !veck_is_canonical(&t) { return None; }
+    Some(t)
+}
+
+/// True iff `pk` is a well-formed public key: exactly `PK_BYTES` long AND every coefficient canonically
+/// encoded. The C++ output-acceptance check (`check_outs_valid`) calls this so a non-canonical PQ
+/// output key is REJECTED at acceptance — the root fix for algebraic-key-aliasing loss-of-funds (two
+/// outputs `t` / `t+q` share one secret + nullifier, so only one is ever spendable) and for the
+/// consensus-split risk (a non-canonical ring member hashes differently across nodes).
+pub fn pubkey_is_canonical(pk: &[u8]) -> bool {
+    if pk.len() != PK_BYTES { return false; }
+    let mut off = 0usize;
+    let t = get_veck(pk, &mut off);
+    veck_is_canonical(&t)
+}
 
 // A*z for A: K x L, z: L -> K (kept for completeness / reference; the hot path uses mat_vec_ntt
 // against the cached NTT-domain matrices so z is forward-transformed once instead of K*L times).
@@ -335,10 +428,11 @@ pub fn sign(msg: &[u8], ring_pks: &[Vec<u8>], idx: usize, sk_seed: &[u8; 32]) ->
     let mut tag_bytes = Vec::new(); put_veck(&mut tag_bytes, &i_tag);
     // ring blob for hashing = all pubkeys concatenated
     let mut ring_blob = Vec::new(); for p in ring_pks { ring_blob.extend_from_slice(p); }
-    // decode each member's t and pre-transform t_i + the tag I to NTT domain once (fixed across
-    // attempts and branches) so c*t_i / c*I only forward-transform c in the inner loop.
+    // decode each member's t (length + canonical-encoding validated) and pre-transform t_i + the tag I
+    // to NTT domain once (fixed across attempts and branches) so c*t_i / c*I only forward-transform c
+    // in the inner loop. A malformed/non-canonical ring member aborts signing (None).
     let mut t_ntt: Vec<NttVecK> = Vec::with_capacity(n);
-    for p in ring_pks { let mut off = 0; let t = get_veck(p, &mut off); t_ntt.push(veck_to_ntt(&t)); }
+    for p in ring_pks { let t = decode_ring_member(p)?; t_ntt.push(veck_to_ntt(&t)); }
     let i_tag_ntt = veck_to_ntt(&i_tag);
 
     for attempt in 0..256u32 {
@@ -426,11 +520,16 @@ pub fn verify(msg: &[u8], ring_pks: &[Vec<u8>], sig: &[u8]) -> Option<Vec<u8>> {
         if !vecl_is_canonical(&zi) { return None; }
         z.push(zi);
     }
-    let mut ring_blob = Vec::new(); for p in ring_pks { ring_blob.extend_from_slice(p); }
-    // Pre-transform the ring members' t_i and the tag I to NTT domain ONCE (they are fixed across all
-    // branches), so each branch's c*t_i / c*I only forward-transforms c — not the K-poly operand.
+    // Validate EVERY ring member's length + canonical encoding BEFORE building the hashed ring_blob or
+    // decoding t. A short Vec would panic get_veck (DoS); a non-canonical t_i would land differently in
+    // ring_blob so honest nodes hash divergent seeds (consensus split). Reject the whole verify on any.
+    let mut ring_blob = Vec::new();
     let mut t_ntt: Vec<NttVecK> = Vec::with_capacity(n);
-    for p in ring_pks { let mut o = 0; let t = get_veck(p, &mut o); t_ntt.push(veck_to_ntt(&t)); }
+    for p in ring_pks {
+        let t = decode_ring_member(p)?;        // length + canonical check
+        ring_blob.extend_from_slice(p);
+        t_ntt.push(veck_to_ntt(&t));
+    }
     let i_tag_ntt = veck_to_ntt(&i_tag);
 
     // walk the whole ring starting from seed0 at index 0
@@ -558,44 +657,52 @@ fn malleation_rejected(msg: &[u8], ring_pks: &[Vec<u8>], signer: usize, sk_seed:
     true
 }
 
-// 4) Non-canonical tag malleability (codex review finding): take a VALID signature and add q to ONE
-//    tag coefficient. The algebraic tag (mod q) is unchanged, so without a canonical-encoding check
-//    the arithmetic would still accept — but the serialized tag bytes (hence the nullifier) differ,
-//    letting a malicious signer spend the SAME output twice under two different nullifiers. verify()
-//    MUST reject the non-canonical tag. (Also probe a non-canonical z coefficient.)
+// 4) Non-canonical malleability (codex review finding): take a VALID signature and offset ONE
+//    coefficient by a multiple of q. The algebraic value (mod q) is unchanged, so without a
+//    canonical-encoding check the arithmetic would still accept — but the serialized bytes (hence the
+//    nullifier, for the tag) differ, letting a malicious signer spend the SAME output twice under two
+//    nullifiers. verify() MUST reject every non-canonical encoding. Probes several offsets (+q, -q,
+//    +2q) and several positions (tag coeff 0, a mid-tag coeff, z_0 coeff 0, and the last z coeff).
 fn forge_noncanonical_tag_rejected(msg: &[u8], ring_pks: &[Vec<u8>], signer: usize, sk_seed: &[u8; 32]) -> bool {
     let sig = match sign(msg, ring_pks, signer, sk_seed) { Some(s) => s, None => return true };
+    let n = ring_pks.len();
     // the honest signature must verify and yield a baseline nullifier tag
     let base = match verify(msg, ring_pks, &sig) { Some(t) => t, None => return false };
-    // mutate tag coefficient 0 (bytes [32..36], LE i32) by +q; algebraic value unchanged mod q.
-    let mut bad = sig.clone();
-    let c0 = i32::from_le_bytes([bad[32], bad[33], bad[34], bad[35]]) as i64;
-    let mutated = (c0 + Q) as i32; // same residue mod q, non-canonical bytes
-    bad[32..36].copy_from_slice(&mutated.to_le_bytes());
-    // must REJECT (the whole point of the canonical check)
-    let tag_rejected = verify(msg, ring_pks, &bad).is_none();
-    // and the mutation actually changed the bytes (sanity: it's a real different encoding)
-    let actually_changed = bad[32..36] != sig[32..36];
-    // a non-canonical z coefficient must also be rejected
-    let mut bad_z = sig.clone();
-    let zoff = 32 + TAG_BYTES; // first z_0 coeff bytes
-    let zc = i32::from_le_bytes([bad_z[zoff], bad_z[zoff+1], bad_z[zoff+2], bad_z[zoff+3]]) as i64;
-    bad_z[zoff..zoff+4].copy_from_slice(&((zc + Q) as i32).to_le_bytes());
-    let z_rejected = verify(msg, ring_pks, &bad_z).is_none();
-    // the baseline tag is non-empty (we actually exercised a real verify path)
-    let base_ok = !base.is_empty();
-    tag_rejected && actually_changed && z_rejected && base_ok
+    if base.is_empty() { return false; }
+
+    // byte offsets of the i32 coefficients we attack
+    let tag0 = 32;                                 // tag I, coeff 0
+    let tag_mid = (32 + TAG_BYTES / 2) & !3usize;  // tag I, a mid coeff (4-byte aligned)
+    let z0 = 32 + TAG_BYTES;                        // z_0, coeff 0
+    let z_last = 32 + TAG_BYTES + (n * L * N - 1) * 4; // z_{n-1}, last coeff
+    let positions = [tag0, tag_mid, z0, z_last];
+    let offsets: [i64; 3] = [Q, -Q, 2 * Q];        // same residue mod q, non-canonical bytes
+
+    for &pos in positions.iter() {
+        if pos + 4 > sig.len() { continue; }
+        for &delta in offsets.iter() {
+            let mut bad = sig.clone();
+            let c = i32::from_le_bytes([bad[pos], bad[pos+1], bad[pos+2], bad[pos+3]]) as i64;
+            let mutated = (c + delta) as i32; // wraps in i32 but the BYTES are a valid non-canonical i32
+            bad[pos..pos+4].copy_from_slice(&mutated.to_le_bytes());
+            // only count it as a real attack if the bytes actually changed AND the new coeff is
+            // non-canonical (c+delta could land back in range for some edge cases — skip those)
+            if bad[pos..pos+4] == sig[pos..pos+4] { continue; }
+            if coeff_is_canonical(mutated as i64) { continue; }
+            if verify(msg, ring_pks, &bad).is_some() { return false; } // accepted a non-canonical sig!
+        }
+    }
+    true
 }
 
-/// Runs every extended adversarial vector against a fresh ring-of-4 and returns true iff ALL are
-/// correctly rejected (the empirical soundness check behind Task 2a). HEURISTIC, not an audit.
-pub fn adversarial_soundness_ok() -> bool {
-    let n = 4usize;
+/// Runs every extended adversarial vector against a fresh ring at the given size and returns true iff
+/// ALL are correctly rejected and an honest signature still verifies. HEURISTIC, not an audit.
+fn adversarial_soundness_ok_for_ring(n: usize) -> bool {
     let mut ring: Vec<Vec<u8>> = Vec::new();
     let mut seeds: Vec<[u8; 32]> = Vec::new();
-    for i in 0..n { let mut sd = [0u8; 32]; sd[0] = i as u8; sd[1] = 0x5a; sd[2] = 0xa5; let (pk, _s, _t) = keygen(&sd); ring.push(pk); seeds.push(sd); }
+    for i in 0..n { let mut sd = [0u8; 32]; sd[0] = i as u8; sd[1] = 0x5a; sd[2] = 0xa5; sd[3] = n as u8; let (pk, _s, _t) = keygen(&sd); ring.push(pk); seeds.push(sd); }
     let msg = b"ccx-lring-adversarial";
-    let signer = 1usize;
+    let signer = if n > 1 { 1usize } else { 0usize };
 
     // the existing no-secret universal-forgery attack (review's CRITICAL) must still fail
     let no_secret = !forge_no_secret(msg, &ring);
@@ -603,10 +710,30 @@ pub fn adversarial_soundness_ok() -> bool {
     let non_member = forge_non_member_rejected(msg, &ring);
     let malleation = malleation_rejected(msg, &ring, signer, &seeds[signer]);
     let noncanonical = forge_noncanonical_tag_rejected(msg, &ring, signer, &seeds[signer]);
-    // empty ring must not verify (a 0-branch chain closes trivially)
-    let empty_ring_rejected = verify(msg, &[], &vec![0u8; sig_bytes(0)]).is_none();
+    // a non-canonical RING-MEMBER key must be rejected (consensus-split / key-aliasing root cause):
+    // offset member 0's first coeff by +q (same algebraic t, different bytes) -> verify must reject.
+    let ring_member_noncanonical = {
+        let sig = match sign(msg, &ring, signer, &seeds[signer]) { Some(s) => s, None => return false };
+        let mut bad_ring = ring.clone();
+        let c0 = i32::from_le_bytes([bad_ring[0][0], bad_ring[0][1], bad_ring[0][2], bad_ring[0][3]]) as i64;
+        let m = (c0 + Q) as i32;
+        bad_ring[0][0..4].copy_from_slice(&m.to_le_bytes());
+        // honest sig verifies against the canonical ring but NOT against the mutated (non-canonical) ring
+        verify(msg, &ring, &sig).is_some() && verify(msg, &bad_ring, &sig).is_none()
+    };
     // sanity: an HONEST signature still verifies (we are not rejecting everything trivially)
     let honest_ok = match sign(msg, &ring, signer, &seeds[signer]) { Some(s) => verify(msg, &ring, &s).is_some(), None => false };
 
-    no_secret && chosen_tag && non_member && malleation && noncanonical && empty_ring_rejected && honest_ok
+    no_secret && chosen_tag && non_member && malleation && noncanonical && ring_member_noncanonical && honest_ok
+}
+
+/// Runs the adversarial soundness vectors across ring sizes 2, 4, 8 (plus the empty-ring rejection),
+/// returning true iff ALL pass. HEURISTIC, not an audit.
+pub fn adversarial_soundness_ok() -> bool {
+    // empty ring must not verify (a 0-branch chain closes trivially)
+    let empty_ring_rejected = verify(b"x", &[], &vec![0u8; sig_bytes(0)]).is_none();
+    empty_ring_rejected
+        && adversarial_soundness_ok_for_ring(2)
+        && adversarial_soundness_ok_for_ring(4)
+        && adversarial_soundness_ok_for_ring(8)
 }

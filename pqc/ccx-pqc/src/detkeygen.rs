@@ -34,13 +34,25 @@ pub const DET_KEM_SK: usize = 2400;   // FIPS-203 expanded dk (decapsulation/sec
 pub const DET_DSA_PK: usize = 1952;   // FIPS-204 pkEncode (verifying key)
 pub const DET_DSA_SK: usize = 4032;   // FIPS-204 skEncode (expanded signing key)
 
+// Minimum input-seed length (FIX 6). The wallet master seed has >= 256 bits of entropy; reject a
+// caller that passes a short/low-entropy seed so PQ keys can never be derived from < 32 bytes.
+const MIN_SEED_LEN: usize = 32;
+
+// Network/chain tag bound into the keygen domain (FIX 7) so testnet vs mainnet PQ keys differ and keys
+// are chain-bound. MUST be finalized before any wallet ships (the wallet derives keys via these FFIs
+// opaquely, so only the resulting address bytes change pre-launch). A future mainnet build is a
+// one-line change here (e.g. b"ccx-mainnet"). Stays b"ccx-testnet" while this is testnet-only.
+const NETWORK_TAG: &[u8] = b"ccx-testnet";
+
 /// Domain-separated SHAKE256 expansion of an arbitrary-length input seed to exactly `OUT` bytes.
 /// Mirrors how `ccx-stealth-otk` already derives sub-secrets, so PQ keygen joins the same HD/mnemonic
-/// derivation discipline. The domain tag pins the *purpose*, so the same wallet seed yields
-/// independent ML-KEM and ML-DSA seeds.
+/// derivation discipline. The (purpose `domain` + `NETWORK_TAG`) pins both the *purpose* and the
+/// *chain*, so the same wallet seed yields independent ML-KEM / ML-DSA keys AND distinct keys per
+/// network.
 fn expand_seed<const OUT: usize>(domain: &[u8], seed: &[u8]) -> [u8; OUT] {
     let mut x = Shake256::default();
     Update::update(&mut x, domain);
+    Update::update(&mut x, NETWORK_TAG);
     Update::update(&mut x, seed);
     let mut out = [0u8; OUT];
     x.finalize_xof().read(&mut out);
@@ -74,17 +86,19 @@ fn mldsa_keypair_from_fips_seed(fips_seed: [u8; 32]) -> Option<(Vec<u8>, Vec<u8>
     Some((pk.to_vec(), sk.to_vec()))
 }
 
-/// Deterministic ML-KEM-768 keygen (FIPS-203 KeyGen). The input `seed` (any length, the wallet
-/// master seed) is SHAKE256-expanded to the 64-byte `d || z` FIPS seed. Writes the 1184-byte FIPS
-/// public (encapsulation) key to `pk_out` and the 2400-byte expanded secret (decapsulation) key to
-/// `sk_out`, in the encoding pqcrypto's encap/decap path consumes. Same seed -> identical keypair.
-/// Returns 0 on success; negative on error (matches `ccx_pq_kem_keypair`'s contract).
+/// Deterministic ML-KEM-768 keygen (FIPS-203 KeyGen). The input `seed` (the wallet master seed, >= 32
+/// bytes) is SHAKE256-expanded — under the keygen domain + network tag — to the 64-byte `d || z` FIPS
+/// seed. Writes the 1184-byte FIPS public (encapsulation) key to `pk_out` and the 2400-byte expanded
+/// secret (decapsulation) key to `sk_out`, in the encoding pqcrypto's encap/decap path consumes. Same
+/// seed -> identical keypair. Returns 0 on success; negative on error (a seed shorter than 32 bytes
+/// returns -1; matches `ccx_pq_kem_keypair`'s contract otherwise).
 #[no_mangle]
 pub extern "C" fn ccx_pq_kem_keygen_det(seed: *const u8, seed_len: usize,
                                         pk_out: *mut u8, pk_cap: usize,
                                         sk_out: *mut u8, sk_cap: usize) -> i32 {
   ffi_guard(-99, || {
     if seed.is_null() || pk_out.is_null() || sk_out.is_null() { return -1; }
+    if seed_len < MIN_SEED_LEN { return -1; } // reject low-entropy seeds (FIX 6)
     if pk_cap < DET_KEM_PK || sk_cap < DET_KEM_SK { return -2; }
     let seed_in = unsafe { std::slice::from_raw_parts(seed, seed_len) };
     let fips_seed = expand_seed::<64>(b"ccx-pq-mlkem768-keygen-v1", seed_in);
@@ -97,16 +111,18 @@ pub extern "C" fn ccx_pq_kem_keygen_det(seed: *const u8, seed_len: usize,
   })
 }
 
-/// Deterministic ML-DSA-65 keygen (FIPS-204 KeyGen). The input `seed` (any length) is
-/// SHAKE256-expanded to the 32-byte `xi` FIPS seed. Writes the 1952-byte FIPS public (verifying) key
-/// to `pk_out` and the 4032-byte expanded secret (signing) key to `sk_out`, in the encoding
-/// pqcrypto's sign/verify path consumes. Same seed -> identical keypair. Returns 0 on success.
+/// Deterministic ML-DSA-65 keygen (FIPS-204 KeyGen). The input `seed` (the wallet master seed, >= 32
+/// bytes) is SHAKE256-expanded — under the keygen domain + network tag — to the 32-byte `xi` FIPS seed.
+/// Writes the 1952-byte FIPS public (verifying) key to `pk_out` and the 4032-byte expanded secret
+/// (signing) key to `sk_out`, in the encoding pqcrypto's sign/verify path consumes. Same seed ->
+/// identical keypair. Returns 0 on success; a seed shorter than 32 bytes returns -1.
 #[no_mangle]
 pub extern "C" fn ccx_pq_multisig_keygen_det(seed: *const u8, seed_len: usize,
                                              pk_out: *mut u8, pk_cap: usize,
                                              sk_out: *mut u8, sk_cap: usize) -> i32 {
   ffi_guard(-99, || {
     if seed.is_null() || pk_out.is_null() || sk_out.is_null() { return -1; }
+    if seed_len < MIN_SEED_LEN { return -1; } // reject low-entropy seeds (FIX 6)
     if pk_cap < DET_DSA_PK || sk_cap < DET_DSA_SK { return -2; }
     let seed_in = unsafe { std::slice::from_raw_parts(seed, seed_len) };
     let fips_seed = expand_seed::<32>(b"ccx-pq-mldsa65-keygen-v1", seed_in);
@@ -138,8 +154,8 @@ pub extern "C" fn ccx_pq_detkeygen_selftest() -> CcxPqSizes {
     let fail = CcxPqSizes { pk: 0, sk: 0, ct_or_sig: 0, ss: 0, ok: 0 };
 
     // ---- ML-KEM-768 determinism ----
-    let seed_a = b"ccx wallet master seed A";
-    let seed_b = b"ccx wallet master seed B"; // differs in last byte
+    let seed_a = b"ccx wallet master seed A -- 32+ bytes of entropy";
+    let seed_b = b"ccx wallet master seed B -- 32+ bytes of entropy"; // differs from A
     let mut k_pk1 = vec![0u8; DET_KEM_PK]; let mut k_sk1 = vec![0u8; DET_KEM_SK];
     let mut k_pk2 = vec![0u8; DET_KEM_PK]; let mut k_sk2 = vec![0u8; DET_KEM_SK];
     let mut k_pk_b = vec![0u8; DET_KEM_PK]; let mut k_sk_b = vec![0u8; DET_KEM_SK];
@@ -195,8 +211,15 @@ pub extern "C" fn ccx_pq_detkeygen_selftest() -> CcxPqSizes {
     // independent (a leak of one does not reveal the other's seed material).
     let domain_separation = k_sk1[..32] != d_sk1[..32];
 
+    // FIX 6: a low-entropy (< 32-byte) seed must be REJECTED by both det-keygen entry points.
+    let short = b"too-short-seed"; // 14 bytes
+    let mut tpk = vec![0u8; DET_DSA_SK]; let mut tsk = vec![0u8; DET_DSA_SK];
+    let short_kem_rejected = ccx_pq_kem_keygen_det(short.as_ptr(), short.len(), tpk.as_mut_ptr(), DET_KEM_PK, tsk.as_mut_ptr(), DET_KEM_SK) != 0;
+    let short_dsa_rejected = ccx_pq_multisig_keygen_det(short.as_ptr(), short.len(), tpk.as_mut_ptr(), DET_DSA_PK, tsk.as_mut_ptr(), DET_DSA_SK) != 0;
+
     let ok = (kem_deterministic && kem_seed_separation && kem_interop && kem_scan_roundtrip
-              && dsa_deterministic && dsa_seed_separation && dsa_interop && domain_separation) as i32;
+              && dsa_deterministic && dsa_seed_separation && dsa_interop && domain_separation
+              && short_kem_rejected && short_dsa_rejected) as i32;
     CcxPqSizes { pk: DET_KEM_PK, sk: DET_KEM_SK, ct_or_sig: DET_DSA_PK, ss: DET_DSA_SK, ok }
   })
 }
