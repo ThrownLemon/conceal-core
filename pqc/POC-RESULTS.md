@@ -74,10 +74,54 @@ calibrated parameters, constant-time implementation, and an audit (CIP §5.3 / C
 review (3 reviewers) had flagged the prebuilt Raptor lib as the wrong backend (no recoverable nullifier,
 struct-of-pointers keys vs the flat-stride ABI, GPLv3 Falcon C) — hence this from-scratch lattice scheme.
 
+## Security review + hardening (multi-agent)
+
+Seven parallel agents reviewed the branch (security, performance, crypto) and blueprinted the
+uncovered surfaces (`docs/reviews/`, `docs/design/quantum-resistance/`). Findings addressed:
+
+- **Restart double-spend (CRITICAL) — FIXED + verified.** `m_pqOutputs` + `m_spent_pq_nullifiers`
+  are now persisted and rebuilt; after a restart a re-spend of a spent output is rejected by the
+  reloaded nullifier set.
+- **Mixed-tx signature desync (CRITICAL) — FIXED.** PQ inputs now advance the positional
+  `tx.signatures` index.
+- **Ring bounds + duplicate offsets (HIGH) — FIXED.** Min/max ring size enforced; duplicate ring
+  members rejected (a zero offset collapsed the ring to size 1).
+- **Output length / index-poisoning (MED) — FIXED.** `check_outs_valid` enforces exact PQ key/kemCt
+  lengths.
+- **Lattice crypto:** the reviewer's CRITICAL universal-forgery claim was **tested and refuted**
+  (`ccx_pqr_forgery_test` runs the exact attack; verify rejects it). The real HIGH findings — nonce
+  reuse and modulo bias — are **fixed** (message-bound mask, unbiased rejection sampling).
+
+**Known issues still open** (documented, not yet fixed): a non-deterministic crash when the
+block-explorer RPCs (`f_block_json`/`gettransactions`) serialize a *reloaded* PQ block (heap/uninit,
+masked under gdb — needs ASAN; does NOT affect the consensus path, which is verified working after a
+restart); money-conservation check in `pushBlock` for v3 (MED); FFI `catch_unwind`. Plus the
+production hardening below.
+
 ## Documented next steps (scoped, not yet done)
 
 - **Production-grade ring signature:** the lattice scheme is structurally complete but demo-grade — calibrate
   parameters to a real security level (NIST cat-1+), make it constant-time, optimise (NTT instead of
   schoolbook), shrink signatures, and audit. CIP-0001 C1.
 - **Native wallet support** for PQ outputs (currently the injector tool stands in for a wallet); a
-  testnet-only `get_pq_outputs` RPC would replace the demo script's coinbase-tx fetching with a direct query.
+  testnet-only `get_pq_outputs` RPC would replace the demo script's coinbase-tx fetching with a direct
+  query. Blueprint: `docs/design/quantum-resistance/wallet-address-v2.md`.
+- **Deposits → ML-DSA-65** (still Ed25519 multisig — Shor-broken). Blueprint:
+  `docs/design/quantum-resistance/deposits-mldsa.md` (height-gated `UPGRADE_HEIGHT_V9`).
+- **Encrypted on-chain messages → ML-KEM-768** (still Curve25519 ECDH — Shor-broken). Blueprint:
+  `docs/design/quantum-resistance/messages-mlkem.md`.
+- **PoW / hashing:** no change needed — the symmetric/hash layer is already Grover-adequate (256-bit
+  hashes, unbounded search space). Documented in `docs/design/quantum-resistance/pow-grover-widening.md`.
+
+## Coverage: PQ-protected vs. still-vulnerable surfaces
+
+| Surface | Status |
+|---|---|
+| Spend auth (ring sig, key image) | ✅ lattice anonymous ring sig (experimental params) |
+| Output stealth (ECDH) | ✅ ML-KEM-768 |
+| Double-spend (mempool + chain + restart) | ✅ |
+| Deposits (Ed25519 multisig) | ❌ blueprint only |
+| Encrypted messages (Curve25519 ECDH) | ❌ blueprint only |
+| PoW / hashing (Grover) | ✅ already adequate (no change) |
+| Wallet keys / address format | ❌ blueprint only (injector stands in) |
+| Amount confidentiality | n/a — plaintext amounts (team-deferred) |
