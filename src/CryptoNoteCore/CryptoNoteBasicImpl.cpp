@@ -15,6 +15,8 @@
 #include "crypto/hash.h"
 #include "Common/int-util.h"
 
+#include "pq_testnet_kem_keypair.h" // PQ_TESTNET_KEM_PK (fixed testnet ML-KEM recipient, Option-B bootstrap)
+
 using namespace crypto;
 using namespace common;
 
@@ -139,6 +141,31 @@ namespace cn {
       }
     }
     return true;
+  }
+  //-----------------------------------------------------------------------
+  bool resolveMessageRecipientKemPub(const std::string& recipientAddress, bool testnet,
+                                     std::vector<uint8_t>& kemPub) {
+    // (a) The recipient address itself carries an ML-KEM public key (PQ-only or hybrid address).
+    //     parsePqAccountAddressString already version/scheme/length-validates the payload, so a
+    //     successful parse guarantees a well-formed 1184-byte kemPublicKey. Works on any network.
+    {
+      uint64_t prefix = 0;
+      PqAccountPublicAddress pqAddr;
+      if (parsePqAccountAddressString(prefix, pqAddr, recipientAddress)) {
+        kemPub = pqAddr.kemPublicKey;
+        return true;
+      }
+    }
+    // (b) Testnet bootstrap (Option B): the recipient is a legacy address with no published KEM key,
+    //     but on testnet we still want permanent messages PQ-encrypted by default, so encapsulate to
+    //     the fixed testnet ML-KEM recipient key. (PoC: a single shared testnet identity.)
+    if (testnet) {
+      kemPub.assign(PQ_TESTNET_KEM_PK, PQ_TESTNET_KEM_PK + sizeof(PQ_TESTNET_KEM_PK));
+      return true;
+    }
+    // (c) Mainnet legacy recipient with no obtainable KEM key: no PQ option. The caller falls back to
+    //     the authenticated classical 0x07 field (integrity, but Shor-breakable confidentiality).
+    return false;
   }
   //-----------------------------------------------------------------------
   bool operator ==(const cn::Transaction& a, const cn::Transaction& b) {

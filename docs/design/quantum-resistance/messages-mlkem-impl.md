@@ -1,11 +1,13 @@
-# PQ Messages (ML-KEM-768) — implementation notes (steps 1–3)
+# PQ Messages (ML-KEM-768) — implementation notes (steps 1–3 + default routing)
 
 Implements the self-contained, low-risk core of `messages-mlkem.md`: a new additive tx-extra field
 under **tag `0x06`** that protects Conceal's encrypted on-chain messages with an ML-KEM-768 KEM
 instead of the Shor-broken Curve25519 ECDH. The legacy `0x04` path is untouched.
 
-Blueprint steps **1, 2, 3** are done. Step **4** (address format + wallet-format key distribution)
-is intentionally **not** done — see "Remaining (step 4)" below.
+Blueprint steps **1, 2, 3** are done, and the send path now **defaults to `0x06`** for encrypted
+messages whenever a recipient KEM pubkey is obtainable (Step 3b below) — replacing the original
+opt-in `CCX_PQ_MESSAGES` env flag. The remaining step **4** items (wallet-format KEM-key persistence
++ full per-recipient mainnet key distribution) are still **not** done — see "Remaining (step 4)".
 
 ## What was built
 
@@ -70,13 +72,60 @@ AEAD-sealed ciphertext (`|msg| + 16`).
   (kept an aggregate; existing brace-init sites value-initialize the new trailing members).
 - `constructTransaction` (`CryptoNoteFormatUtils.cpp`): if `msg.pq && !msg.kemPub.empty()`, emit a
   `tx_extra_pq_message` (0x06) and **not** a legacy `0x04` copy (no transcript downgrade, §5).
-- `WalletTransactionSender.cpp`: on **testnet** and with env flag **`CCX_PQ_MESSAGES`** set, populate
-  `kemPub` from the hardcoded `PQ_TESTNET_KEM_PK` and set `pq=true`. Default **OFF** so legacy testnet
-  behavior is unchanged.
+- `WalletTransactionSender.cpp`: originally gated behind env flag **`CCX_PQ_MESSAGES`** (testnet
+  opt-in). **Superseded by Step 3b** — `0x06` is now the **default** (env flag removed); see Step 3b
+  for the current recipient-key resolution.
 - `TransfersConsumer.cpp`: on testnet, additionally scan with `get_pq_messages_from_extra(extra,
   PQ_TESTNET_KEM_SK)` and merge into the legacy result.
 - CMake: added `${CCX_PQC_INCLUDE}` to the `Wallet` and `Transfers` libs (they now reference the
   testnet KEM-key header) and to the test include dirs.
+
+### Step 3b — 0x06 is now the DEFAULT for encrypted messages (not opt-in)
+
+**Rationale.** Conceal's encrypted on-chain messages are **permanent**: a message written today is
+stored on the chain forever. Under the classical authenticated field (`0x07`) the key agreement is
+still Curve25519 ECDH — **Shor-breakable** — so `0x07` protects **integrity but not confidentiality**
+against a future CRQC. That makes every permanent `0x07` message a **harvest-now-decrypt-later**
+target: an adversary records the chain now and decrypts once a CRQC exists. Only the `0x06` ML-KEM
+field gives **true post-quantum confidentiality**. So the send path now **defaults to `0x06`**
+whenever a recipient ML-KEM public key is obtainable, and only falls back to `0x07` when none is.
+
+**Recipient-KEM-key resolution** (new shared helper `cn::resolveMessageRecipientKemPub(recipientAddress,
+testnet, kemPub)` in `CryptoNoteCore/CryptoNoteBasicImpl.{h,cpp}`), per encrypted, non-broadcast
+message:
+
+- **(a)** the message's recipient address parses as a PQ/hybrid address
+  (`parsePqAccountAddressString` succeeds) → use its `kemPublicKey` (works on **any** network,
+  including mainnet);
+- **(b)** else on **testnet** (`m_currency.isTestnet()`) → use the fixed `PQ_TESTNET_KEM_PK`
+  (Option-B bootstrap), so testnet permanent messages are PQ-encrypted by default;
+- **(c)** else (mainnet, no PQ key obtainable for the recipient) → **no** KEM key → the caller falls
+  back to the authenticated classical `0x07` field.
+
+For (a)/(b) the send path sets `tx_message_entry.pq = true` + `kemPub = <that key>`, so
+`constructTransaction` emits a `tx_extra_pq_message` (`0x06`) and **not** `0x07`/`0x04`.
+
+**Call sites changed:**
+
+- `WalletLegacy/WalletTransactionSender.cpp` (concealwallet / WalletLegacy path): the per-message
+  loop calls `resolveMessageRecipientKemPub(message.address, m_testnet, …)` and sets `entry.pq` +
+  `entry.kemPub` from the result. **The `CCX_PQ_MESSAGES` env-flag gate is removed** — `0x06` is the
+  default, not opt-in. (The legacy `parseAccountAddressString` is still required for `entry.addr` and
+  the `0x07` fallback.)
+- `Wallet/WalletGreen.cpp::makeTransaction` (walletd / PaymentGate path, which builds `tx.extra`
+  directly instead of via `tx_message_entry`): the message loop now first calls
+  `resolveMessageRecipientKemPub(messages[i].address, m_currency.isTestnet(), …)`; on success it
+  encrypts a `tx_extra_pq_message` and `append_pq_message_to_extra` (`0x06`); otherwise it falls back
+  to the existing authenticated `tx_extra_authenticated_message` (`0x07`). The PQ ciphertext is
+  self-contained (no tx-pubkey / `AccountPublicAddress` needed), so a PQ-only recipient the legacy
+  parser rejects is still served.
+
+**Where `0x07`/`0x04` are still legitimately emitted:** `0x07` for an encrypted message to a
+**mainnet legacy recipient** with no obtainable KEM key (case c — integrity-only classical fallback);
+`0x04` for an **unencrypted / broadcast** message (no recipient ECDH, so neither `0x06` nor `0x07`
+can be produced). The receive path is unchanged and already decodes `0x06`
+(`get_pq_messages_from_extra`) + `0x07` + `0x04`. Wire formats and the consensus serializer are
+untouched — this is an add-only routing change.
 
 ## Tests
 
@@ -115,13 +164,18 @@ list), no regressions.
   owner-test had. **The legacy 0x04 path still has that weak owner-test** but is now **decrypt-only**:
   the classical successor is the authenticated `0x07` field (`tx_extra_authenticated_message`, same
   Curve25519 ECDH key agreement as 0x04 but ChaCha20-Poly1305 AEAD with a domain-separated seed). The
-  wallet send path (`CryptoNoteFormatUtils.cpp`, `WalletGreen.cpp`) now emits `0x07` for new encrypted
-  messages and only falls back to `0x04` for unencrypted broadcast messages (no recipient ECDH); the
-  receive path decodes both. 0x04 is kept for wire compatibility with historical messages.
+  wallet send path (`CryptoNoteFormatUtils.cpp`, `WalletGreen.cpp`) now **defaults to `0x06`**
+  (true PQ confidentiality) whenever a recipient KEM pubkey is obtainable (PQ address, or the fixed
+  testnet key on testnet — see Step 3b), emits the authenticated `0x07` only as the classical fallback
+  for a mainnet legacy recipient, and falls back to `0x04` only for unencrypted broadcast messages (no
+  recipient ECDH); the receive path decodes all three. 0x04 is kept for wire compatibility with
+  historical messages.
 - **Consensus posture:** `tx.extra` is opaque to block validation and carried verbatim, so adding
-  `0x06` does not change block acceptance. Emission is gated to testnet (+ env flag). The parser bound
-  mitigates R1 mis-framing; for mainnet the `0x06` parser handler should ship to all nodes before any
-  wallet emits the tag (quiet client update), or PQ messages should be placed last in `extra`.
+  `0x06` does not change block acceptance. `0x06` emission is the default on testnet (Option-B
+  bootstrap key) and on mainnet whenever a recipient PQ address supplies a KEM key; otherwise the
+  classical `0x07` is used. The parser bound mitigates R1 mis-framing; for mainnet rollout the `0x06`
+  parser handler should ship to all nodes before any wallet emits the tag (quiet client update), or PQ
+  messages should be placed last in `extra`.
 
 ## Remaining (step 4 — NOT done, larger consensus/compat surface)
 
@@ -133,9 +187,12 @@ Key distribution so a real recipient (not the hardcoded testnet key) can be addr
 - **Wallet format:** persist the KEM keypair (2400 B sk / 1184 B pk) on `AccountKeys`, behind a
   wallet-format version bump (optional field, generate-on-first-load), so `TransfersConsumer` scans
   with the account's own KEM secret instead of `PQ_TESTNET_KEM_SK`.
-- **Send glue:** `WalletTransactionSender` should set `tx_message_entry.kemPub` from the parsed PQ
-  destination address instead of the env-flag/testnet shortcut; thread a `pq`/`address` field through
-  `IWalletLegacy::TransactionMessage` and the RPC/wallet surfaces.
+- **Send glue:** *(done in Step 3b)* both send paths now resolve the recipient KEM key from a parsed
+  PQ address (case a) or the testnet bootstrap key (case b) via `resolveMessageRecipientKemPub`, with
+  the env-flag shortcut removed. Still open: threading a dedicated PQ recipient field through
+  `IWalletLegacy::TransactionMessage` / `WalletMessage` and the RPC surfaces so a caller can target a
+  PQ recipient distinct from the fund-recipient address, and the wallet-format KEM-secret persistence
+  above (so mainnet receivers can scan their own `0x06` messages without `PQ_TESTNET_KEM_SK`).
 
 Search markers: `TODO` comments in `WalletTransactionSender.cpp` and `TransfersConsumer.cpp` point at
 the testnet shortcuts to replace. This shares `CryptoNoteConfig.h` (new Base58 prefix) and wallet

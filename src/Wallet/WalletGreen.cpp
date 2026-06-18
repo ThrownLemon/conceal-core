@@ -272,6 +272,8 @@ namespace cn
   // CryptoNoteBasicImpl.h here because it also declares the 3-arg parseAccountAddressString, which
   // would clash with the file-local 2-arg parseAccountAddressString(string, Currency) helper above.
   std::string getPqAccountAddressAsStr(uint64_t prefix, const PqAccountPublicAddress &adr);
+  bool resolveMessageRecipientKemPub(const std::string &recipientAddress, bool testnet,
+                                     std::vector<uint8_t> &kemPub);
 
   WalletGreen::WalletGreen(platform_system::Dispatcher &dispatcher, const Currency &currency, INode &node, logging::ILogger &logger, uint32_t transactionSoftLockTime) : m_dispatcher(dispatcher),
                                                                                                                                                                 m_currency(currency),
@@ -3310,12 +3312,35 @@ namespace cn
     cn::KeyPair kp = {publicKey, transactionSK};
     for (size_t i = 0; i < messages.size(); ++i)
     {
+      // Encrypted messages DEFAULT to the post-quantum 0x06 field (ML-KEM-768) whenever a recipient
+      // KEM pubkey is obtainable. Conceal's on-chain messages are permanent, so storing them under
+      // the Shor-breakable classical key agreement (0x07 Curve25519 ECDH) makes a message recorded
+      // today decryptable once a CRQC exists (harvest-now-decrypt-later); 0x06 is the only path with
+      // true post-quantum confidentiality. KEM key from (a) a PQ/hybrid recipient address or (b) the
+      // fixed testnet key on testnet, both via cn::resolveMessageRecipientKemPub; (c) mainnet legacy
+      // recipient -> no KEM key -> classical 0x07 fallback. The 0x06 ciphertext is self-contained
+      // (no tx pubkey / recipient AccountPublicAddress needed), so a PQ-only recipient that the
+      // legacy parser rejects is still served.
+      std::vector<uint8_t> kemPub;
+      if (cn::resolveMessageRecipientKemPub(messages[i].address, m_currency.isTestnet(), kemPub))
+      {
+        cn::tx_extra_pq_message pqTag;
+        if (!pqTag.encrypt(i, messages[i].message, kemPub))
+          continue;
+        BinaryArray ba;
+        if (cn::append_pq_message_to_extra(ba, pqTag))
+        {
+          tx->appendExtra(ba);
+        }
+        continue;
+      }
+
       cn::AccountPublicAddress addressBin;
       if (!m_currency.parseAccountAddressString(messages[i].address, addressBin))
         continue;
-      // Emit the authenticated classical message (tx-extra 0x07) keyed by the same Curve25519 ECDH as
-      // the legacy 0x04 field but sealed with ChaCha20-Poly1305 AEAD. 0x04 is frozen to decrypt-only;
-      // all new messages use 0x07. tx-extra is not consensus-validated, so this is backward-compatible.
+      // Classical fallback (no recipient KEM key): the authenticated 0x07 field keyed by the same
+      // Curve25519 ECDH as the legacy 0x04 field but sealed with ChaCha20-Poly1305 AEAD. 0x04 is
+      // frozen to decrypt-only; tx-extra is not consensus-validated, so this is backward-compatible.
       cn::tx_extra_authenticated_message tag;
       if (!tag.encrypt(i, messages[i].message, &addressBin, kp))
         continue;
