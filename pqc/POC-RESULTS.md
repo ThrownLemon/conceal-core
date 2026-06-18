@@ -10,13 +10,13 @@ This is a feasibility/demo PoC: **unaudited, not constant-time, demo-only.** Do 
 The full post-quantum consensus lifecycle, in real `conceal-core` daemon code, with **no wallet**:
 
 1. **PQ module linked** — `conceald` logs `[PQ] ccx-pqc post-quantum module linked; scheme_id=0xc0de0002`.
-2. **Real ML-DSA-65 signatures.** The spend signature is a genuine ML-DSA-65 (FIPS 204) signature, not a
-   stub. `ccx_pq_verify` performs real verification (accepts iff the signature validates under a ring
-   member's key) — **unforgeable**: a valid signature requires a ring member's secret seed. The PQ spend tx
-   dropped from ~19 KB (old hash stub) to **~5.3 KB**. `ccx_pq_ringsig_selftest` → ok=1.
-3. **Secret-bound link tag (nullifier).** `nf = SHAKE256("ccx-pq-nf" || seed)` is derived from the spent
-   output's *secret*, not its public key — so it no longer deanonymises the signer the way the old `H(pk)`
-   tag did (anyone could recompute `H(pk)` over the ring to find the signer).
+2. **Anonymous lattice ring signature (experimental).** The spend signature is an AOS/LSAG lattice linkable
+   ring signature (module-SIS, Dilithium-style aborts) — see the dedicated section below. `verify` walks a
+   symmetric ring chain and **does not learn which member signed** (real anonymity), and it is unforgeable
+   (non-member/tampered/wrong-message all fail). Ring-of-4 spend tx ≈ 24.7 KB.
+3. **Soundly-bound link tag (nullifier).** `nf = SHAKE256(I)` where `I = A₂·s` is the lattice tag bound
+   *inside* the proof to the signer's secret — deterministic per output (links double-spends), enforced by
+   verification (a malicious signer cannot swap it), and it does not reveal which ring member signed.
 4. **Real ring of N distinct members.** The testnet coinbase emits one fixed-denomination PQ output
    (`PQ_TESTNET_COINBASE_AMOUNT = 100000`) with a **distinct one-time key per height**, so
    `m_pqOutputs[amount]` accumulates an anonymity set. A ring-of-4 spend was accepted; the daemon resolved
@@ -40,7 +40,7 @@ The full post-quantum consensus lifecycle, in real `conceal-core` daemon code, w
 
 | Area | Change | File |
 |------|--------|------|
-| Signature backend | real ML-DSA-65 keygen/sign/verify + secret-bound nullifier | `pqc/ccx-pqc/src/lib.rs` |
+| Signature backend | EXPERIMENTAL lattice AOS/LSAG anonymous linkable ring signature | `pqc/ccx-pqc/src/ringsig.rs` |
 | KEM stealth | ML-KEM-768 derive_output / scan + selftest | `pqc/ccx-pqc/src/lib.rs` |
 | Input/output types | `PqKeyInput` / `PqKeyOutput` variant + serialization + v3 | `include/CryptoNote.h`, `CryptoNoteSerialization.cpp` |
 | Index + nullifier | `m_pqOutputs`, `m_spent_pq_nullifiers`; reorg-safe pop; DoS-bound | `Blockchain.{h,cpp}` |
@@ -53,20 +53,31 @@ The full post-quantum consensus lifecycle, in real `conceal-core` daemon code, w
 | Injector | parses on-chain coinbase txs, scans `kemCt`, ring-of-N builder | `pqc/tools/pq_injector.cpp` |
 | Run friction | pin testnet difficulty (LWMA overshoot stalled mining) | `Blockchain.cpp` |
 
-## The one honest gap that remains: cryptographic signer-unlinkability
+## Signer-unlinkability: addressed (EXPERIMENTAL lattice ring signature)
 
-The ML-DSA backend's `verify` identifies **which** ring member signed (it tries each member's public key).
-So the ring today is a **real on-chain decoy set with a real, unforgeable, secret-bound key-image**, but it
-is **not yet cryptographic signer-unlinkability** — and linkability is sound only for an honest signer
-(a malicious signer could embed a fake tag). Closing this needs a zero-knowledge one-out-of-many proof
-(lattice Sigma-OR / MPC-in-the-head) so that `verify` accepts membership **without** learning the index and
-**enforces** the tag is correctly derived. An adversarial review (3 independent reviewers, against the code
-and the prebuilt Raptor lib) confirmed this is genuinely a multi-session cryptographic implementation, and
-that Raptor is the wrong backend (no recoverable nullifier, struct-of-pointers keys incompatible with the
-flat-stride ABI, GPLv3 Falcon C). It is the audit-gated long pole (CIP §5.3 / C1).
+The signature backend is now a genuinely **anonymous, soundly-linkable** post-quantum ring signature
+(`pqc/ccx-pqc/src/ringsig.rs`): an AOS/LSAG hash-chained ring of Fiat-Shamir-with-aborts (Dilithium-style)
+Sigma proofs over module-SIS `t = A·s`, with a linking tag `I = A₂·s` bound into every branch.
+
+- **Anonymous:** `verify` walks the symmetric ring chain and **never learns which member signed** — the old
+  ML-DSA backend tried each member's key (revealing the signer); the lattice backend does not.
+- **Soundly linkable:** the real branch forces `I = A₂·s_signer`, so the tag is deterministic in the secret
+  and a malicious signer cannot swap it. The daemon nullifier is `SHAKE256(I)`. Same output → same tag →
+  double-spend caught; different output → different tag → independent spend works (both shown live).
+- **Unforgeable:** `ccx_pqr_ringsig_selftest` (ok=1) confirms a non-member, a tampered signature, and a
+  wrong-message signature all fail, plus linkability and signer-distinctness.
+
+**EXPERIMENTAL / UNVERIFIED / NOT CONSTANT-TIME / DEMO-GRADE PARAMETERS** (R_q = Z_q[X]/(X²⁵⁶+1),
+q=8380417, K=L=4 — small dimensions, biased matrix sampling; **not** a calibrated security level). This
+demonstrates the construction is structurally real and works end-to-end on the chain; production needs
+calibrated parameters, constant-time implementation, and an audit (CIP §5.3 / C1). An earlier adversarial
+review (3 reviewers) had flagged the prebuilt Raptor lib as the wrong backend (no recoverable nullifier,
+struct-of-pointers keys vs the flat-stride ABI, GPLv3 Falcon C) — hence this from-scratch lattice scheme.
 
 ## Documented next steps (scoped, not yet done)
 
-- **ZK ring-membership proof** for true signer-unlinkability (the long pole above) — the one remaining gap.
+- **Production-grade ring signature:** the lattice scheme is structurally complete but demo-grade — calibrate
+  parameters to a real security level (NIST cat-1+), make it constant-time, optimise (NTT instead of
+  schoolbook), shrink signatures, and audit. CIP-0001 C1.
 - **Native wallet support** for PQ outputs (currently the injector tool stands in for a wallet); a
   testnet-only `get_pq_outputs` RPC would replace the demo script's coinbase-tx fetching with a direct query.
