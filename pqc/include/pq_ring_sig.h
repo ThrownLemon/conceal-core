@@ -31,12 +31,27 @@ int32_t ccx_pq_kem_derive_output(const uint8_t *kem_pk, size_t kem_pk_len,
                                  uint8_t *ct_out, size_t ct_cap, uint8_t *seed_out, size_t seed_cap);
 int32_t ccx_pq_kem_scan(const uint8_t *kem_sk, size_t kem_sk_len,
                         const uint8_t *ct, size_t ct_len, uint8_t *seed_out, size_t seed_cap);
+/* ML-DSA-65 (FIPS 204 / dilithium3) PQ MULTISIG for post-quantum deposits (CIP-0001
+   UPGRADE_HEIGHT_V9). Plain m-of-n detached signatures over the tx prefix hash — no ring, no
+   nullifier (double-spend caught by the chain isUsed flag). Standardized NIST primitive, used as-is
+   for the deposit path (distinct from the experimental lattice ring sig above). */
+size_t ccx_pq_multisig_pubkey_bytes(void);
+size_t ccx_pq_multisig_seckey_bytes(void);
+size_t ccx_pq_sig_bytes(void);
+int32_t ccx_pq_multisig_keypair(uint8_t *pk_out, size_t pk_cap, uint8_t *sk_out, size_t sk_cap);
+int32_t ccx_pq_multisig_sign(const uint8_t *msg, size_t msg_len,
+                             const uint8_t *sk, size_t sk_len,
+                             uint8_t *sig_out, size_t *sig_len);
+int32_t ccx_pq_multisig_verify(const uint8_t *msg, size_t msg_len,
+                               const uint8_t *pk, size_t pk_len,
+                               const uint8_t *sig, size_t sig_len);
 /* Real PQ primitives self-tests — sizes via out-struct. */
 typedef struct { size_t pk, sk, ct_or_sig, ss; int32_t ok; } ccx_pq_sizes;
 ccx_pq_sizes ccx_mlkem768_selftest(void);
 ccx_pq_sizes ccx_mldsa_selftest(void);
 ccx_pq_sizes ccx_pq_ringsig_selftest(void);
 ccx_pq_sizes ccx_pq_kem_stealth_selftest(void);
+ccx_pq_sizes ccx_pq_multisig_selftest(void);
 #ifdef __cplusplus
 }
 #endif

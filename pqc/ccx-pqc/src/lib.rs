@@ -20,7 +20,7 @@ use sha3::digest::{Update, ExtendableOutput, XofReader};
 use pqcrypto_kyber::kyber768;
 use pqcrypto_dilithium::dilithium3;
 use pqcrypto_traits::kem::{PublicKey as KP, SecretKey as KS, Ciphertext as KC, SharedSecret as KSS};
-use pqcrypto_traits::sign::{PublicKey as SP, SecretKey as SS, SignedMessage as SM};
+use pqcrypto_traits::sign::{PublicKey as SP, SecretKey as SS, SignedMessage as SM, DetachedSignature as SD};
 
 mod ringsig; // EXPERIMENTAL lattice linkable ring signature (anonymous + soundly linkable)
 
@@ -328,4 +328,129 @@ pub extern "C" fn ccx_pq_ringsig_selftest() -> CcxPqSizes {
     ccx_pq_nullifier(sk.as_ptr(), SK, pk.as_ptr(), PK, nf2.as_mut_ptr(), NF);
     let ok = (s == 0 && v == 0 && nf == nf2) as i32;
     CcxPqSizes { pk: PK, sk: SK, ct_or_sig: sl, ss: NF, ok }
+}
+
+// --- ML-DSA-65 PQ MULTISIG (deposits) -----------------------------------------------------------
+// FIPS 204 (Dilithium-3) plain m-of-n signatures for the post-quantum deposit path (CIP-0001
+// UPGRADE_HEIGHT_V9). Unlike the experimental ring signature above, this is the standardized NIST
+// primitive used as-is: a deposit is a NAMED cell (n public keys + requiredSignatureCount + term),
+// so it needs no anonymity, no ring, and no nullifier — double-spend is caught by the chain's
+// isUsed flag, exactly like the legacy Ed25519 multisig it replaces. Each spend signature is a
+// DETACHED dilithium3 signature over the transaction prefix hash, so the message is NOT embedded in
+// the signature (fixed-size, must be verified against the supplied message).
+//
+// HONEST LIMITATION (demo, unaudited): the dilithium3 primitive itself is production-grade and
+// constant-time in PQClean, but THIS INTEGRATION (detached vs attached, message = prefix hash,
+// side channels around the FFI boundary) is unaudited. Mainnet activation is gated far in the
+// future behind UPGRADE_HEIGHT_V9 until audited (CIP-0001 C1). Do not use on mainnet.
+
+/// Bytes in a dilithium3 (ML-DSA-65) public key. Deposit output keys must be exactly this long.
+#[no_mangle] pub extern "C" fn ccx_pq_multisig_pubkey_bytes() -> usize { dilithium3::public_key_bytes() }
+/// Bytes in a dilithium3 (ML-DSA-65) secret key.
+#[no_mangle] pub extern "C" fn ccx_pq_multisig_seckey_bytes() -> usize { dilithium3::secret_key_bytes() }
+/// Bytes in a dilithium3 (ML-DSA-65) DETACHED signature. Deposit input sigs must be exactly this long.
+#[no_mangle] pub extern "C" fn ccx_pq_sig_bytes() -> usize { dilithium3::signature_bytes() }
+
+/// Generate a fresh ML-DSA-65 keypair (RNG-based). Used by the deposit injector / tests to mint the
+/// n keypairs that own a PqMultisigOutput; the daemon never calls this (it only verifies).
+#[no_mangle]
+pub extern "C" fn ccx_pq_multisig_keypair(pk_out: *mut u8, pk_cap: usize,
+                                          sk_out: *mut u8, sk_cap: usize) -> i32 {
+    if pk_out.is_null() || sk_out.is_null() { return -1; }
+    let pkb = dilithium3::public_key_bytes();
+    let skb = dilithium3::secret_key_bytes();
+    if pk_cap < pkb || sk_cap < skb { return -2; }
+    let (pk, sk) = dilithium3::keypair();
+    unsafe {
+        std::ptr::copy_nonoverlapping(pk.as_bytes().as_ptr(), pk_out, pkb);
+        std::ptr::copy_nonoverlapping(sk.as_bytes().as_ptr(), sk_out, skb);
+    }
+    0
+}
+
+/// Sign `msg` with an ML-DSA-65 secret key, producing a DETACHED signature.
+/// Two-call size query: if `sig_out` is null, write the required length to `*sig_len` and return 0.
+/// Returns 0 on success, negative on error.
+#[no_mangle]
+pub extern "C" fn ccx_pq_multisig_sign(msg: *const u8, msg_len: usize,
+                                       sk: *const u8, sk_len: usize,
+                                       sig_out: *mut u8, sig_len: *mut usize) -> i32 {
+    if sig_len.is_null() { return -1; }
+    let need = dilithium3::signature_bytes();
+    if sig_out.is_null() { unsafe { *sig_len = need; } return 0; }   // size query
+    if unsafe { *sig_len } < need { unsafe { *sig_len = need; } return -2; }
+    if msg.is_null() || sk.is_null() { return -1; }
+    let msgb = unsafe { std::slice::from_raw_parts(msg, msg_len) };
+    let skb = unsafe { std::slice::from_raw_parts(sk, sk_len) };
+    let secret = match <dilithium3::SecretKey as SS>::from_bytes(skb) { Ok(s) => s, Err(_) => return -4 };
+    let sig = dilithium3::detached_sign(msgb, &secret);
+    let sigb = sig.as_bytes();
+    if sigb.len() != need { return -7; }
+    unsafe {
+        std::ptr::copy_nonoverlapping(sigb.as_ptr(), sig_out, need);
+        *sig_len = need;
+    }
+    0
+}
+
+/// Verify a DETACHED ML-DSA-65 signature `sig` over `msg` under public key `pk`.
+/// Returns 0 iff the signature is valid; negative otherwise. The daemon's deposit-spend validator
+/// calls this once per (key, sig) pair in the m-of-n match loop.
+#[no_mangle]
+pub extern "C" fn ccx_pq_multisig_verify(msg: *const u8, msg_len: usize,
+                                         pk: *const u8, pk_len: usize,
+                                         sig: *const u8, sig_len: usize) -> i32 {
+    if msg.is_null() || pk.is_null() || sig.is_null() { return -1; }
+    if pk_len != dilithium3::public_key_bytes() { return -4; }
+    if sig_len != dilithium3::signature_bytes() { return -3; }
+    let msgb = unsafe { std::slice::from_raw_parts(msg, msg_len) };
+    let pkb = unsafe { std::slice::from_raw_parts(pk, pk_len) };
+    let sigb = unsafe { std::slice::from_raw_parts(sig, sig_len) };
+    let public = match <dilithium3::PublicKey as SP>::from_bytes(pkb) { Ok(p) => p, Err(_) => return -4 };
+    let detached = match <dilithium3::DetachedSignature as SD>::from_bytes(sigb) { Ok(d) => d, Err(_) => return -3 };
+    match dilithium3::verify_detached_signature(&detached, msgb, &public) {
+        Ok(()) => 0,
+        Err(_) => -5,
+    }
+}
+
+/// Selftest for the ML-DSA-65 multisig backend: a fresh keypair signs a message; the detached
+/// signature verifies (roundtrip); a tampered signature, a wrong key, and a wrong message all fail.
+/// ok=1 means every check passed. Exercises the exact C-ABI the daemon's deposit validator uses.
+#[no_mangle]
+pub extern "C" fn ccx_pq_multisig_selftest() -> CcxPqSizes {
+    let pkb = dilithium3::public_key_bytes();
+    let skb = dilithium3::secret_key_bytes();
+    let sgb = dilithium3::signature_bytes();
+    let fail = CcxPqSizes { pk: pkb, sk: skb, ct_or_sig: sgb, ss: 0, ok: 0 };
+
+    let mut pk = vec![0u8; pkb];
+    let mut sk = vec![0u8; skb];
+    if ccx_pq_multisig_keypair(pk.as_mut_ptr(), pkb, sk.as_mut_ptr(), skb) != 0 { return fail; }
+
+    let msg = b"ccx-pq-multisig-selftest";
+    let mut sig = vec![0u8; sgb];
+    let mut sl = sig.len();
+    if ccx_pq_multisig_sign(msg.as_ptr(), msg.len(), sk.as_ptr(), skb, sig.as_mut_ptr(), &mut sl) != 0 { return fail; }
+
+    // roundtrip: the real signature verifies
+    let roundtrip_ok = ccx_pq_multisig_verify(msg.as_ptr(), msg.len(), pk.as_ptr(), pkb, sig.as_ptr(), sl) == 0;
+
+    // tamper: flip a byte in the signature -> must reject
+    let mut bad = sig.clone(); bad[sgb / 2] ^= 0xff;
+    let tamper_rejected = ccx_pq_multisig_verify(msg.as_ptr(), msg.len(), pk.as_ptr(), pkb, bad.as_ptr(), sl) != 0;
+
+    // wrong key: a different keypair's public key -> must reject
+    let mut pk2 = vec![0u8; pkb];
+    let mut sk2 = vec![0u8; skb];
+    if ccx_pq_multisig_keypair(pk2.as_mut_ptr(), pkb, sk2.as_mut_ptr(), skb) != 0 { return fail; }
+    let wrongkey_rejected = ccx_pq_multisig_verify(msg.as_ptr(), msg.len(), pk2.as_ptr(), pkb, sig.as_ptr(), sl) != 0;
+
+    // wrong message -> must reject (covers the "too-few / mismatched sigs" structural case at the
+    // primitive level: a signature only validates against the exact message it was produced for)
+    let msg2 = b"ccx-pq-multisig-OTHER-msg";
+    let wrongmsg_rejected = ccx_pq_multisig_verify(msg2.as_ptr(), msg2.len(), pk.as_ptr(), pkb, sig.as_ptr(), sl) != 0;
+
+    let ok = (roundtrip_ok && tamper_rejected && wrongkey_rejected && wrongmsg_rejected) as i32;
+    CcxPqSizes { pk: pkb, sk: skb, ct_or_sig: sgb, ss: 0, ok }
 }
