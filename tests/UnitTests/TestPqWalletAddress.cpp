@@ -75,7 +75,7 @@ namespace
 TEST(PqAddress, pqOnlyRoundTrips)
 {
   PqAccountPublicAddress a = makeValidPqAddress(0x11);
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
   ASSERT_FALSE(str.empty());
   // Human prefix sanity: mainnet PQ renders "ccxp...".
   ASSERT_EQ("ccxp", str.substr(0, 4));
@@ -83,7 +83,7 @@ TEST(PqAddress, pqOnlyRoundTrips)
   uint64_t prefix = 0;
   PqAccountPublicAddress b;
   ASSERT_TRUE(parsePqAccountAddressString(prefix, b, str));
-  ASSERT_EQ(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, prefix);
+  ASSERT_EQ(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, prefix);
   ASSERT_EQ(a.pqVersion, b.pqVersion);
   ASSERT_EQ(a.flags, b.flags);
   ASSERT_EQ(a.kemSchemeId, b.kemSchemeId);
@@ -98,7 +98,7 @@ TEST(PqAddress, hybridRoundTripsAndCarriesLegacyKeys)
   a.legacySpendPublicKey = pubFromByte(0x33);
   a.legacyViewPublicKey = pubFromByte(0x44);
 
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX, a);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX, a);
   ASSERT_EQ("ccxh", str.substr(0, 4));
 
   uint64_t prefix = 0;
@@ -120,14 +120,14 @@ TEST(PqAddress, hybridRoundTripsAndCarriesLegacyKeys)
   parsePqAccountAddressString(p2, c, str);
   if (p2 != 0)
   {
-    ASSERT_EQ(parameters::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX, p2);
+    ASSERT_EQ(CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX, p2);
   }
 }
 
 TEST(PqAddress, corruptCharFailsChecksum)
 {
   PqAccountPublicAddress a = makeValidPqAddress(0x55);
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
 
   // Flip a character in the middle — the 4-byte cn_fast_hash checksum must reject it.
   std::string bad = str;
@@ -158,7 +158,7 @@ TEST(PqAddress, wrongKemKeySizeRejected)
 {
   PqAccountPublicAddress a = makeValidPqAddress(0x66);
   a.kemPublicKey.assign(PQ_KEM_PUBLIC_KEY_SIZE - 1, 0x66); // one byte short
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
 
   uint64_t prefix = 0;
   PqAccountPublicAddress b;
@@ -169,7 +169,7 @@ TEST(PqAddress, wrongSchemeIdRejected)
 {
   PqAccountPublicAddress a = makeValidPqAddress(0x77);
   a.kemSchemeId = 0xDEADBEEF; // not PQ_KEM_SCHEME_ID
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
 
   uint64_t prefix = 0;
   PqAccountPublicAddress b;
@@ -180,7 +180,7 @@ TEST(PqAddress, wrongVersionRejected)
 {
   PqAccountPublicAddress a = makeValidPqAddress(0x88);
   a.pqVersion = 99;
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
 
   uint64_t prefix = 0;
   PqAccountPublicAddress b;
@@ -191,7 +191,7 @@ TEST(PqAddress, reservedFlagBitsRejected)
 {
   PqAccountPublicAddress a = makeValidPqAddress(0x99);
   a.flags = 0x02; // reserved bit set
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
 
   uint64_t prefix = 0;
   PqAccountPublicAddress b;
@@ -203,7 +203,7 @@ TEST(PqAddress, pqOnlyWithStrayLegacyKeysRejected)
   PqAccountPublicAddress a = makeValidPqAddress(0xAA);
   a.flags = 0; // PQ-only
   a.legacySpendPublicKey = pubFromByte(0x01); // must be zero for PQ-only
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
 
   uint64_t prefix = 0;
   PqAccountPublicAddress b;
@@ -248,10 +248,104 @@ TEST(PqAccountKeygen, derivedAddressRoundTrips)
   PqAccountKeys keys = PqAccount::generateFromSeed(seedFromByte(0x7e));
   PqAccountPublicAddress addr = PqAccount::toPublicAddress(keys);
 
-  std::string str = getPqAccountAddressAsStr(parameters::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, addr);
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, addr);
   uint64_t prefix = 0;
   PqAccountPublicAddress parsed;
   ASSERT_TRUE(parsePqAccountAddressString(prefix, parsed, str));
   ASSERT_EQ(keys.kemPublicKey, parsed.kemPublicKey);
   ASSERT_EQ(keys.kemSchemeId, parsed.kemSchemeId);
+}
+
+// ---- Encrypted PQ wallet section round-trip -----------------------------------------------------
+// The wallet stores the PQ account (KEM PK/SK + scheme ids) inside the AEAD container via
+// WalletGreen::savePqSection / loadPqSection (presence byte + scheme ids + length-prefixed keys).
+// Those are private, so this test mirrors the exact wire format to prove it round-trips and that the
+// presence byte / size validation behave correctly. The "lives inside the AEAD suffix => re-encrypted
+// on rekey" property is covered by the wallet-file AEAD tests (TestWalletKdf) + changePassword path.
+#include "Common/StringOutputStream.h"
+#include "Common/MemoryInputStream.h"
+#include "Serialization/BinaryOutputStreamSerializer.h"
+#include "Serialization/BinaryInputStreamSerializer.h"
+#include "Serialization/SerializationOverloads.h"
+
+namespace
+{
+  std::string serializePqSection(bool present, const PqAccountKeys &keys)
+  {
+    std::string out;
+    common::StringOutputStream os(out);
+    cn::BinaryOutputStreamSerializer s(os);
+    uint8_t sectionVersion = 1;
+    s(sectionVersion, "pqSectionVersion");
+    uint8_t p = present ? 1 : 0;
+    s(p, "pqPresent");
+    if (present)
+    {
+      uint32_t kemSchemeId = keys.kemSchemeId;
+      uint32_t ringSchemeId = keys.ringSchemeId;
+      s(kemSchemeId, "kemSchemeId");
+      s(ringSchemeId, "ringSchemeId");
+      std::vector<uint8_t> pk = keys.kemPublicKey;
+      std::vector<uint8_t> sk = keys.kemSecretKey;
+      cn::serializeAsBinary(pk, "kemPublicKey", s);
+      cn::serializeAsBinary(sk, "kemSecretKey", s);
+    }
+    return out;
+  }
+
+  bool deserializePqSection(const std::string &blob, bool &present, PqAccountKeys &keys)
+  {
+    common::MemoryInputStream is(blob.data(), blob.size());
+    cn::BinaryInputStreamSerializer s(is);
+    uint8_t sectionVersion = 0;
+    s(sectionVersion, "pqSectionVersion");
+    if (sectionVersion != 1)
+    {
+      return false;
+    }
+    uint8_t p = 0;
+    s(p, "pqPresent");
+    present = (p != 0);
+    if (!present)
+    {
+      return true;
+    }
+    uint32_t kemSchemeId = 0, ringSchemeId = 0;
+    s(kemSchemeId, "kemSchemeId");
+    s(ringSchemeId, "ringSchemeId");
+    std::vector<uint8_t> pk, sk;
+    cn::serializeAsBinary(pk, "kemPublicKey", s);
+    cn::serializeAsBinary(sk, "kemSecretKey", s);
+    keys.kemSchemeId = kemSchemeId;
+    keys.ringSchemeId = ringSchemeId;
+    keys.kemPublicKey = std::move(pk);
+    keys.kemSecretKey = std::move(sk);
+    return true;
+  }
+}
+
+TEST(PqWalletSection, roundTripsPqKeys)
+{
+  PqAccountKeys keys = PqAccount::generateFromSeed(seedFromByte(0x33));
+  std::string blob = serializePqSection(true, keys);
+
+  bool present = false;
+  PqAccountKeys loaded;
+  ASSERT_TRUE(deserializePqSection(blob, present, loaded));
+  ASSERT_TRUE(present);
+  ASSERT_EQ(keys.kemPublicKey, loaded.kemPublicKey) << "save/load must preserve the PQ public key";
+  ASSERT_EQ(keys.kemSecretKey, loaded.kemSecretKey) << "save/load must preserve the PQ secret key";
+  ASSERT_EQ(keys.kemSchemeId, loaded.kemSchemeId);
+  ASSERT_EQ(keys.ringSchemeId, loaded.ringSchemeId);
+}
+
+TEST(PqWalletSection, absentSectionRoundTrips)
+{
+  PqAccountKeys empty;
+  std::string blob = serializePqSection(false, empty);
+
+  bool present = true;
+  PqAccountKeys loaded;
+  ASSERT_TRUE(deserializePqSection(blob, present, loaded));
+  ASSERT_FALSE(present);
 }

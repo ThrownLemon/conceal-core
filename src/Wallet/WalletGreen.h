@@ -15,6 +15,7 @@
 #include "IFusionManager.h"
 #include "WalletIndices.h"
 #include "WalletKdf.h"
+#include "PqAccount.h"
 #include "WalletSerializationV2.h"
 #include "Common/StringOutputStream.h"
 #include "Logging/LoggerRef.h"
@@ -43,6 +44,19 @@ public:
   void createDeposit(uint64_t amount, uint32_t term, std::string sourceAddress, std::string destinationAddress, std::string &transactionHash) override;
   void withdrawDeposit(DepositId depositId, std::string &transactionHash) override;
   std::vector<MultisignatureInput> prepareMultisignatureInputs(const std::vector<TransactionOutputInformation> &selectedTransfers) const;
+
+  /* PQ wallet (CIP-0001 wallet-address-v2). Testnet-gated. Derives the deterministic ML-KEM account
+     from `masterSeed` (the 25-word mnemonic seed / a spend secret), stores it in the encrypted PQ
+     container section, and exposes the PQ/hybrid address. enablePqAccount is idempotent for a given
+     seed (deterministic keygen). Requires a v7 (Argon2id + AEAD) container. */
+  void enablePqAccount(const crypto::SecretKey &masterSeed);
+  bool hasPqAccount() const { return m_pqEnabled; }
+  // Returns the PQ-only Base58 address (ccxp / testnet ctp). Throws if no PQ account is set.
+  std::string getPqAddress(bool testnet) const;
+  // Returns the hybrid Base58 address (ccxh / testnet cth) combining the PQ KEM key with the given
+  // legacy Ed25519 spend/view public keys. Throws if no PQ account is set.
+  std::string getPqHybridAddress(bool testnet, const crypto::PublicKey &legacySpend, const crypto::PublicKey &legacyView) const;
+  const PqAccountKeys &getPqAccountKeys() const { return m_pqAccountKeys; }
 
   
   void initialize(const std::string& path, const std::string& password) override;
@@ -369,6 +383,12 @@ protected:
   // the legacy KDF to a fresh Argon2id key and bump the container version. No-op for v7 wallets.
   void migrateToAeadFormatIfNeeded();
 
+  // PQ wallet section (CIP-0001 wallet-address-v2). Serialized inside the AEAD container after the
+  // WalletSerializerV2 stream, guarded by a presence byte so v7 wallets WITHOUT PQ keys round-trip
+  // cleanly. The section rides inside the AEAD suffix, so it is re-encrypted on every rekey.
+  void savePqSection(common::IOutputStream &destination) const;
+  void loadPqSection(common::IInputStream &source);
+
   void subscribeWallets();
 
   std::vector<OutputToTransfer> pickRandomFusionInputs(const std::vector<std::string> &addresses,
@@ -448,6 +468,11 @@ private:
   uint8_t m_walletFormatVersion = WalletSerializerV2::SERIALIZATION_VERSION;
   // Argon2id KDF header (salt + cost) for a v7 wallet; only meaningful when m_walletFormatVersion >= 7.
   WalletKdfHeader m_kdfHeader;
+  // PQ wallet section (CIP-0001 wallet-address-v2). Holds the deterministically-derived ML-KEM
+  // keypair + scheme ids. Stored inside the AEAD-encrypted container (so it is re-encrypted on rekey),
+  // only when m_pqEnabled. The KEM SK is needed every scan; the PK is for address display.
+  bool m_pqEnabled = false;
+  PqAccountKeys m_pqAccountKeys;
   std::string m_path;
   std::string m_extra; // workaround for wallet reset
   

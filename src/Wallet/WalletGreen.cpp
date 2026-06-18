@@ -40,6 +40,12 @@
 #include "WalletSerializationV2.h"
 #include "WalletErrors.h"
 #include "WalletUtils.h"
+#include "Serialization/SerializationOverloads.h"
+
+extern "C"
+{
+#include "pq_ring_sig.h"
+}
 
 using namespace common;
 using namespace crypto;
@@ -229,6 +235,11 @@ namespace
 
 namespace cn
 {
+
+  // Forward declaration only (defined in CryptoNoteBasicImpl.cpp). We avoid including
+  // CryptoNoteBasicImpl.h here because it also declares the 3-arg parseAccountAddressString, which
+  // would clash with the file-local 2-arg parseAccountAddressString(string, Currency) helper above.
+  std::string getPqAccountAddressAsStr(uint64_t prefix, const PqAccountPublicAddress &adr);
 
   WalletGreen::WalletGreen(platform_system::Dispatcher &dispatcher, const Currency &currency, INode &node, logging::ILogger &logger, uint32_t transactionSoftLockTime) : m_dispatcher(dispatcher),
                                                                                                                                                                 m_currency(currency),
@@ -753,6 +764,13 @@ namespace cn
         const_cast<std::string &>(extra),
         m_transactionSoftLockTime);
     s.save(containerStream, saveLevel);
+    // Append the PQ wallet section AFTER the V2 stream, into the same container blob (so it lives
+    // inside the AEAD-encrypted suffix and is re-encrypted on rekey). Only for v7+ containers; a
+    // presence byte makes a no-PQ-keys wallet round-trip cleanly.
+    if (version >= WalletSerializerV2::AEAD_KDF_VERSION)
+    {
+      savePqSection(containerStream);
+    }
     // Persist the suffix in the caller-selected container format. For v7 the (key, kdfHeader) pair
     // must be consistent: the header's salt/cost produced `key`. The caller owns that invariant.
     encryptAndSaveContainerData(storage, key, version,
@@ -1158,7 +1176,133 @@ namespace cn
     addedKeys = std::move(s.addedKeys());
     deletedKeys = std::move(s.deletedKeys());
 
+    // The PQ section follows the V2 stream (v7+ only). A v7 container written before PQ support has
+    // no trailing bytes, so only attempt the read when bytes remain; a failure resets PQ state rather
+    // than failing the whole load (the legacy/EC wallet keeps working).
+    if (m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION && containerStream.endOfStream() == false)
+    {
+      try
+      {
+        loadPqSection(containerStream);
+      }
+      catch (const std::exception &e)
+      {
+        m_logger(WARNING, BRIGHT_YELLOW) << "Failed to load PQ wallet section: " << e.what() << " (ignoring)";
+        m_pqEnabled = false;
+      }
+    }
+
     m_logger(INFO) << "Container cache loaded";
+  }
+
+  void WalletGreen::savePqSection(common::IOutputStream &destination) const
+  {
+    // Format: [presence:u8][ if present: kemSchemeId:u32, ringSchemeId:u32,
+    //          kemPublicKey:binary, kemSecretKey:binary ]. A leading version byte allows future
+    //          growth. Lives inside the AEAD container (re-encrypted on rekey).
+    BinaryOutputStreamSerializer s(destination);
+    uint8_t sectionVersion = 1;
+    s(sectionVersion, "pqSectionVersion");
+
+    uint8_t present = m_pqEnabled ? 1 : 0;
+    s(present, "pqPresent");
+    if (!present)
+    {
+      return;
+    }
+
+    uint32_t kemSchemeId = m_pqAccountKeys.kemSchemeId;
+    uint32_t ringSchemeId = m_pqAccountKeys.ringSchemeId;
+    s(kemSchemeId, "kemSchemeId");
+    s(ringSchemeId, "ringSchemeId");
+    // Copies are needed because serializeAsBinary takes a non-const ref; m_pqAccountKeys is const here.
+    std::vector<uint8_t> pk = m_pqAccountKeys.kemPublicKey;
+    std::vector<uint8_t> sk = m_pqAccountKeys.kemSecretKey;
+    serializeAsBinary(pk, "kemPublicKey", s);
+    serializeAsBinary(sk, "kemSecretKey", s);
+  }
+
+  void WalletGreen::loadPqSection(common::IInputStream &source)
+  {
+    BinaryInputStreamSerializer s(source);
+    uint8_t sectionVersion = 0;
+    s(sectionVersion, "pqSectionVersion");
+    if (sectionVersion != 1)
+    {
+      throw std::runtime_error("Unsupported PQ wallet section version " + std::to_string(sectionVersion));
+    }
+
+    uint8_t present = 0;
+    s(present, "pqPresent");
+    if (!present)
+    {
+      m_pqEnabled = false;
+      return;
+    }
+
+    uint32_t kemSchemeId = 0;
+    uint32_t ringSchemeId = 0;
+    s(kemSchemeId, "kemSchemeId");
+    s(ringSchemeId, "ringSchemeId");
+    std::vector<uint8_t> pk;
+    std::vector<uint8_t> sk;
+    serializeAsBinary(pk, "kemPublicKey", s);
+    serializeAsBinary(sk, "kemSecretKey", s);
+
+    // Validate sizes against the compiled-in KEM so a corrupt/foreign section can't silently load a
+    // bogus key. (The AEAD already authenticates the bytes; this is defence-in-depth.)
+    const size_t expectedPk = ccx_pq_kem_pubkey_bytes();
+    const size_t expectedSk = ccx_pq_kem_seckey_bytes();
+    if (pk.size() != expectedPk || sk.size() != expectedSk)
+    {
+      throw std::runtime_error("PQ wallet section has wrong KEM key sizes");
+    }
+
+    m_pqAccountKeys.kemSchemeId = kemSchemeId;
+    m_pqAccountKeys.ringSchemeId = ringSchemeId;
+    m_pqAccountKeys.kemPublicKey = std::move(pk);
+    m_pqAccountKeys.kemSecretKey = std::move(sk);
+    m_pqEnabled = true;
+  }
+
+  void WalletGreen::enablePqAccount(const crypto::SecretKey &masterSeed)
+  {
+    throwIfNotInitialized();
+    throwIfStopped();
+
+    // The PQ section lives inside the AEAD container, which only exists for v7+. Migrate first so a
+    // legacy wallet that adds PQ keys is upgraded (rather than silently failing to persist them).
+    migrateToAeadFormatIfNeeded();
+
+    // Deterministic: same seed -> same PQ keys (mnemonic-restorable). Idempotent.
+    m_pqAccountKeys = PqAccount::generateFromSeed(masterSeed);
+    m_pqEnabled = true;
+
+    m_logger(INFO, BRIGHT_WHITE) << "PQ account enabled (ML-KEM-768)";
+  }
+
+  std::string WalletGreen::getPqAddress(bool testnet) const
+  {
+    if (!m_pqEnabled)
+    {
+      throw std::runtime_error("Wallet has no PQ account");
+    }
+    PqAccountPublicAddress addr = PqAccount::toPublicAddress(m_pqAccountKeys);
+    const uint64_t prefix = testnet ? cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX
+                                    : cn::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX;
+    return getPqAccountAddressAsStr(prefix, addr);
+  }
+
+  std::string WalletGreen::getPqHybridAddress(bool testnet, const crypto::PublicKey &legacySpend, const crypto::PublicKey &legacyView) const
+  {
+    if (!m_pqEnabled)
+    {
+      throw std::runtime_error("Wallet has no PQ account");
+    }
+    PqAccountPublicAddress addr = PqAccount::toHybridPublicAddress(m_pqAccountKeys, legacySpend, legacyView);
+    const uint64_t prefix = testnet ? cn::TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX
+                                    : cn::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX;
+    return getPqAccountAddressAsStr(prefix, addr);
   }
 
   void WalletGreen::loadContainerStorage(const std::string &path)

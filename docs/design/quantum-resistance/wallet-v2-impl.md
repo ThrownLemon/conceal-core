@@ -84,11 +84,88 @@ v6 wallets load via the legacy path and upgrade to v7 on their next save.
 
 ## Task 2 — PQ wallet / address v2 (retire pq_injector) — see status at end
 
-(Filled in as Task 2 lands.)
+### DONE (built + unit-tested)
+
+**(a) PQ address format v2.** New Base58 prefixes carrying the 1184-byte ML-KEM-768 public key (NOT
+the 4096-byte ring-sig key — per-output/derived):
+- `cn::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x14fad4` → `ccxp…`
+- `cn::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x117ad4` → `ccxh…`
+- `cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x220bd6` → `ctp…`
+- `cn::TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x164a56` → `cth…`
+- `cn::PQ_KEM_PUBLIC_KEY_SIZE = 1184`, `cn::PQ_ADDRESS_VERSION = 2`, `cn::PQ_KEM_SCHEME_ID = 0xC0DE0203`.
+Tags brute-forced (replicating `encode_addr`) so the first 4 human chars are stable across the flags
+byte, the way `0x7ad4`→`ccx7` was tuned. `PqAccountPublicAddress` struct (`include/CryptoNote.h`) +
+canonical `ISerializer` serialization (legacy Ed25519 keys always written, zero when PQ-only — exactly
+one valid encoding). `getPqAccountAddressAsStr` / `parsePqAccountAddressString`
+(`CryptoNoteBasicImpl.{h,cpp}`) reuse the existing `encode_addr`/`decode_addr` (varint tag + payload +
+4-byte cn_fast_hash checksum); parse validates version + both schemeIds + KEM-key length + reserved
+flag bits + (hybrid) on-curve legacy keys. Legacy `AccountPublicAddress` path untouched.
+
+**(b) Deterministic PQ key derivation from the mnemonic.** `PqAccount` (`src/Wallet/PqAccount.{h,cpp}`)
+derives the KEM seed via domain-separated `cn_fast_hash("ccx-pq-kem-acct" || master32)` and calls
+`ccx_pq_kem_keygen_det`. Same master seed → identical KEM keypair (mnemonic-restorable). The KEM seed
+is domain-separated from the master seed. **`ccx_pq_kem_keygen_det` / `ccx_pq_multisig_keygen_det` are
+declared in `pq_ring_sig.h` and coded against; the ccx-pqc impls are DETERMINISTIC PLACEHOLDERS (SHAKE
+expand) — a MERGE DEPENDENCY** flagged for the Rust-crypto agent's real FIPS-203/204 seed keygen with
+the same C ABI. Tests assert determinism + sizes + round-trip, never specific bytes.
+
+**(c) Encrypted PQ section in the WalletGreen container.** The PQ account (KEM PK/SK + scheme ids) is
+serialized by `WalletGreen::savePqSection`/`loadPqSection` **inside** the AEAD-encrypted v7 container
+(appended after the `WalletSerializerV2` stream, guarded by a presence byte). Because it rides inside
+the AEAD suffix, it is automatically re-encrypted on `changePassword`/rekey (Task-1 path) — satisfying
+"wallet rekey MUST re-encrypt the PQ section". On load, sizes are re-validated against the compiled-in
+KEM. Public API: `enablePqAccount(masterSeed)` (migrates to v7, derives + stores), `getPqAddress`,
+`getPqHybridAddress`, `hasPqAccount`, `getPqAccountKeys`.
+
+Tests (`tests/UnitTests/TestPqWalletAddress.cpp`): 13 address+keygen cases + 2 PQ-section round-trip
+cases — address round-trip / corrupt / wrong-prefix / wrong-size / wrong-scheme / wrong-version /
+reserved-flag / stray-legacy-key rejection; hybrid; mnemonic→key reproducibility; domain separation;
+seed→address round-trip; PQ-section save/load preserves keys; absent-section round-trip.
+
+### DEFERRED (flagged for follow-up / merge)
+
+1. **Real deterministic KEM/DSA keygen** — the `ccx_pq_*_keygen_det` placeholders must be replaced by
+   the Rust-crypto agent's FIPS-203/204 seed keygen, byte-compatible with the daemon's on-chain KEM
+   (`pqcrypto-kyber` encap in `ccx_pq_kem_derive_output`). Mixing crates would break daemon interop and
+   lose funds — deliberately NOT done unilaterally here.
+2. **PQ stealth-output scanning in the wallet sync path** (`ccx_pq_kem_scan → ccx_pq_keygen → compare
+   to on-chain key`). Needs the `TransfersSynchronizer` integration + the `get_pq_outputs` RPC; not
+   wired yet.
+3. **`createPqTransaction` (retire `pq_injector`).** The signed message MUST byte-match
+   `Blockchain::getTransactionPqSigningHash` = `getObjectHash(prefix)` with every `PqKeyInput.ringSig`
+   cleared (Blockchain.cpp:2536-2557). Verified against the daemon source; the wallet builder + A/B
+   parity test (wallet-built `PqKeyInput` ≡ injector-built) require a live testnet and are deferred.
+4. **Testnet `get_pq_outputs` RPC** (amount → [{global_index, key, kemCt, height}]) — not added.
+5. **CLI `pq_address` / `pq_balance` / `pq_transfer`** in `ConcealWallet` — not added.
+6. **Message send-path 0x04 → authenticated 0x07** migration (secondary item) — not done; the
+   serializer agent's `tx_extra_authenticated_message` (0x07) + `append_authenticated_message_to_extra`
+   exist; wiring `WalletGreen`/`CryptoNoteFormatUtils` to emit 0x07 (0x04 stays read-only) is left as a
+   merge wiring item.
+
+---
+
+## MERGE NOTES — shared-core files touched (reconcile against crypto + serializer branches)
+
+| File | What this branch added |
+|------|------------------------|
+| `pqc/ccx-pqc/src/lib.rs` | `ccx_pq_kem_keygen_det` / `ccx_pq_multisig_keygen_det` (DETERMINISTIC PLACEHOLDERS — delete + bind to the real `detkeygen.rs` impls at merge); the wallet-file `ccx_wallet_*` (Argon2id + XChaCha20-Poly1305) FFI; `mod walletcrypto`. Keep the "PLACEHOLDER / MERGE DEPENDENCY" banner. |
+| `pqc/ccx-pqc/src/walletcrypto.rs` | New module: Argon2id + XChaCha20-Poly1305 (Task 1). No conflict expected. |
+| `pqc/ccx-pqc/Cargo.toml` | Added `argon2 = "0.5"`. |
+| `pqc/include/pq_ring_sig.h` | Declared `ccx_pq_kem_keygen_det` / `ccx_pq_multisig_keygen_det` (delete at merge if the real decls live elsewhere) + the `ccx_wallet_*` block + `ccx_wallet_crypto_selftest`. |
+| `src/CryptoNoteConfig.h` | Added (in `namespace cn`, beside `PQ_NULLIFIER_SIZE`): the 4 PQ/hybrid Base58 prefixes (main+testnet), `PQ_KEM_PUBLIC_KEY_SIZE`, `PQ_ADDRESS_VERSION`, `PQ_KEM_SCHEME_ID`. Consensus-adjacent constants — confirm the `PQ_KEM_SCHEME_ID` / prefix values don't collide with the crypto/deposits branches. |
+| `include/CryptoNote.h` | Added `PqAccountPublicAddress` struct. |
+| `src/CryptoNoteCore/CryptoNoteSerialization.{h,cpp}` | Added `serialize(PqAccountPublicAddress&, …)`. New overload only — no change to existing serializers. |
+| `src/CryptoNoteCore/CryptoNoteBasicImpl.{h,cpp}` | Added `getPqAccountAddressAsStr` / `parsePqAccountAddressString` + `#include "CryptoNoteConfig.h"`. Legacy fns untouched. |
+
+Wallet-layer-only files (no cross-branch reconciliation): `src/Wallet/WalletKdf.{h,cpp}`,
+`src/Wallet/PqAccount.{h,cpp}`, `src/Wallet/WalletGreen.{h,cpp}`, `src/Wallet/WalletSerializationV2.h`,
+`tests/UnitTests/TestWalletKdf.cpp`, `tests/UnitTests/TestPqWalletAddress.cpp`.
 
 ---
 
 ## Build & proof log
 
-(See the final report / ctest output. Rust `cargo test` walletcrypto: 3 passed. C++ build of
-`ccx_pqc` + `Wallet` + `UnitTests` on the WSL x86_64 host.)
+Built on the WSL x86_64 host (`~/conceal-core-wallet`): `cargo test` (walletcrypto 3/3),
+`ccx_pqc` + `CryptoNoteCore` + `Wallet` + `UnitTests`. Unit tests: `TestWalletKdf` 17/17,
+`TestPqWalletAddress` (PqAddress 9 + PqAccountKeygen 4 + PqWalletSection 2). See the final report for
+full `ctest` output and the determinism proof.
