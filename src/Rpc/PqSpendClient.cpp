@@ -14,6 +14,7 @@
 #include "JsonRpc.h"                          // JsonRpc::invokeJsonRpcCommand
 #include "CoreRpcServerCommandsDefinitions.h"
 #include "crypto/crypto.h"                    // crypto::rand<T> (CSPRNG; NOT std::mt19937)
+#include "pq_ring_sig.h"                      // ccx_pq_kem_scan / ccx_pq_keygen (signer-ownership scan)
 
 namespace cn
 {
@@ -24,6 +25,76 @@ namespace cn
     {
       out.clear();
       return common::fromHex(hex, out);
+    }
+
+    // Best-effort zeroisation of a sensitive buffer the optimiser may not elide (same volatile
+    // byte-writer pattern as PqSpendBuilder.cpp's secure_wipe). A plain std::fill on a soon-to-die
+    // buffer can be dead-code-eliminated; this cannot.
+    void secure_wipe(void* p, size_t n)
+    {
+      if (p == nullptr || n == 0)
+      {
+        return;
+      }
+      volatile uint8_t* vp = static_cast<volatile uint8_t*>(p);
+      while (n-- > 0)
+      {
+        *vp++ = 0;
+      }
+    }
+
+    // Does a spendable entry belong to one of the candidate KEM secrets? Recovers the one-time key
+    // the SAME way the builder does — ccx_pq_kem_scan(secret, kemCt) -> 32-byte seed, ccx_pq_keygen
+    // (seed) -> one-time pubkey, compare to the on-chain output key — so the answer is exactly "can a
+    // candidate actually sign this output". Read-only; no signing. Transient secret material is
+    // securely wiped before returning.
+    bool entryOwnedByCandidate(const COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry& e,
+                               const std::vector<std::vector<uint8_t>>& kemSecrets,
+                               size_t pkBytes,
+                               size_t skBytes,
+                               size_t kemSkBytes)
+    {
+      // An output with no kemCt is a throwaway/injector output — not scannable, never ours.
+      if (e.kem.empty())
+      {
+        return false;
+      }
+      std::vector<uint8_t> kemCt;
+      if (!hexToBytes(e.kem, kemCt))
+      {
+        return false; // malformed on-chain kem hex — skip
+      }
+      std::vector<uint8_t> outKey;
+      if (!hexToBytes(e.key, outKey) || outKey.size() != pkBytes)
+      {
+        return false; // malformed / wrong-size on-chain key hex — skip
+      }
+
+      for (size_t c = 0; c < kemSecrets.size(); ++c)
+      {
+        const std::vector<uint8_t>& kemSk = kemSecrets[c];
+        if (kemSk.size() != kemSkBytes)
+        {
+          continue; // wrong-size candidate — never hand a bad length to the FFI
+        }
+        uint8_t otSeed[32];
+        if (ccx_pq_kem_scan(kemSk.data(), kemSk.size(), kemCt.data(), kemCt.size(),
+                            otSeed, sizeof(otSeed)) != 0)
+        {
+          continue; // not ours under this candidate
+        }
+        std::vector<uint8_t> otPk(pkBytes, 0), otSk(skBytes, 0);
+        const int32_t rc = ccx_pq_keygen(otSeed, sizeof(otSeed), otPk.data(), otPk.size(),
+                                         otSk.data(), otSk.size());
+        // Wipe the recovered secret material immediately; this scan never signs with it.
+        secure_wipe(otSeed, sizeof(otSeed));
+        secure_wipe(otSk.data(), otSk.size());
+        if (rc == 0 && otPk == outKey)
+        {
+          return true;
+        }
+      }
+      return false;
     }
 
     // Uniform random index in [0, n) using the project CSPRNG (crypto::rand — the same secure
@@ -83,6 +154,21 @@ namespace cn
       return false;
     }
 
+    // FIX (hygiene): kemSecrets holds live copies of the candidate KEM secret keys for the whole
+    // function. Wipe every byte on EVERY exit path (all returns + the catch below) with the same
+    // non-elidable secure_wipe the builder uses, so the secrets do not outlive this call.
+    struct KemSecretsWiper
+    {
+      std::vector<std::vector<uint8_t>>& v;
+      ~KemSecretsWiper()
+      {
+        for (size_t i = 0; i < v.size(); ++i)
+        {
+          secure_wipe(v[i].data(), v[i].size());
+        }
+      }
+    } kemSecretsWiper{kemSecrets};
+
     try
     {
       HttpClient httpClient(dispatcher, daemonHost, daemonPort);
@@ -134,36 +220,71 @@ namespace cn
         return false;
       }
 
-      // ---- 3-5. attempt loop: random signer + random decoys, build, relay -------------------------
+      // ---- 2b. restrict signer candidates to OUTPUTS WE ACTUALLY OWN -----------------------------
+      //
+      // FIX (liveness): the old loop drew the signer at random from ALL spendable outputs and gave
+      // up after 8 tries. On a pool with many outputs but few owned, a wallet↔wallet re-spend could
+      // exhaust its 8 random draws without ever hitting an owned signer and fail even though an
+      // owned, spendable output existed. We now first identify which spendable outputs a candidate
+      // KEM secret can sign (same ownership test the builder applies — scan the kemCt, re-derive the
+      // one-time key, compare to the on-chain key) and pick the SIGNER only from that owned set, so a
+      // spendable owned output always yields a usable signer. Decoys are still drawn from ALL
+      // spendable outputs (below) to preserve the anonymity set.
+      const size_t pkBytes = ccx_pq_pubkey_bytes();
+      const size_t skBytes = ccx_pq_seckey_bytes();
+      const size_t kemSkBytes = ccx_pq_kem_seckey_bytes();
+      if (pkBytes == 0 || skBytes == 0 || kemSkBytes == 0)
+      {
+        err = "ccx-pqc reports zero key size (FFI unavailable)";
+        return false;
+      }
+
+      std::vector<size_t> owned; // indices into `spendable` that a candidate secret can sign
+      owned.reserve(spendable.size());
+      for (size_t i = 0; i < spendable.size(); ++i)
+      {
+        if (entryOwnedByCandidate(spendable[i], kemSecrets, pkBytes, skBytes, kemSkBytes))
+        {
+          owned.push_back(i);
+        }
+      }
+      if (owned.empty())
+      {
+        err = "no spendable PQ output is owned by any candidate KEM secret";
+        return false;
+      }
+
+      // ---- 3-5. attempt loop: owned signer + random decoys, build, relay --------------------------
       //
       // FIX B: the old code always picked signer = lowest global index + ring = the first
       // `ringSize` outputs. Two problems that this loop fixes:
       //   (1) if that output was already spent, every call re-picked it -> permanent failure;
       //   (2) identical ring membership + signer position across spends is trivially linkable on a
       //       privacy coin.
-      // Each attempt picks a RANDOM (not-yet-tried) signer and RANDOM ringSize-1 distinct decoys
-      // (CSPRNG — crypto::rand, NOT std::mt19937). The builder re-sorts the ring by global index
-      // internally, so the entropy is in WHICH outputs are chosen + which one signs. If build or
-      // relay fails we fall through to the next attempt with a different signer; the last error is
-      // returned once attempts are exhausted.
-      const size_t maxAttempts = std::min<size_t>(8, spendable.size());
+      // Each attempt picks a RANDOM (not-yet-tried) signer FROM THE OWNED SET and RANDOM ringSize-1
+      // distinct decoys from ALL spendable outputs (CSPRNG — crypto::rand, NOT std::mt19937). The
+      // builder re-sorts the ring by global index internally, so the entropy is in WHICH outputs are
+      // chosen + which one signs. If build or relay fails we fall through to the next attempt with a
+      // different owned signer; the last error is returned once attempts are exhausted.
+      const size_t maxAttempts = std::min<size_t>(8, owned.size());
 
-      // Track which signer slots we have already tried so each attempt uses a fresh one.
-      std::vector<bool> signerTried(spendable.size(), false);
+      // Track which OWNED slots we have already tried so each attempt uses a fresh signer.
+      std::vector<bool> ownedTried(owned.size(), false);
       size_t triedCount = 0;
 
       err = "PQ spend: no attempt succeeded";
 
-      for (size_t attempt = 0; attempt < maxAttempts && triedCount < spendable.size(); ++attempt)
+      for (size_t attempt = 0; attempt < maxAttempts && triedCount < owned.size(); ++attempt)
       {
-        // Pick a random signer slot we have not tried yet.
-        size_t signerSlot = cryptoRandIndex(spendable.size());
-        while (signerTried[signerSlot])
+        // Pick a random owned slot we have not tried yet; map it back to a `spendable` index.
+        size_t ownedPos = cryptoRandIndex(owned.size());
+        while (ownedTried[ownedPos])
         {
-          signerSlot = (signerSlot + 1) % spendable.size();
+          ownedPos = (ownedPos + 1) % owned.size();
         }
-        signerTried[signerSlot] = true;
+        ownedTried[ownedPos] = true;
         ++triedCount;
+        const size_t signerSlot = owned[ownedPos];
 
         // Pick ringSize-1 distinct decoy slots != signerSlot, uniformly at random.
         std::vector<size_t> chosen;
@@ -227,7 +348,13 @@ namespace cn
         for (size_t c = 0; c < kemSecrets.size(); ++c)
         {
           sreq.kemSecretKey = kemSecrets[c];
-          if (cn::buildPqSpendTransaction(sreq, tx, err))
+          const bool ok = cn::buildPqSpendTransaction(sreq, tx, err);
+          // FIX (hygiene): sreq.kemSecretKey holds a live copy of a candidate KEM secret. Wipe it
+          // with a non-elidable secure_wipe before the next candidate (or before leaving the loop)
+          // so the transient copy does not linger in the request buffer between attempts.
+          secure_wipe(sreq.kemSecretKey.data(), sreq.kemSecretKey.size());
+          sreq.kemSecretKey.clear();
+          if (ok)
           {
             built = true;
             break;

@@ -72,6 +72,19 @@ using common::JsonValue;
 
 namespace {
 
+// Best-effort zeroisation of a sensitive buffer the optimiser may not elide. Uses a volatile byte
+// writer so the stores are not dead-code-eliminated (a plain std::fill on a soon-to-die buffer can
+// be). Mirrors cn::secure_wipe in PqSpendBuilder.cpp. Used on transient PQ KEM secret material.
+void secure_wipe(void* p, size_t n) {
+  if (p == nullptr || n == 0) {
+    return;
+  }
+  volatile uint8_t* vp = static_cast<volatile uint8_t*>(p);
+  while (n-- > 0) {
+    *vp++ = 0;
+  }
+}
+
 inline std::string interpret_rpc_response(bool ok, const std::string& status) {
   std::string err;
   if (ok) {
@@ -1815,6 +1828,14 @@ cn::PqAccountKeys conceal_wallet::getPqAccountKeys() const
   return cn::PqAccount::generateFromSeed(spendSecretKey);
 }
 
+/* Upper bound on the number of PQ outputs a single pq_receive / pq_balance-mine command will scan
+   (KEM-decapsulate) across ALL amounts. The daemon already caps each amount's list at
+   cn::PQ_GET_OUTPUTS_MAX_PER_AMOUNT, but the wallet must bound its OWN work too: pqOutputIsMine runs
+   one KEM scan per (output × candidate secret), so a large multi-amount response would otherwise let
+   a node force unbounded wallet-side lattice work. When the response exceeds this, we fail closed
+   and warn rather than grinding. */
+static const size_t PQ_WALLET_MAX_SCAN_OUTPUTS = 4096;
+
 /* The amounts a PQ output can carry on the testnet PoC: the coinbase denomination, plus the
    post-fee denominations produced by the default pq_transfer fees. The daemon enumerates per-amount,
    so we ask for each candidate amount. */
@@ -1865,8 +1886,17 @@ bool conceal_wallet::pq_balance(const std::vector<std::string> &args)
 
   try
   {
-    // Build the candidate KEM secrets once (only needed in "mine" mode).
+    // Build the candidate KEM secrets once (only needed in "mine" mode). Wipe them on every exit
+    // path (the secrets hold live ML-KEM secret-key bytes).
     std::vector<std::vector<uint8_t>> kemSecrets;
+    struct KemSecretsWiper {
+      std::vector<std::vector<uint8_t>>& v;
+      ~KemSecretsWiper() {
+        for (size_t i = 0; i < v.size(); ++i) {
+          secure_wipe(v[i].data(), v[i].size());
+        }
+      }
+    } kemSecretsWiper{kemSecrets};
     if (mineOnly)
     {
       const cn::PqAccountKeys keys = getPqAccountKeys();
@@ -1881,6 +1911,32 @@ bool conceal_wallet::pq_balance(const std::vector<std::string> &args)
     req.amounts = pqCandidateAmounts();
     cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
     cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
+
+    // A non-OK status means the node refused / errored; the response body is then meaningless.
+    if (res.status != CORE_RPC_STATUS_OK)
+    {
+      fail_msg_writer() << "get_pq_outputs failed: " << res.status;
+      return true;
+    }
+
+    // "mine" mode KEM-scans every returned output; bound that work so a node cannot force unbounded
+    // wallet-side lattice decapsulation by returning a huge multi-amount response. (Default mode does
+    // no per-output crypto, so the cap only guards the scanning path.)
+    if (mineOnly)
+    {
+      size_t totalOuts = 0;
+      for (const auto& ofa : res.outs)
+      {
+        totalOuts += ofa.outs.size();
+      }
+      if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
+      {
+        fail_msg_writer() << "get_pq_outputs returned " << totalOuts
+                          << " outputs, exceeding the wallet scan budget of "
+                          << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
+        return true;
+      }
+    }
 
     // Sum unlocked outputs * their amount, guarding against uint64 overflow on the running total.
     uint64_t total = 0;
@@ -1972,8 +2028,10 @@ bool conceal_wallet::pqOutputIsMine(const cn::COMMAND_RPC_GET_PQ_OUTPUTS::pq_out
     const int32_t rc = ccx_pq_keygen(otSeed, sizeof(otSeed), otPk.data(), otPk.size(),
                                      otSk.data(), otSk.size());
     // Wipe the recovered secret material immediately; pq_receive/pq_balance never sign with it.
-    std::fill(otSeed, otSeed + sizeof(otSeed), 0);
-    std::fill(otSk.begin(), otSk.end(), 0);
+    // Use the non-elidable secure_wipe — a std::fill on these soon-to-die buffers can be optimised
+    // away, leaving the one-time secret in freed memory.
+    secure_wipe(otSeed, sizeof(otSeed));
+    secure_wipe(otSk.data(), otSk.size());
     if (rc != 0)
     {
       continue;
@@ -1991,8 +2049,17 @@ bool conceal_wallet::pq_receive(const std::vector<std::string> &args)
   try
   {
     // Candidate secrets to scan with: the wallet's own seed-derived key first (received funds), then
-    // the fixed testnet key (so coinbase outputs the wallet bootstrapped from also show up).
+    // the fixed testnet key (so coinbase outputs the wallet bootstrapped from also show up). Wipe
+    // them on every exit path (they hold live ML-KEM secret-key bytes).
     std::vector<std::vector<uint8_t>> kemSecrets;
+    struct KemSecretsWiper {
+      std::vector<std::vector<uint8_t>>& v;
+      ~KemSecretsWiper() {
+        for (size_t i = 0; i < v.size(); ++i) {
+          secure_wipe(v[i].data(), v[i].size());
+        }
+      }
+    } kemSecretsWiper{kemSecrets};
     const cn::PqAccountKeys keys = getPqAccountKeys();
     kemSecrets.push_back(keys.kemSecretKey);
     kemSecrets.push_back(std::vector<uint8_t>(
@@ -2004,6 +2071,29 @@ bool conceal_wallet::pq_receive(const std::vector<std::string> &args)
     req.amounts = pqCandidateAmounts();
     cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
     cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
+
+    // A non-OK status means the node refused / errored; the response body is then meaningless.
+    if (res.status != CORE_RPC_STATUS_OK)
+    {
+      fail_msg_writer() << "get_pq_outputs failed: " << res.status;
+      return true;
+    }
+
+    // Bound our own scanning work: pqOutputIsMine KEM-decapsulates every returned output against
+    // each candidate secret, so a huge multi-amount response would otherwise force unbounded
+    // wallet-side lattice work. Fail closed (do not partially scan) when the response is too large.
+    size_t totalOuts = 0;
+    for (const auto& ofa : res.outs)
+    {
+      totalOuts += ofa.outs.size();
+    }
+    if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
+    {
+      fail_msg_writer() << "get_pq_outputs returned " << totalOuts
+                        << " outputs, exceeding the wallet scan budget of "
+                        << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
+      return true;
+    }
 
     size_t count = 0;
     uint64_t total = 0;
@@ -2091,9 +2181,10 @@ bool conceal_wallet::pq_transfer(const std::vector<std::string> &args)
     }
     else
     {
-      // Parse the recipient's PQ-only ("ctp"/"ccxp") or hybrid ("cth"/"ccxh") address -> KEM pubkey.
-      // The PoC runs on testnet, but accept the mainnet PQ/hybrid prefixes too so an address from
-      // either network is usable; parsePqAccountAddressString already pins version + scheme ids.
+      // Parse the recipient's PQ-only ("ctp") or hybrid ("cth") address -> KEM pubkey. This is the
+      // TESTNET PoC branch, so accept ONLY the testnet prefixes. A mainnet PQ/hybrid address
+      // ("ccxp"/"ccxh") is a wrong-network mistake — reject it with a clear message rather than
+      // silently sending testnet funds to a key from another network. (No override for the PoC.)
       uint64_t prefix = 0;
       cn::PqAccountPublicAddress addr;
       if (!cn::parsePqAccountAddressString(prefix, addr, args[0]))
@@ -2101,12 +2192,17 @@ bool conceal_wallet::pq_transfer(const std::vector<std::string> &args)
         fail_msg_writer() << "Invalid PQ address: " << args[0];
         return true;
       }
-      if (prefix != cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX &&
-          prefix != cn::TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX &&
-          prefix != cn::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX &&
-          prefix != cn::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX)
+      if (prefix == cn::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX ||
+          prefix == cn::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX)
       {
-        fail_msg_writer() << "PQ address has an unexpected prefix (not a PQ/hybrid address): " << args[0];
+        fail_msg_writer() << "wrong network: that is a MAINNET PQ/hybrid address (ccxp/ccxh); this "
+                             "testnet PoC only accepts testnet addresses (ctp/cth): " << args[0];
+        return true;
+      }
+      if (prefix != cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX &&
+          prefix != cn::TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX)
+      {
+        fail_msg_writer() << "PQ address has an unexpected prefix (not a testnet PQ/hybrid address): " << args[0];
         return true;
       }
       recipientKemPubKey = addr.kemPublicKey;
@@ -2120,8 +2216,17 @@ bool conceal_wallet::pq_transfer(const std::vector<std::string> &args)
 
   // Candidate KEM secrets the spend may need: the wallet's OWN seed-derived key (to spend funds it
   // received) AND the fixed testnet key (to spend the bootstrapped coinbase outputs). The builder
-  // tries each per signer; a wrong one just fails the scan and the next is tried.
+  // tries each per signer; a wrong one just fails the scan and the next is tried. Wipe the live
+  // ML-KEM secret-key bytes on every exit path once the spend is done.
   std::vector<std::vector<uint8_t>> candidateKemSecretKeys;
+  struct KemSecretsWiper {
+    std::vector<std::vector<uint8_t>>& v;
+    ~KemSecretsWiper() {
+      for (size_t i = 0; i < v.size(); ++i) {
+        secure_wipe(v[i].data(), v[i].size());
+      }
+    }
+  } candidateKemSecretsWiper{candidateKemSecretKeys};
   try
   {
     const cn::PqAccountKeys keys = getPqAccountKeys();
