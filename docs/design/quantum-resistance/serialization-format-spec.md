@@ -78,6 +78,17 @@ field recognition, and a field that over-reads its declared length consumes byte
 next field. New variable-length fields therefore MUST be bounded at parse time (see the 0x06 guard in
 §4.3) before being added.
 
+> **Known limitation — no `default:` rejection (consensus-sensitive).** Because the `switch` has no
+> `default`, an unrecognised tag byte fails *soft* (field recognition stops; foreign/unknown tx-extra
+> is tolerated). This is the legacy parser design and affects every tag. Adding a blanket
+> `default: return false` would reject tx-extra the network currently accepts — a **consensus change**
+> that could fork the chain — so it is deliberately NOT done here. The correct fix is a future,
+> height-gated, length-framed tx-extra container format (every field self-describes its length, so
+> unknown fields are skippable without desync) behind a new `UPGRADE_HEIGHT_*` + block major version.
+> See `docs/reviews/tier1/serializer-review-response.md`. The fields we own (0x06, 0x07) are each
+> explicitly length-bounded **before allocation** at parse time so a hostile length prefix can neither
+> over-read into following fields nor force a large allocation (DoS-hardened — review FIX 1).
+
 ---
 
 ## 3. Input layouts (body after the tag byte)
@@ -171,8 +182,11 @@ varint len, len raw bytes    // data (string) — ChaCha20-Poly1305 sealed blob 
 ```
 No KEM ciphertext is carried (unlike `0x06`): the recipient re-derives the 32-byte AEAD seed from the
 tx public key + their spend secret via classical Curve25519 ECDH (`generate_key_derivation`, then
-`cn_fast_hash(derivation || 0x80 || 0x00)`), exactly like the legacy `0x04` field. The seed + the
-per-message index then key `ccx_pq_msg_seal/open`. Parse-time bound (same guard rationale as `0x06`):
+`cn_fast_hash(derivation || 0x80 || 0x07)`). The key agreement is the same as the legacy `0x04` field,
+but the seed is **domain-separated** by the second magic byte: `0x07` uses `0x07` where `0x04` uses
+`0x00`, so a `0x04` and a `0x07` to the same recipient + index can never derive the same seed or share
+a keystream (review FIX 3). The seed + the per-message index then key `ccx_pq_msg_seal/open`.
+Parse-time bound (declared length bounded before allocation, same rationale as `0x06`):
 `TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE (16) <= data.size() <= TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE (8192)`.
 
 ### 4.5 tx-extra `0x06` PQ message body (`tx_extra_pq_message`)
@@ -185,6 +199,9 @@ Parse-time bounds (defense-in-depth, enforced in `parseTransactionExtra`):
 `kemCt.size() == ccx_pq_kem_ct_bytes()`, and
 `TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE (16) <= data.size() <= TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE (8192)`.
 A field violating any bound makes the whole parse fail (returns `false`) rather than over-reading.
+The declared length prefixes are bounded against `min(field max, bytes remaining in the stream)`
+**before any allocation**, so a tiny tx with a huge varint length prefix is rejected without forcing
+a large allocation (review FIX 1).
 
 ---
 
@@ -233,10 +250,17 @@ varint count, count × 32 raw bytes   // transactionHashes (array of POD Hash)
 `tx_extra_message` (`0x04`) symmetric layer: `chacha8(msg || 4 zero bytes)`, key =
 `cn_fast_hash(Curve25519-ECDH-derivation || 0x80 || 0x00)`, nonce = `SWAP64LE(index)`. The 4 trailing
 zero bytes are a **probabilistic owner check (~1-in-2³²), NOT a MAC** — the stream cipher is malleable
-and tampering is generally undetected. This field is now treated as frozen legacy (decrypt-only).
-The `0x06` PQ message and the `0x07` authenticated classical message (§4.6) both replace this with
-real ChaCha20-Poly1305 AEAD integrity; `0x07` keeps the same classical ECDH key agreement as `0x04`,
-so it is the drop-in classical successor (new authenticated messages should use `0x07`, not `0x04`).
+and tampering is generally undetected. This field is now treated as frozen legacy (decrypt-only) at
+the serialization layer. The `0x06` PQ message and the `0x07` authenticated classical message (§4.6)
+both replace this with real ChaCha20-Poly1305 AEAD integrity; `0x07` keeps the same classical ECDH key
+agreement as `0x04` (but a domain-separated seed, §4.6), so it is the drop-in classical successor.
+
+> **Cross-cutting follow-up (not in this branch):** the wallet send path
+> (`src/CryptoNoteCore/CryptoNoteFormatUtils.cpp`, `src/Wallet/WalletGreen.cpp`) still *emits* `0x04`
+> when sending messages. Migrating the send path to emit `0x07` instead is the wallet's job (owned by
+> a different agent); this branch only adds the `0x07` type + parser/serializer/decrypt and freezes
+> `0x04` at the field level. tx-extra is not consensus-validated, so the migration is non-consensus.
+> See `docs/reviews/tier1/serializer-review-response.md`.
 
 ---
 
