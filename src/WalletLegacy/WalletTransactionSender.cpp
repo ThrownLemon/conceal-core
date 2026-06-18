@@ -14,7 +14,6 @@
 #include "CryptoNoteCore/CryptoNoteBasicImpl.h"
 #include "WalletLegacy/WalletTransactionSender.h"
 #include "WalletLegacy/WalletUtils.h"
-#include "pq_testnet_kem_keypair.h" // PoC: hardcoded testnet ML-KEM recipient key (Option B)
 
 #include <Logging/LoggerGroup.h>
 #include <cstdlib>
@@ -238,12 +237,14 @@ namespace cn
     context->mixIn = mixIn;
     context->ttl = ttl;
 
-    // PoC (Option B): on testnet, opt in to the post-quantum message path (tx-extra 0x06) via the
-    // CCX_PQ_MESSAGES env flag, encapsulating to the hardcoded testnet ML-KEM recipient key. Default
-    // OFF so legacy testnet behavior is unchanged. Production key distribution (per-recipient ML-KEM
-    // pubkey from a PQ address) is step 4 of docs/design/quantum-resistance/messages-mlkem.md — TODO.
-    const bool usePqMessages = m_testnet && std::getenv("CCX_PQ_MESSAGES") != nullptr;
-
+    // Encrypted on-chain messages DEFAULT to the post-quantum 0x06 field (ML-KEM-768) whenever a
+    // recipient KEM pubkey is obtainable, falling back to the authenticated classical 0x07 only when
+    // none is. Conceal's messages are permanent and on-chain, so a message stored today under the
+    // Shor-breakable 0x07 (Curve25519 ECDH) is a harvest-now-decrypt-later target the instant a CRQC
+    // exists; 0x06 is the only path that gives true post-quantum confidentiality. Recipient KEM key:
+    //   (a) a PQ/hybrid recipient address carries one, or (b) on testnet the fixed PQ_TESTNET_KEM_PK
+    //   (Option-B bootstrap) — both via cn::resolveMessageRecipientKemPub; (c) mainnet legacy
+    //   recipient -> no KEM key -> 0x07 fallback. (No env flag: 0x06 is the default, not opt-in.)
     for (const TransactionMessage &message : messages)
     {
       AccountPublicAddress address;
@@ -257,10 +258,15 @@ namespace cn
       entry.message = message.message;
       entry.encrypt = true;
       entry.addr = address;
-      if (usePqMessages)
+      entry.pq = false; // default-init: tx_message_entry is an aggregate, so set pq explicitly
+      // Use the CURRENCY's testnet flag (not the wallet-ctor m_testnet, which can diverge): the
+      // receive side (TransfersConsumer) gates its 0x06 bootstrap-key scan on m_currency.isTestnet(),
+      // so the testnet case (b) here MUST key off the same signal or the recipient cannot decrypt.
+      std::vector<uint8_t> kemPub;
+      if (cn::resolveMessageRecipientKemPub(message.address, m_currency.isTestnet(), kemPub))
       {
         entry.pq = true;
-        entry.kemPub.assign(PQ_TESTNET_KEM_PK, PQ_TESTNET_KEM_PK + sizeof(PQ_TESTNET_KEM_PK));
+        entry.kemPub = std::move(kemPub);
       }
       context->messages.push_back(entry);
     }

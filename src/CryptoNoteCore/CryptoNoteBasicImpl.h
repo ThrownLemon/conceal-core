@@ -39,6 +39,20 @@ namespace cn {
   // (the analogue of legacy's check_key()).
   std::string getPqAccountAddressAsStr(uint64_t prefix, const PqAccountPublicAddress& adr);
   bool parsePqAccountAddressString(uint64_t& prefix, PqAccountPublicAddress& adr, const std::string& str);
+
+  // Resolve the recipient ML-KEM public key for an ENCRYPTED on-chain message so the send path can
+  // DEFAULT to the post-quantum 0x06 field (true PQ confidentiality) instead of the classical 0x07
+  // (Curve25519 ECDH, Shor-breakable). Conceal's encrypted messages are permanent and on-chain, so a
+  // message recorded today is a harvest-now-decrypt-later target the moment a CRQC exists; preferring
+  // 0x06 closes that. Resolution order (CIP wallet-address-v2 / messages-mlkem step 4):
+  //   (a) the message's recipient address parses as a PQ/hybrid address -> use its kemPublicKey;
+  //   (b) else on testnet, use the fixed PQ_TESTNET_KEM_PK (Option-B bootstrap) so testnet permanent
+  //       messages are PQ-encrypted by default;
+  //   (c) else (mainnet, no PQ key for the recipient) -> return false; the caller falls back to the
+  //       authenticated classical 0x07 field.
+  // Returns true and fills kemPub for (a)/(b); returns false for (c). Does not throw.
+  bool resolveMessageRecipientKemPub(const std::string& recipientAddress, bool testnet,
+                                     std::vector<uint8_t>& kemPub);
   bool is_coinbase(const Transaction& tx);
 
   bool operator ==(const cn::Transaction& a, const cn::Transaction& b);
