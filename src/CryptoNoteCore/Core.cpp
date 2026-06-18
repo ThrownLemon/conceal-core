@@ -500,6 +500,10 @@ bool core::getOutByMSigGIndex(uint64_t amount, uint64_t gindex, MultisignatureOu
   return m_blockchain.get_out_by_msig_gindex(amount, gindex, out);
 }
 
+bool core::getPqOutputs(uint64_t amount, std::vector<PqOutputEntry>& outs) {
+  return m_blockchain.getPqOutputs(amount, outs);
+}
+
 void core::pause_mining() {
   m_miner->pause();
 }

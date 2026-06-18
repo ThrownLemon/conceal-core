@@ -174,7 +174,8 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest& request, HttpResponse& 
         {"getblocktimestamp", {makeMemberMethod(&RpcServer::on_get_block_timestamp_by_height), true}},
         {"getblockheaderbyheight", {makeMemberMethod(&RpcServer::on_get_block_header_by_height), false}},
         {"getrawtransactionspool", {makeMemberMethod(&RpcServer::on_get_transactions_pool_raw), true}},
-        {"getrawtransactionsbyheights", {makeMemberMethod(&RpcServer::on_get_txs_with_output_global_indexes), true}}
+        {"getrawtransactionsbyheights", {makeMemberMethod(&RpcServer::on_get_txs_with_output_global_indexes), true}},
+        {"get_pq_outputs", {makeMemberMethod(&RpcServer::on_get_pq_outputs), false}}
     };
 
     auto it = jsonRpcHandlers.find(jsonRequest.getMethod());
@@ -917,6 +918,36 @@ bool RpcServer::on_get_random_outs_json(const COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR
 
   res.status = CORE_RPC_STATUS_OK;
 
+  return true;
+}
+
+bool RpcServer::on_get_pq_outputs(const COMMAND_RPC_GET_PQ_OUTPUTS::request& req, COMMAND_RPC_GET_PQ_OUTPUTS::response& res) {
+  res.status = "Failed";
+  res.outs.reserve(req.amounts.size());
+
+  for (uint64_t amount : req.amounts) {
+    std::vector<PqOutputEntry> entries;
+    if (!m_core.getPqOutputs(amount, entries)) {
+      return true;
+    }
+
+    COMMAND_RPC_GET_PQ_OUTPUTS::outs_for_amount ofa;
+    ofa.amount = amount;
+    ofa.outs.reserve(entries.size());
+    for (const auto& e : entries) {
+      COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry out;
+      out.global_index = e.globalIndex;
+      out.key = common::toHex(e.key);
+      out.kem = common::toHex(e.kemCt);
+      out.tx_hash = common::podToHex(e.txHash);
+      out.height = e.height;
+      out.spendable = e.spendable;
+      ofa.outs.push_back(out);
+    }
+    res.outs.push_back(ofa);
+  }
+
+  res.status = CORE_RPC_STATUS_OK;
   return true;
 }
 

@@ -2242,6 +2242,58 @@ namespace cn
     return true;
   }
 
+  // Read-only enumeration of spendable PqKeyOutput outputs for one amount (for PQ ring assembly).
+  // Walks the full m_pqOutputs[amount] index — the global index is the vector position — and projects
+  // each PqKeyOutput's key / kemCt plus its containing tx hash, height and spendability. Mirrors the
+  // access idioms in check_pq_tx_input; it never mutates state or touches consensus/validation.
+  bool Blockchain::getPqOutputs(uint64_t amount, std::vector<PqOutputEntry> &outs)
+  {
+    std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+    outs.clear();
+
+    auto it = m_pqOutputs.find(amount);
+    if (it == m_pqOutputs.end())
+    {
+      return true; // no PQ outputs indexed for this amount: empty result, not an error
+    }
+
+    const std::vector<std::pair<TransactionIndex, uint16_t>> &amount_outs_vec = it->second;
+    outs.reserve(amount_outs_vec.size());
+
+    for (size_t i = 0; i < amount_outs_vec.size(); ++i)
+    {
+      const TransactionIndex &idx = amount_outs_vec[i].first;
+      const uint16_t outInTx = amount_outs_vec[i].second;
+
+      const TransactionEntry &te = transactionByIndex(idx);
+      if (!(outInTx < te.tx.outputs.size()))
+      {
+        logger(ERROR, BRIGHT_RED) << "PQ output index out of range in referenced transaction: " << outInTx;
+        return false;
+      }
+
+      const TransactionOutputTarget &target = te.tx.outputs[outInTx].target;
+      if (target.type() != typeid(PqKeyOutput))
+      {
+        logger(INFO, BRIGHT_WHITE) << "Indexed PQ output is not a PqKeyOutput";
+        return false;
+      }
+
+      const PqKeyOutput &pqOut = boost::get<PqKeyOutput>(target);
+
+      PqOutputEntry entry;
+      entry.globalIndex = static_cast<uint32_t>(i);
+      entry.key = pqOut.key;
+      entry.kemCt = pqOut.kemCt;
+      entry.txHash = getObjectHash(te.tx);
+      entry.height = idx.block;
+      entry.spendable = is_tx_spendtime_unlocked(te.tx.unlockTime);
+      outs.push_back(entry);
+    }
+
+    return true;
+  }
+
   bool Blockchain::checkTransactionInputs(const Transaction &tx, uint32_t &max_used_block_height, crypto::Hash &max_used_block_id, BlockInfo *tail)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
