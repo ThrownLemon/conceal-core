@@ -251,3 +251,131 @@ TEST_F(WalletPrefixMac, changePasswordPreservesPrefixAuth)
   WalletGreen r3(dispatcher, currency, node, logger);
   ASSERT_ANY_THROW(r3.load(base, "newpass"));
 }
+
+// ---- H1 regression: brick-on-close-without-save ------------------------------------------------
+//
+// initWithKeys / createAddress mutate the mmap'd prefix (incNextIv / push_back) AFTER the suffix is
+// sealed. On close() the dirty prefix page is msync'd to disk. Before the fix the on-disk nextIv /
+// record set no longer matched the v8 prefix MAC bound at seal time, so the NEXT load recomputed the
+// MAC over the changed prefix and threw — bricking a wallet that was created (or had an address
+// added) and then closed WITHOUT an explicit save(). These tests close via shutdown() with NO save()
+// and prove the reopen succeeds.
+
+// Create a wallet (no address, no save) -> close -> reopen must load cleanly.
+TEST_F(WalletPrefixMac, initThenCloseWithoutSaveReopens)
+{
+  KeyPair viewKey;
+  {
+    WalletGreen w(dispatcher, currency, node, logger);
+    w.initialize(base, "pass");
+    viewKey = w.getViewKey();
+    w.shutdown(); // NO save() — initWithKeys' post-seal incNextIv must already be MAC-consistent
+  }
+
+  WalletGreen r(dispatcher, currency, node, logger);
+  ASSERT_NO_THROW(r.load(base, "pass")) << "wallet bricked on close-without-save after initialize";
+  ASSERT_EQ(viewKey.publicKey, r.getViewKey().publicKey);
+  ASSERT_EQ(0u, r.getAddressCount());
+  r.shutdown();
+}
+
+// Create a wallet, add an address, then close WITHOUT save() -> reopen must load cleanly and keep the
+// address (createAddress re-seals the prefix MAC so the dirty prefix stays consistent on disk).
+TEST_F(WalletPrefixMac, createAddressThenCloseWithoutSaveReopens)
+{
+  std::string addr0;
+  KeyPair viewKey;
+  {
+    WalletGreen w(dispatcher, currency, node, logger);
+    w.initialize(base, "pass");
+    addr0 = w.createAddress();
+    viewKey = w.getViewKey();
+    w.shutdown(); // NO save()
+  }
+
+  WalletGreen r(dispatcher, currency, node, logger);
+  ASSERT_NO_THROW(r.load(base, "pass")) << "wallet bricked on close-without-save after createAddress";
+  ASSERT_EQ(1u, r.getAddressCount());
+  ASSERT_EQ(addr0, r.getAddress(0));
+  ASSERT_EQ(viewKey.publicKey, r.getViewKey().publicKey);
+  r.shutdown();
+}
+
+// Add several addresses (batched, autoFlush off) then close WITHOUT save() -> reopen keeps them all.
+TEST_F(WalletPrefixMac, createAddressListThenCloseWithoutSaveReopens)
+{
+  std::vector<std::string> addrs;
+  {
+    WalletGreen w(dispatcher, currency, node, logger);
+    w.initialize(base, "pass");
+    addrs.push_back(w.createAddress());
+    addrs.push_back(w.createAddress());
+    addrs.push_back(w.createAddress());
+    w.shutdown(); // NO save()
+  }
+
+  WalletGreen r(dispatcher, currency, node, logger);
+  ASSERT_NO_THROW(r.load(base, "pass")) << "wallet bricked on close-without-save after multiple addresses";
+  ASSERT_EQ(addrs.size(), r.getAddressCount());
+  for (size_t i = 0; i < addrs.size(); ++i)
+  {
+    ASSERT_EQ(addrs[i], r.getAddress(i));
+  }
+  r.shutdown();
+}
+
+// deleteAddress mutates the prefix (erase a record). Close WITHOUT save() -> reopen must load.
+TEST_F(WalletPrefixMac, deleteAddressThenCloseWithoutSaveReopens)
+{
+  std::string keep;
+  {
+    WalletGreen w(dispatcher, currency, node, logger);
+    w.initialize(base, "pass");
+    keep = w.createAddress();
+    std::string drop = w.createAddress();
+    w.save();              // start from a clean 2-address v8 file
+    w.deleteAddress(drop); // mutates the prefix (erase) — must re-seal
+    w.shutdown();          // NO save() after the delete
+  }
+
+  WalletGreen r(dispatcher, currency, node, logger);
+  ASSERT_NO_THROW(r.load(base, "pass")) << "wallet bricked on close-without-save after deleteAddress";
+  ASSERT_EQ(1u, r.getAddressCount());
+  ASSERT_EQ(keep, r.getAddress(0));
+  r.shutdown();
+}
+
+// ---- M1 regression: version-downgrade bypass ---------------------------------------------------
+//
+// The prefix MAC check was gated on the on-disk prefix version byte (>= v8). Flipping that byte 8->7
+// would route the load through the v7 (no-MAC) path and skip prefix authentication entirely. The fix
+// stores the canonical version inside the AEAD-sealed suffix (behind the v8 seal magic) and, on load,
+// identifies a v8 seal by that authenticated magic — not the writable prefix byte — and rejects a
+// version mismatch. So a downgraded file FAILS to load rather than silently skipping the MAC.
+TEST_F(WalletPrefixMac, versionDowngradeIsRejected)
+{
+  {
+    WalletGreen w(dispatcher, currency, node, logger);
+    w.initialize(base, "pass");
+    w.createAddress();
+    w.save();
+    w.shutdown();
+  }
+
+  std::vector<uint8_t> bytes = readFile(base);
+  ASSERT_EQ(EXPECTED_V8, bytes[0]);
+
+  // Flip the on-disk prefix version byte 8 -> 7 to try to bypass the prefix MAC via the v7 path.
+  ASSERT_EQ(8, bytes[0]);
+  {
+    std::fstream f(base, std::ios::binary | std::ios::in | std::ios::out);
+    char seven = 7;
+    f.seekp(0);
+    f.write(&seven, 1);
+  }
+
+  // The v8 seal magic (authenticated, inside the suffix) still says v8, so the load must reject the
+  // downgrade rather than skipping prefix authentication.
+  WalletGreen r(dispatcher, currency, node, logger);
+  ASSERT_ANY_THROW(r.load(base, "pass"));
+}

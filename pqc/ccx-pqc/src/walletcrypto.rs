@@ -125,6 +125,14 @@ pub fn prefix_mac(master_key: &[u8; KEY_BYTES], prefix: &[u8]) -> [u8; PREFIX_MA
         Update::update(&mut x, prefix);
         x.finalize_xof().read(&mut tag);
     }
+    // Wipe the derived MAC subkey before returning — it is sensitive (deriving it again needs the
+    // master key, but a lingering copy is needless exposure). Volatile writes + a compiler fence so
+    // the dead store cannot be optimised away. (No `zeroize` crate dependency added; this keeps the
+    // Cargo manifest/lock unchanged.)
+    for b in mac_key.iter_mut() {
+        unsafe { core::ptr::write_volatile(b, 0u8); }
+    }
+    core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
     tag
 }
 

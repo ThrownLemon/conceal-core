@@ -908,6 +908,9 @@ pub extern "C" fn ccx_wallet_prefix_mac(
         let pfx = if prefix_len == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(prefix, prefix_len) } };
         let tag = walletcrypto::prefix_mac(&k, pfx);
         unsafe { std::ptr::copy_nonoverlapping(tag.as_ptr(), tag_out, walletcrypto::PREFIX_MAC_BYTES); }
+        // Wipe the local copy of the master key (volatile + fence so it is not optimised out).
+        for b in k.iter_mut() { unsafe { core::ptr::write_volatile(b, 0u8); } }
+        core::sync::atomic::compiler_fence(core::sync::atomic::Ordering::SeqCst);
         0
     })
 }
