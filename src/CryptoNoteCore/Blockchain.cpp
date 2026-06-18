@@ -2341,6 +2341,34 @@ namespace cn
       }
     }
 
+    // Money conservation for version-3 (post-quantum) transactions. The mempool enforces
+    // outputs <= inputs in TransactionPool::add_tx, but the peer-block-import path (pushBlock ->
+    // checkTransactionInputs) bypasses the mempool, so a malicious miner could otherwise smuggle a
+    // PQ tx whose outputs exceed its inputs into a block. PqKeyInput.amount is an attacker-chosen
+    // field (only loosely bound to "a PQ output bucket of this amount exists"), so this check must
+    // be explicit here rather than relying on the cryptographic amount binding legacy inputs enjoy.
+    // Gated on v3 only: legacy deposit-withdrawal txs (v1/v2 multisig) legitimately have
+    // outputs > inputs (interest) and must not be rejected here.
+    if (tx.version == TRANSACTION_VERSION_3)
+    {
+      // Reject before summing: a v3 tx whose output amounts individually validate but whose uint64
+      // sum wraps past 2^64 would otherwise produce a small outputs_amount that slips under the
+      // conservation comparison (supply inflation). check_outs_overflow is the canonical guard.
+      if (!check_outs_overflow(tx))
+      {
+        logger(INFO, BRIGHT_WHITE) << "Transaction " << transactionHash << " has overflowing output amounts";
+        return false;
+      }
+      uint64_t inputs_amount = m_currency.getTransactionAllInputsAmount(tx, getCurrentBlockchainHeight());
+      uint64_t outputs_amount = getOutputAmount(tx);
+      if (outputs_amount > inputs_amount)
+      {
+        logger(INFO, BRIGHT_WHITE) << "Transaction " << transactionHash << " is not conserving money: outputs "
+                                   << outputs_amount << " > inputs " << inputs_amount;
+        return false;
+      }
+    }
+
     return true;
   }
 
