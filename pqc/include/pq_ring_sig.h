@@ -85,6 +85,13 @@ ccx_pq_sizes ccx_pq_msg_kem_selftest(void);
 ccx_pq_sizes ccx_pq_msg_aead_selftest(void);
 ccx_pq_sizes ccx_pq_multisig_selftest(void);
 ccx_pq_sizes ccx_pq_detkeygen_selftest(void);
+ccx_pq_sizes ccx_pqr_ringsig_selftest(void);
+/* EXPERIMENTAL lattice ring-sig adversarial tests (testnet only — unaudited). forgery_test returns 1
+   iff a no-secret universal forgery VERIFIES (BROKEN); soundness_test returns 1 iff EVERY modelled
+   forgery/malleation is correctly rejected and an honest signature still verifies. Expect
+   forgery_test==0 and soundness_test==1. HEURISTIC: empirical checks, not a proof or a security audit. */
+int32_t ccx_pqr_forgery_test(void);
+int32_t ccx_pqr_soundness_test(void);
 #ifdef __cplusplus
 }
 #endif

@@ -552,6 +552,16 @@ pub extern "C" fn ccx_pqr_forgery_test() -> i32 {
   })
 }
 
+/// Extended adversarial soundness vectors (Task 2a). Returns 1 iff EVERY modelled attack is correctly
+/// rejected AND an honest signature still verifies: the no-secret universal forgery, a chosen-tag
+/// forgery, a non-member-ring forgery, a cross-ring replay, and bit/structure malleation. ok=1 means
+/// the construction resisted all of them (HEURISTIC — empirical, not a proof or audit). On panic
+/// returns 0 (treated as "not sound", the conservative answer that flags rather than hides a problem).
+#[no_mangle]
+pub extern "C" fn ccx_pqr_soundness_test() -> i32 {
+  ffi_guard(0, || ringsig::adversarial_soundness_ok() as i32)
+}
+
 /// End-to-end C-ABI selftest: keygen -> sign -> verify (ring size 1) and the verify-recovered
 /// nullifier equals ccx_pq_nullifier(sk). Exercises the lattice backend through the public ABI.
 #[no_mangle]
