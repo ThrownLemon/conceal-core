@@ -279,9 +279,11 @@ namespace cn
     tools::ObserverManager<IBlockchainStorageObserver> m_observerManager;
 
     key_images_container m_spent_keys;
+    parallel_flat_hash_map<std::string, uint32_t> m_spent_pq_nullifiers; // PQ double-spend set
     size_t m_current_block_cumul_sz_limit = 0;
     blocks_ext_by_hash m_alternative_chains; // crypto::Hash -> block_extended_info
     outputs_container m_outputs;
+    outputs_container m_pqOutputs;                          // PQ output index (PoC: in-memory, forward-only)
 
     std::string m_config_folder;
     Checkpoints m_checkpoints;

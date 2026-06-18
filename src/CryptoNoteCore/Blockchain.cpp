@@ -2936,6 +2936,17 @@ namespace cn
           return false;
         }
       }
+      else if (transaction.tx.inputs[i].type() == typeid(PqKeyInput))
+      {
+        const std::vector<uint8_t>& pqnf = ::boost::get<PqKeyInput>(transaction.tx.inputs[i]).nullifier;
+        std::string pqnfk(pqnf.begin(), pqnf.end());
+        if (!m_spent_pq_nullifiers.insert(std::make_pair(pqnfk, block.height)).second)
+        {
+          logger(ERROR, BRIGHT_RED) << "Double spending PQ nullifier pushed to blockchain.";
+          m_transactionMap.erase(transactionHash);
+          return false;
+        }
+      }
     }
 
     for (const auto &inv : transaction.tx.inputs)
@@ -2954,6 +2965,12 @@ namespace cn
       if (transaction.tx.outputs[output].target.type() == typeid(KeyOutput))
       {
         auto &amountOutputs = m_outputs[transaction.tx.outputs[output].amount];
+        transaction.m_global_output_indexes[output] = static_cast<uint32_t>(amountOutputs.size());
+        amountOutputs.push_back(std::make_pair<>(transactionIndex, output));
+      }
+      else if (transaction.tx.outputs[output].target.type() == typeid(PqKeyOutput))
+      {
+        auto &amountOutputs = m_pqOutputs[transaction.tx.outputs[output].amount];
         transaction.m_global_output_indexes[output] = static_cast<uint32_t>(amountOutputs.size());
         amountOutputs.push_back(std::make_pair<>(transactionIndex, output));
       }
