@@ -15,6 +15,8 @@
 #include "CryptoNoteTools.h"
 #include "Serialization/BinaryOutputStreamSerializer.h"
 #include "Serialization/BinaryInputStreamSerializer.h"
+#include "Serialization/SerializationOverloads.h"
+#include "pq_ring_sig.h" // ccx-pqc FFI: ML-KEM-768 message KEM (tx-extra 0x06)
 
 using namespace crypto;
 using namespace common;
@@ -108,6 +110,21 @@ namespace cn
           transactionExtraFields.push_back(ttl);
           break;
         }
+
+        case TX_EXTRA_PQ_MESSAGE_TAG:
+        {
+          tx_extra_pq_message pqMessage;
+          ar(pqMessage, "pq_message");
+          // Bound the field: the parser has no default case, so an oversize/wrong-length field
+          // would otherwise consume bytes that belong to following fields (R1/R4). Reject early.
+          if (pqMessage.kemCt.size() != ccx_pq_kem_ct_bytes() ||
+              pqMessage.data.size() > TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE)
+          {
+            return false;
+          }
+          transactionExtraFields.push_back(pqMessage);
+          break;
+        }
         }
       }
     }
@@ -160,6 +177,11 @@ namespace cn
     {
       appendTTLToExtra(extra, t.ttl);
       return true;
+    }
+
+    bool operator()(const tx_extra_pq_message &t)
+    {
+      return append_pq_message_to_extra(extra, t);
     }
   };
 
@@ -271,6 +293,46 @@ namespace cn
       }
       std::string res;
       if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recepient_secret_key, res))
+      {
+        result.push_back(res);
+      }
+      ++i;
+    }
+    return result;
+  }
+
+  bool append_pq_message_to_extra(std::vector<uint8_t> &tx_extra, const tx_extra_pq_message &message)
+  {
+    BinaryArray blob;
+    if (!toBinaryArray(message, blob))
+    {
+      return false;
+    }
+
+    tx_extra.reserve(tx_extra.size() + 1 + blob.size());
+    tx_extra.push_back(TX_EXTRA_PQ_MESSAGE_TAG);
+    std::copy(reinterpret_cast<const uint8_t *>(blob.data()), reinterpret_cast<const uint8_t *>(blob.data() + blob.size()), std::back_inserter(tx_extra));
+
+    return true;
+  }
+
+  std::vector<std::string> get_pq_messages_from_extra(const std::vector<uint8_t> &extra, const std::vector<uint8_t> &recipientKemSec)
+  {
+    std::vector<TransactionExtraField> tx_extra_fields;
+    std::vector<std::string> result;
+    if (!parseTransactionExtra(extra, tx_extra_fields))
+    {
+      return result;
+    }
+    size_t i = 0;
+    for (const auto &f : tx_extra_fields)
+    {
+      if (f.type() != typeid(tx_extra_pq_message))
+      {
+        continue;
+      }
+      std::string res;
+      if (boost::get<tx_extra_pq_message>(f).decrypt(i, recipientKemSec, res))
       {
         result.push_back(res);
       }
@@ -444,6 +506,99 @@ namespace cn
 
   bool tx_extra_message::serialize(ISerializer &s)
   {
+    s(data, "data");
+    return true;
+  }
+
+  // ML-KEM-768 message KEM (tx-extra 0x06) ------------------------------------------------------
+  // The chacha8 key binds the KEM secret, a message-specific domain string, and the per-message
+  // index: h = cn_fast_hash("ccx-msg-v1" || seed32 || LE64(index)). cn_fast_hash is already used by
+  // the legacy message path (Keccak/CN); reusing it keeps the key derivation in one place and avoids
+  // a second XOF impl in C++ (the ss->seed32 SHAKE step is done inside the Rust FFI). The domain
+  // string differs from the stealth one ("ccx-msg-kem-v1" in Rust), so message keys never collide
+  // with stealth-output keys even if a KEM key were reused across both purposes.
+  static Hash deriveMsgKey(const uint8_t seed[32], size_t index)
+  {
+    static const char DOMAIN[] = "ccx-msg-v1";
+    std::vector<uint8_t> buf;
+    buf.reserve(sizeof(DOMAIN) - 1 + 32 + sizeof(uint64_t));
+    buf.insert(buf.end(), DOMAIN, DOMAIN + sizeof(DOMAIN) - 1);
+    buf.insert(buf.end(), seed, seed + 32);
+    uint64_t idxLe = SWAP64LE(static_cast<uint64_t>(index));
+    const uint8_t *idxPtr = reinterpret_cast<const uint8_t *>(&idxLe);
+    buf.insert(buf.end(), idxPtr, idxPtr + sizeof(idxLe));
+    return cn_fast_hash(buf.data(), buf.size());
+  }
+
+  bool tx_extra_pq_message::encrypt(size_t index, const std::string &message, const std::vector<uint8_t> &recipientKemPub)
+  {
+    if (recipientKemPub.size() != ccx_pq_kem_pubkey_bytes())
+    {
+      return false;
+    }
+
+    size_t mlen = message.size();
+    std::unique_ptr<char[]> buf(new char[mlen + TX_EXTRA_MESSAGE_CHECKSUM_SIZE]);
+    memcpy(buf.get(), message.data(), mlen);
+    memset(buf.get() + mlen, 0, TX_EXTRA_MESSAGE_CHECKSUM_SIZE);
+    mlen += TX_EXTRA_MESSAGE_CHECKSUM_SIZE;
+
+    kemCt.assign(ccx_pq_kem_ct_bytes(), 0);
+    uint8_t seed[32];
+    if (ccx_pq_msg_kem_encap(recipientKemPub.data(), recipientKemPub.size(),
+                             kemCt.data(), kemCt.size(), seed, sizeof(seed)) != 0)
+    {
+      kemCt.clear();
+      return false;
+    }
+
+    Hash h = deriveMsgKey(seed, index);
+    uint64_t nonce = SWAP64LE(index);
+    chacha8(buf.get(), mlen, reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&nonce), buf.get());
+    data.assign(buf.get(), mlen);
+    return true;
+  }
+
+  bool tx_extra_pq_message::decrypt(size_t index, const std::vector<uint8_t> &recipientKemSec, std::string &message) const
+  {
+    size_t mlen = data.size();
+    if (mlen < TX_EXTRA_MESSAGE_CHECKSUM_SIZE)
+    {
+      return false;
+    }
+    if (kemCt.size() != ccx_pq_kem_ct_bytes() || recipientKemSec.size() != ccx_pq_kem_seckey_bytes())
+    {
+      return false;
+    }
+
+    uint8_t seed[32];
+    if (ccx_pq_msg_kem_decap(recipientKemSec.data(), recipientKemSec.size(),
+                             kemCt.data(), kemCt.size(), seed, sizeof(seed)) != 0)
+    {
+      return false;
+    }
+
+    std::unique_ptr<char[]> ptr(new char[mlen]);
+    Hash h = deriveMsgKey(seed, index);
+    uint64_t nonce = SWAP64LE(index);
+    chacha8(data.data(), mlen, reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&nonce), ptr.get());
+
+    const char *buf = ptr.get();
+    mlen -= TX_EXTRA_MESSAGE_CHECKSUM_SIZE;
+    for (size_t i = 0; i < TX_EXTRA_MESSAGE_CHECKSUM_SIZE; i++)
+    {
+      if (buf[mlen + i] != 0)
+      {
+        return false;
+      }
+    }
+    message.assign(buf, mlen);
+    return true;
+  }
+
+  bool tx_extra_pq_message::serialize(ISerializer &s)
+  {
+    serializeAsBinary(kemCt, "kem", s);
     s(data, "data");
     return true;
   }
