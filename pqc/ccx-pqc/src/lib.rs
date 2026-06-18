@@ -17,6 +17,8 @@
 //! milestone (CIP §5.3 / C1). Not constant-time. Do not use on mainnet.
 use sha3::Shake256;
 use sha3::digest::{Update, ExtendableOutput, XofReader};
+use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
+use chacha20poly1305::aead::{Aead, KeyInit};
 use pqcrypto_kyber::kyber768;
 use pqcrypto_dilithium::dilithium3;
 use pqcrypto_traits::kem::{PublicKey as KP, SecretKey as KS, Ciphertext as KC, SharedSecret as KSS};
@@ -299,6 +301,127 @@ pub extern "C" fn ccx_pq_msg_kem_selftest() -> CcxPqSizes {
 
     let ok = (r1 == 0 && r2 == 0 && ka == kb && ka != kc && ka != ks) as i32;
     CcxPqSizes { pk: KEM_PK, sk: KEM_SK, ct_or_sig: KEM_CT, ss: 32, ok }
+}
+
+// --- ChaCha20-Poly1305 AEAD for PQ messages (tx-extra 0x06) ------------------------------------
+// Real authenticated encryption: tampering ANY byte of the sealed ciphertext (incl. the 16-byte
+// Poly1305 tag) makes open() fail. Replaces the legacy chacha8 + 4-zero-byte owner-test for the new
+// 0x06 field only (the legacy 0x04 path is untouched). The 32-byte AEAD key and 12-byte nonce are
+// derived together from (the KEM-derived 32-byte seed, the per-message index) via one
+// domain-separated SHAKE256 ("ccx-msg-aead-v1"); binding the index into BOTH key and nonce prevents
+// nonce reuse across indices even though each message already gets a fresh per-message KEM secret.
+const AEAD_TAG: usize = 16; // Poly1305 authentication tag length appended by seal()
+
+fn derive_aead_key_nonce(seed: &[u8; 32], index: u64) -> ([u8; 32], [u8; 12]) {
+    let mut out = [0u8; 44];
+    shake(&[b"ccx-msg-aead-v1", seed, &index.to_le_bytes()], &mut out);
+    let mut key = [0u8; 32];
+    let mut nonce = [0u8; 12];
+    key.copy_from_slice(&out[..32]);
+    nonce.copy_from_slice(&out[32..44]);
+    (key, nonce)
+}
+
+/// Seal `pt` under the message AEAD keyed by (`seed` 32B, `index`). Writes `pt_len + 16` bytes of
+/// sealed ciphertext (ciphertext || Poly1305 tag) to `ct_out`. Returns 0 on success.
+#[no_mangle]
+pub extern "C" fn ccx_pq_msg_seal(seed: *const u8, seed_len: usize, index: u64,
+                                  pt: *const u8, pt_len: usize,
+                                  ct_out: *mut u8, ct_cap: usize, ct_len_out: *mut usize) -> i32 {
+    if seed.is_null() || ct_out.is_null() || ct_len_out.is_null() { return -1; }
+    if pt.is_null() && pt_len != 0 { return -1; }
+    if seed_len < 32 { return -2; }
+    let need = pt_len.checked_add(AEAD_TAG).unwrap_or(usize::MAX);
+    if ct_cap < need { unsafe { *ct_len_out = need; } return -2; }
+    let mut seed32 = [0u8; 32];
+    seed32.copy_from_slice(unsafe { std::slice::from_raw_parts(seed, 32) });
+    let ptb = if pt_len == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(pt, pt_len) } };
+    let (key, nonce) = derive_aead_key_nonce(&seed32, index);
+    let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+    let sealed = match cipher.encrypt(Nonce::from_slice(&nonce), ptb) { Ok(c) => c, Err(_) => return -3 };
+    if sealed.len() != need { return -3; }
+    unsafe {
+        std::ptr::copy_nonoverlapping(sealed.as_ptr(), ct_out, sealed.len());
+        *ct_len_out = sealed.len();
+    }
+    0
+}
+
+/// Open a sealed ciphertext produced by `ccx_pq_msg_seal` with the same (`seed`, `index`). On
+/// authentication failure returns a negative code and writes NOTHING to `pt_out` (no plaintext on
+/// failure). On success writes `ct_len - 16` plaintext bytes and sets `*pt_len_out`.
+#[no_mangle]
+pub extern "C" fn ccx_pq_msg_open(seed: *const u8, seed_len: usize, index: u64,
+                                  ct: *const u8, ct_len: usize,
+                                  pt_out: *mut u8, pt_cap: usize, pt_len_out: *mut usize) -> i32 {
+    if seed.is_null() || ct.is_null() || pt_len_out.is_null() { return -1; }
+    if seed_len < 32 { return -2; }
+    if ct_len < AEAD_TAG { return -4; } // too short to even contain a tag
+    let pt_len = ct_len - AEAD_TAG;
+    // pt_out may be null only for an empty plaintext (nothing is written in that case).
+    if pt_out.is_null() && pt_len != 0 { return -1; }
+    if pt_cap < pt_len { unsafe { *pt_len_out = pt_len; } return -2; }
+    let mut seed32 = [0u8; 32];
+    seed32.copy_from_slice(unsafe { std::slice::from_raw_parts(seed, 32) });
+    let ctb = unsafe { std::slice::from_raw_parts(ct, ct_len) };
+    let (key, nonce) = derive_aead_key_nonce(&seed32, index);
+    let cipher = ChaCha20Poly1305::new(Key::from_slice(&key));
+    // decrypt() verifies the Poly1305 tag and returns Err on any mismatch — no plaintext is exposed.
+    let plain = match cipher.decrypt(Nonce::from_slice(&nonce), ctb) { Ok(p) => p, Err(_) => return -3 };
+    if plain.len() != pt_len { return -3; }
+    if pt_len != 0 {
+        unsafe { std::ptr::copy_nonoverlapping(plain.as_ptr(), pt_out, plain.len()); }
+    }
+    unsafe { *pt_len_out = plain.len(); }
+    0
+}
+
+/// Selftest: seal->open round-trips; flipping ANY sealed byte (ciphertext or tag) makes open fail;
+/// a wrong seed makes open fail; a wrong index makes open fail. ok=1 means all checks passed.
+#[no_mangle]
+pub extern "C" fn ccx_pq_msg_aead_selftest() -> CcxPqSizes {
+    let seed = [0x11u8; 32];
+    let wrong_seed = [0x22u8; 32];
+    let index = 7u64;
+    let msg = b"ccx-msg-aead round trip payload";
+
+    let mut sealed = vec![0u8; msg.len() + AEAD_TAG];
+    let mut sealed_len = 0usize;
+    let r_seal = ccx_pq_msg_seal(seed.as_ptr(), 32, index, msg.as_ptr(), msg.len(),
+                                 sealed.as_mut_ptr(), sealed.len(), &mut sealed_len);
+
+    let mut opened = vec![0u8; msg.len()];
+    let mut opened_len = 0usize;
+    let r_open = ccx_pq_msg_open(seed.as_ptr(), 32, index, sealed.as_ptr(), sealed_len,
+                                 opened.as_mut_ptr(), opened.len(), &mut opened_len);
+    let round_trip_ok = r_seal == 0 && r_open == 0 && opened_len == msg.len() && &opened[..] == &msg[..];
+
+    // flipping ANY sealed byte (across ciphertext + tag) must make open fail
+    let mut tamper_all_rejected = sealed_len > 0;
+    for i in 0..sealed_len {
+        let mut bad = sealed.clone();
+        bad[i] ^= 0xff;
+        let mut o = vec![0u8; msg.len()];
+        let mut ol = 0usize;
+        if ccx_pq_msg_open(seed.as_ptr(), 32, index, bad.as_ptr(), sealed_len,
+                           o.as_mut_ptr(), o.len(), &mut ol) == 0 {
+            tamper_all_rejected = false;
+            break;
+        }
+    }
+
+    // wrong seed must fail
+    let mut o = vec![0u8; msg.len()];
+    let mut ol = 0usize;
+    let wrong_seed_rejected = ccx_pq_msg_open(wrong_seed.as_ptr(), 32, index, sealed.as_ptr(), sealed_len,
+                                              o.as_mut_ptr(), o.len(), &mut ol) != 0;
+
+    // wrong index must fail
+    let wrong_index_rejected = ccx_pq_msg_open(seed.as_ptr(), 32, index + 1, sealed.as_ptr(), sealed_len,
+                                               o.as_mut_ptr(), o.len(), &mut ol) != 0;
+
+    let ok = (round_trip_ok && tamper_all_rejected && wrong_seed_rejected && wrong_index_rejected) as i32;
+    CcxPqSizes { pk: 32, sk: 12, ct_or_sig: AEAD_TAG, ss: msg.len() + AEAD_TAG, ok }
 }
 
 /// Selftest: recipient recovers the SAME one-time keypair the sender derived; a wrong recipient

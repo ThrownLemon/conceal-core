@@ -117,7 +117,10 @@ namespace cn
           ar(pqMessage, "pq_message");
           // Bound the field: the parser has no default case, so an oversize/wrong-length field
           // would otherwise consume bytes that belong to following fields (R1/R4). Reject early.
+          // data is the AEAD-sealed blob, so it must be at least the 16-byte Poly1305 tag and at
+          // most the configured maximum.
           if (pqMessage.kemCt.size() != ccx_pq_kem_ct_bytes() ||
+              pqMessage.data.size() < TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE ||
               pqMessage.data.size() > TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE)
           {
             return false;
@@ -510,38 +513,19 @@ namespace cn
     return true;
   }
 
-  // ML-KEM-768 message KEM (tx-extra 0x06) ------------------------------------------------------
-  // The chacha8 key binds the KEM secret, a message-specific domain string, and the per-message
-  // index: h = cn_fast_hash("ccx-msg-v1" || seed32 || LE64(index)). cn_fast_hash is already used by
-  // the legacy message path (Keccak/CN); reusing it keeps the key derivation in one place and avoids
-  // a second XOF impl in C++ (the ss->seed32 SHAKE step is done inside the Rust FFI). The domain
-  // string differs from the stealth one ("ccx-msg-kem-v1" in Rust), so message keys never collide
-  // with stealth-output keys even if a KEM key were reused across both purposes.
-  static Hash deriveMsgKey(const uint8_t seed[32], size_t index)
-  {
-    static const char DOMAIN[] = "ccx-msg-v1";
-    std::vector<uint8_t> buf;
-    buf.reserve(sizeof(DOMAIN) - 1 + 32 + sizeof(uint64_t));
-    buf.insert(buf.end(), DOMAIN, DOMAIN + sizeof(DOMAIN) - 1);
-    buf.insert(buf.end(), seed, seed + 32);
-    uint64_t idxLe = SWAP64LE(static_cast<uint64_t>(index));
-    const uint8_t *idxPtr = reinterpret_cast<const uint8_t *>(&idxLe);
-    buf.insert(buf.end(), idxPtr, idxPtr + sizeof(idxLe));
-    return cn_fast_hash(buf.data(), buf.size());
-  }
-
+  // ML-KEM-768 message field (tx-extra 0x06) ----------------------------------------------------
+  // The KEM derives a 32-byte seed (ccx_pq_msg_kem_encap/decap, domain "ccx-msg-kem-v1"); the seed
+  // and the per-message index then key a ChaCha20-Poly1305 AEAD (ccx_pq_msg_seal/open, which derive
+  // a 32-byte key + 12-byte nonce via SHAKE256 "ccx-msg-aead-v1"). This is REAL authenticated
+  // encryption: tampering ANY byte of the sealed ciphertext (incl. the Poly1305 tag) makes open()
+  // fail, unlike the legacy 0x04 chacha8 + 4-zero-byte owner-test (which has no MAC and is left
+  // untouched). `data` carries the sealed ciphertext (plaintext_len + 16-byte tag).
   bool tx_extra_pq_message::encrypt(size_t index, const std::string &message, const std::vector<uint8_t> &recipientKemPub)
   {
     if (recipientKemPub.size() != ccx_pq_kem_pubkey_bytes())
     {
       return false;
     }
-
-    size_t mlen = message.size();
-    std::unique_ptr<char[]> buf(new char[mlen + TX_EXTRA_MESSAGE_CHECKSUM_SIZE]);
-    memcpy(buf.get(), message.data(), mlen);
-    memset(buf.get() + mlen, 0, TX_EXTRA_MESSAGE_CHECKSUM_SIZE);
-    mlen += TX_EXTRA_MESSAGE_CHECKSUM_SIZE;
 
     kemCt.assign(ccx_pq_kem_ct_bytes(), 0);
     uint8_t seed[32];
@@ -552,17 +536,24 @@ namespace cn
       return false;
     }
 
-    Hash h = deriveMsgKey(seed, index);
-    uint64_t nonce = SWAP64LE(index);
-    chacha8(buf.get(), mlen, reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&nonce), buf.get());
-    data.assign(buf.get(), mlen);
+    std::vector<uint8_t> sealed(message.size() + TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE, 0);
+    size_t sealedLen = 0;
+    int rc = ccx_pq_msg_seal(seed, sizeof(seed), static_cast<uint64_t>(index),
+                             reinterpret_cast<const uint8_t *>(message.data()), message.size(),
+                             sealed.data(), sealed.size(), &sealedLen);
+    if (rc != 0 || sealedLen != sealed.size())
+    {
+      kemCt.clear();
+      return false;
+    }
+
+    data.assign(reinterpret_cast<const char *>(sealed.data()), sealedLen);
     return true;
   }
 
   bool tx_extra_pq_message::decrypt(size_t index, const std::vector<uint8_t> &recipientKemSec, std::string &message) const
   {
-    size_t mlen = data.size();
-    if (mlen < TX_EXTRA_MESSAGE_CHECKSUM_SIZE)
+    if (data.size() < TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE)
     {
       return false;
     }
@@ -578,21 +569,18 @@ namespace cn
       return false;
     }
 
-    std::unique_ptr<char[]> ptr(new char[mlen]);
-    Hash h = deriveMsgKey(seed, index);
-    uint64_t nonce = SWAP64LE(index);
-    chacha8(data.data(), mlen, reinterpret_cast<uint8_t *>(&h), reinterpret_cast<uint8_t *>(&nonce), ptr.get());
-
-    const char *buf = ptr.get();
-    mlen -= TX_EXTRA_MESSAGE_CHECKSUM_SIZE;
-    for (size_t i = 0; i < TX_EXTRA_MESSAGE_CHECKSUM_SIZE; i++)
+    std::vector<uint8_t> plain(data.size() - TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE, 0);
+    size_t plainLen = 0;
+    int rc = ccx_pq_msg_open(seed, sizeof(seed), static_cast<uint64_t>(index),
+                             reinterpret_cast<const uint8_t *>(data.data()), data.size(),
+                             plain.data(), plain.size(), &plainLen);
+    // open() returns non-zero (and writes nothing) on auth failure / wrong recipient.
+    if (rc != 0 || plainLen != plain.size())
     {
-      if (buf[mlen + i] != 0)
-      {
-        return false;
-      }
+      return false;
     }
-    message.assign(buf, mlen);
+
+    message.assign(reinterpret_cast<const char *>(plain.data()), plainLen);
     return true;
   }
 

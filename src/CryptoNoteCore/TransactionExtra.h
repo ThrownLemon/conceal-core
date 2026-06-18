@@ -28,8 +28,12 @@
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
 
-// Upper bound on the chacha8 ciphertext carried in a PQ message field (defense-in-depth: the
-// extra parser has no default case, so an oversize length must be rejected early — see R1/R4).
+// ChaCha20-Poly1305 authentication tag length appended to the PQ message ciphertext (data carries
+// sealed = plaintext || 16-byte Poly1305 tag).
+#define TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE   16
+// Upper bound on the sealed ciphertext (data) carried in a PQ message field (defense-in-depth: the
+// extra parser has no default case, so an oversize length must be rejected early — see R1/R4). This
+// bounds the AEAD-sealed blob, i.e. plaintext length + 16-byte tag.
 #define TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE   8192
 
 namespace cn {
