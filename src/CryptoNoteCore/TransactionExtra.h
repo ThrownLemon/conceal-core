@@ -25,6 +25,7 @@
 #define TX_EXTRA_MESSAGE_TAG                0x04
 #define TX_EXTRA_TTL                        0x05
 #define TX_EXTRA_PQ_MESSAGE_TAG             0x06
+#define TX_EXTRA_AUTH_MESSAGE_TAG           0x07
 
 #define TX_EXTRA_NONCE_PAYMENT_ID           0x00
 
@@ -35,6 +36,13 @@
 // extra parser has no default case, so an oversize length must be rejected early — see R1/R4). This
 // bounds the AEAD-sealed blob, i.e. plaintext length + 16-byte tag.
 #define TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE   8192
+
+// Authenticated classical message field (tag 0x07): same ChaCha20-Poly1305 AEAD as the 0x06 PQ
+// message (16-byte Poly1305 tag, same sealed-blob bound), but the 32-byte AEAD seed is derived from
+// a classical Curve25519 ECDH derivation instead of an ML-KEM decapsulation. Bounds mirror the PQ
+// field so the same early-reject guard protects the no-default-case parser.
+#define TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE 16
+#define TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE 8192
 
 namespace cn {
 
@@ -85,11 +93,29 @@ struct tx_extra_pq_message {
   bool serialize(ISerializer& serializer);
 };
 
+// Authenticated classical message (tx-extra tag 0x07). Drop-in replacement for the legacy 0x04
+// tx_extra_message that fixes its one real weakness: the 0x04 field is chacha8 + a 4-zero-byte
+// "owner check" that is NOT a MAC (stream-cipher malleable). 0x07 keeps the SAME classical key
+// agreement as 0x04 (Curve25519 ECDH between the tx secret key and the recipient spend public key,
+// cn_fast_hash(derivation || 0x80 || 0x00) -> 32-byte seed) but seals the payload with the existing
+// ChaCha20-Poly1305 AEAD (ccx_pq_msg_seal/open) instead, so tampering ANY byte is detected. No KEM
+// ciphertext is carried: like 0x04, the recipient re-derives the seed from the tx public key + their
+// secret. 0x04 is frozen to decrypt-only; new authenticated messages use 0x07.
+struct tx_extra_authenticated_message {
+  std::string data;             // ChaCha20-Poly1305 sealed blob = plaintext || 16-byte Poly1305 tag
+
+  // ECDH seed = cn_fast_hash(generate_key_derivation(recipient->spendPublicKey, txkey.secretKey) || 0x80 || 0x00).
+  bool encrypt(std::size_t index, const std::string& message, const AccountPublicAddress* recipient, const KeyPair& txkey);
+  bool decrypt(std::size_t index, const crypto::PublicKey& txkey, const crypto::SecretKey* recipientSecretKey, std::string& message) const;
+
+  bool serialize(ISerializer& serializer);
+};
+
 // tx_extra_field format, except tx_extra_padding and tx_extra_pub_key:
 //   varint tag;
 //   varint size;
 //   varint data[];
-typedef boost::variant<TransactionExtraPadding, TransactionExtraPublicKey, TransactionExtraNonce, TransactionExtraMergeMiningTag, tx_extra_message, TransactionExtraTTL, tx_extra_pq_message> TransactionExtraField;
+typedef boost::variant<TransactionExtraPadding, TransactionExtraPublicKey, TransactionExtraNonce, TransactionExtraMergeMiningTag, tx_extra_message, TransactionExtraTTL, tx_extra_pq_message, tx_extra_authenticated_message> TransactionExtraField;
 
 
 
@@ -118,6 +144,8 @@ bool append_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_mess
 std::vector<std::string> get_messages_from_extra(const std::vector<uint8_t>& extra, const crypto::PublicKey &txkey, const crypto::SecretKey *recepient_secret_key);
 bool append_pq_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_pq_message& message);
 std::vector<std::string> get_pq_messages_from_extra(const std::vector<uint8_t>& extra, const std::vector<uint8_t>& recipientKemSec);
+bool append_authenticated_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_authenticated_message& message);
+std::vector<std::string> get_authenticated_messages_from_extra(const std::vector<uint8_t>& extra, const crypto::PublicKey& txkey, const crypto::SecretKey* recipientSecretKey);
 void appendTTLToExtra(std::vector<uint8_t>& tx_extra, uint64_t ttl);
 bool getMergeMiningTagFromExtra(const std::vector<uint8_t>& tx_extra, TransactionExtraMergeMiningTag& mm_tag);
 
