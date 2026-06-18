@@ -32,6 +32,8 @@
 
 #include "PaymentServiceJsonRpcMessages.h"
 #include "NodeFactory.h"
+#include "Rpc/PqSpendClient.h"
+#include "CryptoNoteConfig.h"
 
 #include "Wallet/WalletGreen.h"
 #include "Wallet/WalletErrors.h"
@@ -499,7 +501,9 @@ namespace payment_service
       cn::IFusionManager &fusionManager,
       const WalletConfiguration &conf,
       logging::ILogger &logger,
-      bool testnet) : currency(currency),
+      bool testnet,
+      const std::string &daemonHost,
+      uint16_t daemonPort) : currency(currency),
                                   wallet(wallet),
                                   fusionManager(fusionManager),
                                   node(node),
@@ -509,7 +513,9 @@ namespace payment_service
                                   dispatcher(sys),
                                   readyEvent(dispatcher),
                                   refreshContext(dispatcher),
-                                  m_testnet(testnet)
+                                  m_testnet(testnet),
+                                  m_daemonHost(daemonHost),
+                                  m_daemonPort(daemonPort)
   {
     readyEvent.set();
   }
@@ -1215,6 +1221,38 @@ namespace payment_service
       return make_error_code(cn::error::INTERNAL_WALLET_ERROR);
     }
 
+    return std::error_code();
+  }
+
+  /* Post-quantum (testnet PoC) spend. Delegates to the shared cn::pqSpendViaDaemon helper, which
+     queries get_pq_outputs on the remote node, assembles a ring, builds + signs via the verified
+     cn::buildPqSpendTransaction builder, and relays the tx. Needs the remote daemon host/port that
+     PaymentGateService passed at construction. */
+  std::error_code WalletService::sendPqTransaction(const SendPqTransaction::Request &request, std::string &transactionHash, std::string &status)
+  {
+    if (m_daemonHost.empty() || m_daemonPort == 0)
+    {
+      logger(logging::WARNING) << "sendPqTransaction requires a remote daemon (host/port); not available in this run mode";
+      return make_error_code(cn::error::INTERNAL_WALLET_ERROR);
+    }
+
+    const uint64_t amount = request.amount != 0 ? request.amount : cn::PQ_TESTNET_COINBASE_AMOUNT;
+    const uint64_t fee = request.fee != 0 ? request.fee : 1000;
+    const uint32_t ringSize = request.ringSize != 0 ? request.ringSize : 4;
+
+    std::string err;
+    const std::vector<uint8_t> recipientKemPubKey; // empty => throwaway/self output
+
+    bool ok = cn::pqSpendViaDaemon(dispatcher, m_daemonHost, m_daemonPort,
+                                   amount, fee, ringSize, recipientKemPubKey,
+                                   transactionHash, status, err);
+    if (!ok)
+    {
+      logger(logging::WARNING) << "Error while sending PQ transaction: " << err;
+      return make_error_code(cn::error::INTERNAL_WALLET_ERROR);
+    }
+
+    logger(logging::DEBUGGING) << "PQ transaction " << transactionHash << " has been relayed (status=" << status << ")";
     return std::error_code();
   }
 

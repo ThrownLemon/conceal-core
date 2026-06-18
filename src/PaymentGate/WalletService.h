@@ -46,7 +46,7 @@ struct TransactionsInBlockInfoFilter;
 class WalletService
 {
 public:
-  WalletService(const cn::Currency &currency, platform_system::Dispatcher &sys, cn::INode &node, cn::IWallet &wallet, cn::IFusionManager &fusionManager, const WalletConfiguration &conf, logging::ILogger &logger, bool testnet);
+  WalletService(const cn::Currency &currency, platform_system::Dispatcher &sys, cn::INode &node, cn::IWallet &wallet, cn::IFusionManager &fusionManager, const WalletConfiguration &conf, logging::ILogger &logger, bool testnet, const std::string &daemonHost = "", uint16_t daemonPort = 0);
   virtual ~WalletService();
 
   void init();
@@ -78,6 +78,7 @@ std::error_code getViewKey(std::string &viewSecretKey);
   std::error_code getTransaction(const std::string &transactionHash, TransactionRpcInfo &transaction);
   std::error_code getAddresses(std::vector<std::string> &addresses);
   std::error_code sendTransaction(const SendTransaction::Request &request, std::string &transactionHash, std::string &transactionSecretKey);
+  std::error_code sendPqTransaction(const SendPqTransaction::Request &request, std::string &transactionHash, std::string &status);
   std::error_code createDelayedTransaction(const CreateDelayedTransaction::Request &request, std::string &transactionHash);
   std::error_code createIntegratedAddress(const CreateIntegrated::Request &request, std::string &integrated_address);
   std::error_code splitIntegratedAddress(const SplitIntegrated::Request &request, std::string &address, std::string &payment_id);
@@ -134,6 +135,8 @@ private:
   platform_system::ContextGroup refreshContext;
   std::map<std::string, size_t> transactionIdIndex;
   bool m_testnet;
+  std::string m_daemonHost; // remote node host/port for the PQ spend path (testnet PoC)
+  uint16_t m_daemonPort;
 };
 
 } //namespace payment_service

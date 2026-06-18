@@ -83,6 +83,11 @@ target_include_directories(Wallet PRIVATE ${CCX_PQC_INCLUDE})
 add_dependencies(Transfers ccx_pqc)
 target_include_directories(Transfers PRIVATE ${CCX_PQC_INCLUDE})
 
+# PqSpendClient (Rpc lib) builds + relays a PQ spend via the shared CryptoNoteCore builder and the
+# hardcoded testnet ML-KEM secret header, so the Rpc lib also needs the ccx-pqc include dir.
+add_dependencies(Rpc ccx_pqc)
+target_include_directories(Rpc PRIVATE ${CCX_PQC_INCLUDE})
+
 target_link_libraries(Daemon CryptoNoteCore P2P Rpc System Http Logging Common crypto libminiupnpc-static BlockchainExplorer ${Boost_LIBRARIES} Serialization)
 add_dependencies(Daemon ccx_pqc)
 target_include_directories(Daemon PRIVATE ${CCX_PQC_INCLUDE})
@@ -90,6 +95,9 @@ target_link_libraries(Daemon ${CCX_PQC_LIB} pthread dl m)
 target_link_libraries(ConcealWallet Wallet NodeRpcProxy Transfers Rpc Http CryptoNoteCore System Logging Common crypto ${Boost_LIBRARIES} Serialization Mnemonics)
 target_link_libraries(ConcealWallet ${CCX_PQC_LIB} pthread dl m)
 target_link_libraries(PaymentGateService PaymentGate JsonRpcServer Wallet NodeRpcProxy Transfers CryptoNoteCore crypto P2P Rpc Http System Logging Common InProcessNode libminiupnpc-static BlockchainExplorer ${Boost_LIBRARIES} Serialization)
+# Rpc/PqSpendClient.o (in libRpc.a) references cn::buildPqSpendTransaction (in libCryptoNoteCore.a);
+# with static link ordering CryptoNoteCore must follow Rpc, so repeat it (+ crypto) after Rpc.
+target_link_libraries(PaymentGateService CryptoNoteCore crypto)
 target_link_libraries(PaymentGateService ${CCX_PQC_LIB} pthread dl m)
 target_link_libraries(Optimizer PaymentGate Rpc Http CryptoNoteCore Logging Serialization crypto System Common ${Boost_LIBRARIES})
 target_link_libraries(Optimizer ${CCX_PQC_LIB} pthread dl m)
