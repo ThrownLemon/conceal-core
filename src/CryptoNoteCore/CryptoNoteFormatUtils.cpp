@@ -381,6 +381,17 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
         }
         return false;
       }
+      // Reject NON-CANONICALLY-encoded keys at acceptance. A key and key+q are algebraically equal but
+      // bytewise different: accepting both would let two outputs share one secret + nullifier (only one
+      // ever spendable -> loss of funds) and would make ring members hash differently across nodes (a
+      // consensus split). The Rust ring-sig sign/verify also reject non-canonical members, but checking
+      // here keeps non-canonical keys out of the chain index entirely.
+      if (ccx_pq_pubkey_is_canonical(pqo.key.data(), pqo.key.size()) != 1) {
+        if (error) {
+          *error = "PQ output key is not canonically encoded";
+        }
+        return false;
+      }
       if (!pqo.kemCt.empty() && pqo.kemCt.size() != ccx_pq_kem_ct_bytes()) {
         if (error) {
           *error = "PQ output kemCt has wrong length";
