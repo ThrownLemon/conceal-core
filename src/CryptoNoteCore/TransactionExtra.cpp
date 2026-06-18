@@ -128,6 +128,22 @@ namespace cn
           transactionExtraFields.push_back(pqMessage);
           break;
         }
+
+        case TX_EXTRA_AUTH_MESSAGE_TAG:
+        {
+          tx_extra_authenticated_message authMessage;
+          ar(authMessage, "auth_message");
+          // Same early-reject bound as the 0x06 field: the parser has no default case, so an
+          // oversize/short length must be rejected before it can over-read into following fields.
+          // data is the AEAD-sealed blob (>= 16-byte Poly1305 tag, <= configured maximum).
+          if (authMessage.data.size() < TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE ||
+              authMessage.data.size() > TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE)
+          {
+            return false;
+          }
+          transactionExtraFields.push_back(authMessage);
+          break;
+        }
         }
       }
     }
@@ -185,6 +201,11 @@ namespace cn
     bool operator()(const tx_extra_pq_message &t)
     {
       return append_pq_message_to_extra(extra, t);
+    }
+
+    bool operator()(const tx_extra_authenticated_message &t)
+    {
+      return append_authenticated_message_to_extra(extra, t);
     }
   };
 
@@ -336,6 +357,46 @@ namespace cn
       }
       std::string res;
       if (boost::get<tx_extra_pq_message>(f).decrypt(i, recipientKemSec, res))
+      {
+        result.push_back(res);
+      }
+      ++i;
+    }
+    return result;
+  }
+
+  bool append_authenticated_message_to_extra(std::vector<uint8_t> &tx_extra, const tx_extra_authenticated_message &message)
+  {
+    BinaryArray blob;
+    if (!toBinaryArray(message, blob))
+    {
+      return false;
+    }
+
+    tx_extra.reserve(tx_extra.size() + 1 + blob.size());
+    tx_extra.push_back(TX_EXTRA_AUTH_MESSAGE_TAG);
+    std::copy(reinterpret_cast<const uint8_t *>(blob.data()), reinterpret_cast<const uint8_t *>(blob.data() + blob.size()), std::back_inserter(tx_extra));
+
+    return true;
+  }
+
+  std::vector<std::string> get_authenticated_messages_from_extra(const std::vector<uint8_t> &extra, const crypto::PublicKey &txkey, const crypto::SecretKey *recipientSecretKey)
+  {
+    std::vector<TransactionExtraField> tx_extra_fields;
+    std::vector<std::string> result;
+    if (!parseTransactionExtra(extra, tx_extra_fields))
+    {
+      return result;
+    }
+    size_t i = 0;
+    for (const auto &f : tx_extra_fields)
+    {
+      if (f.type() != typeid(tx_extra_authenticated_message))
+      {
+        continue;
+      }
+      std::string res;
+      if (boost::get<tx_extra_authenticated_message>(f).decrypt(i, txkey, recipientSecretKey, res))
       {
         result.push_back(res);
       }
@@ -587,6 +648,89 @@ namespace cn
   bool tx_extra_pq_message::serialize(ISerializer &s)
   {
     serializeAsBinary(kemCt, "kem", s);
+    s(data, "data");
+    return true;
+  }
+
+  // Authenticated classical message field (tx-extra 0x07) -----------------------------------------
+  // Key agreement is IDENTICAL to the legacy 0x04 message (Curve25519 ECDH between the tx secret key
+  // and the recipient spend public key; the 32-byte seed is cn_fast_hash(derivation || 0x80 || 0x00),
+  // the same message_key_data construction). The only change is the symmetric layer: instead of the
+  // unauthenticated chacha8 + 4-zero-byte owner-check, the payload is sealed with the existing
+  // ChaCha20-Poly1305 AEAD (ccx_pq_msg_seal/open, key+nonce derived from (seed, index)). This is REAL
+  // authenticated encryption — tampering ANY byte of the sealed blob (including the 16-byte Poly1305
+  // tag) makes open() fail, and a wrong recipient derives a different seed and also fails. `data`
+  // carries the sealed ciphertext (plaintext_len + 16-byte tag). The legacy 0x04 field is frozen to
+  // decrypt-only; new authenticated messages use 0x07.
+  bool tx_extra_authenticated_message::encrypt(size_t index, const std::string &message, const AccountPublicAddress *recipient, const KeyPair &txkey)
+  {
+    if (recipient == nullptr)
+    {
+      return false;
+    }
+
+    message_key_data key_data;
+    if (!generate_key_derivation(recipient->spendPublicKey, txkey.secretKey, key_data.derivation))
+    {
+      return false;
+    }
+    key_data.magic1 = 0x80;
+    key_data.magic2 = 0;
+    Hash seedHash = cn_fast_hash(&key_data, sizeof(message_key_data));
+
+    std::vector<uint8_t> sealed(message.size() + TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, 0);
+    size_t sealedLen = 0;
+    int rc = ccx_pq_msg_seal(reinterpret_cast<const uint8_t *>(&seedHash), sizeof(seedHash),
+                             static_cast<uint64_t>(index),
+                             reinterpret_cast<const uint8_t *>(message.data()), message.size(),
+                             sealed.data(), sealed.size(), &sealedLen);
+    if (rc != 0 || sealedLen != sealed.size())
+    {
+      return false;
+    }
+
+    data.assign(reinterpret_cast<const char *>(sealed.data()), sealedLen);
+    return true;
+  }
+
+  bool tx_extra_authenticated_message::decrypt(size_t index, const crypto::PublicKey &txkey, const crypto::SecretKey *recipientSecretKey, std::string &message) const
+  {
+    if (recipientSecretKey == nullptr)
+    {
+      return false;
+    }
+    if (data.size() < TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE)
+    {
+      return false;
+    }
+
+    message_key_data key_data;
+    if (!generate_key_derivation(txkey, *recipientSecretKey, key_data.derivation))
+    {
+      return false;
+    }
+    key_data.magic1 = 0x80;
+    key_data.magic2 = 0;
+    Hash seedHash = cn_fast_hash(&key_data, sizeof(message_key_data));
+
+    std::vector<uint8_t> plain(data.size() - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, 0);
+    size_t plainLen = 0;
+    int rc = ccx_pq_msg_open(reinterpret_cast<const uint8_t *>(&seedHash), sizeof(seedHash),
+                             static_cast<uint64_t>(index),
+                             reinterpret_cast<const uint8_t *>(data.data()), data.size(),
+                             plain.data(), plain.size(), &plainLen);
+    // open() returns non-zero (and writes nothing) on auth failure / wrong recipient.
+    if (rc != 0 || plainLen != plain.size())
+    {
+      return false;
+    }
+
+    message.assign(reinterpret_cast<const char *>(plain.data()), plainLen);
+    return true;
+  }
+
+  bool tx_extra_authenticated_message::serialize(ISerializer &s)
+  {
     s(data, "data");
     return true;
   }
