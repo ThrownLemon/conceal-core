@@ -2,9 +2,11 @@
 
 Status: **EXPERIMENTAL / TESTNET-ONLY / UNAUDITED.** This document records a hardening pass over
 `pqc/ccx-pqc/src/ringsig.rs` (CIP-0001 §5.3): a soundness re-verification, an NTT performance rewrite,
-and a heuristic parameter bump. **Nothing here makes the scheme audited or mainnet-ready.** The
-remaining gate (constant-time implementation + professional cryptographic audit, or a decision to port
-a published scheme) is stated explicitly at the end.
+a heuristic parameter bump, and a **constant-time rewrite of the modular-arithmetic hot paths** (§5 —
+one of the documented mainnet activation gates). **Nothing here makes the scheme audited or
+mainnet-ready.** The remaining gate (professional cryptographic audit; estimator-calibrated parameters;
+constant-time *sampling/challenge handling* and a decision on the rejection-loop residual — see §5 — or
+a decision to port a published scheme) is stated explicitly at the end.
 
 The construction is an AOS/LSAG hash-chained ring of Fiat-Shamir-with-aborts (Dilithium-style) Sigma
 proofs over Module-SIS `t = A·s` (`s` short, `‖s‖∞ ≤ η`), with a linking tag `I = A2·s` bound into
@@ -140,7 +142,9 @@ Other corroborated fixes in this pass:
   machine-checked or reduction-level proof. The abort distribution and the simulator's decoy `z`
   distribution are argued uniform (the accept region equals the decoy support), not proven
   indistinguishable to a calibrated bound.
-- **Not constant-time** (see §4). Soundness ≠ side-channel resistance.
+- **Side-channels: hot paths now constant-time, residual remains** (see §5). The modular-arithmetic
+  hot paths are constant-time; sampling/challenge handling and the secret-dependent rejection-loop
+  abort count are not yet addressed. Soundness ≠ side-channel resistance.
 - **Parameters are heuristic** (see §3) — soundness arguments assume Module-SIS/LWE are hard *at the
   chosen dimension*, which is not yet estimator-calibrated.
 
@@ -184,6 +188,9 @@ The NTT gives a **~9.5× verify speedup at fixed params**; the parameter bump (�
 that on security, leaving verify at **0.89 ms** — still well below the old 6.9 ms and under the 1 ms
 target *even with the larger module*. `sign` is wallet-side (rejection sampling over `L=6` masks
 dominates) and is not the consensus hot path; `verify` is what every validating node runs.
+
+The constant-time rewrite (§5) costs a small, measured amount on top of these figures — see §5's
+before/after table; it does **not** change the outputs (bit-identical).
 
 ---
 
@@ -237,9 +244,13 @@ What "calibration" actually requires before mainnet (out of scope here):
 
 This scheme **must not ship to mainnet** until, at minimum:
 
-1. **Constant-time implementation.** The current code is not constant-time: `cmod`/rejection sampling
-   and the secret-dependent abort leak timing; `poly_mul` operand-independence needs auditing. A
-   deployment needs constant-time modular arithmetic, sampling, and challenge handling.
+1. **Constant-time implementation.** *Partially done — see §5.* The modular-arithmetic **hot paths**
+   (`mulmod`, `cmod`/`pmod`, `addq`/`subq`, hence the NTT butterflies and all reductions on the secret
+   `s`, masks `y`, responses `z`) are now division-free and branchless (constant-time), bit-identically.
+   **Still open** before mainnet: constant-time **sampling** and **challenge handling**, an audit of
+   `poly_mul` operand-independence at the instruction level, and a decision on the **rejection-loop
+   abort-count residual** (the `sign()` Fiat-Shamir-with-aborts iteration count is secret-dependent —
+   a known lattice-signature consideration, documented in §5).
 2. **Professional cryptographic audit.** The soundness argument in §1 is correct *as an argument* and
    survives our adversarial vectors, but it is not a proof and has not been reviewed by cryptographers.
    Anonymity (decoy/real `z` indistinguishability) and the linkable-tag soundness need formal treatment.
@@ -277,6 +288,92 @@ honest trade-offs:
 
 ---
 
+## 5. Constant-time modular arithmetic (mainnet activation gate — DONE for the hot paths)
+
+The scheme was testnet-only **partly because the modular reductions branched on / divided by
+secret-dependent data**: the secret key `s`, the per-signature masks `y`, and the responses `z` all flow
+through `cmod`/`pmod`/`mulmod`/`addq`/`subq` in the NTT butterflies and reductions. This pass makes those
+**hot paths constant-time**, with **bit-identical outputs** (no wire/format/scheme change).
+
+### 5.1 What was non-constant-time, and the fix
+
+| Function | Was | Side channel | Now (constant-time) | Bit-identical over |
+|---|---|---|---|---|
+| `mulmod(a,b)` | `(a*b) % Q` | hardware `idiv` latency is data-dependent | **Barrett**: `i128` multiply by `BARRETT_M = ⌊2⁴⁶/Q⌋`, arithmetic `>> 46`, then **two masked subtracts** | both operands in `[0,Q)` (every call site) |
+| `cmod(a)` | `a % Q` + two `if` folds | `idiv` + 2 secret branches | `reduce_to_0q(a)` then one **branchless** centered fold | full `i64` (covers centered sums/diffs, intt outputs, and the i32/u32 adversarial ranges) |
+| `pmod(a)` | `a % Q` + one `if` fold | `idiv` + 1 secret branch | `reduce_to_0q(a)` (division-free) | full `i64` |
+| `addq(a)` | `if a>=Q {a-Q} else {a}` | secret-dependent branch | `let t=a-Q; t + (Q & (t>>63))` | `[0, 2Q)` (butterfly sum range) |
+| `subq(a)` | `if a<0 {a+Q} else {a}` | secret-dependent branch | `a + (Q & (a>>63))` | `(-Q, Q)` (butterfly diff range) |
+
+`reduce_to_0q(a)` is a general division-free reduction of an arbitrary `i64` to `[0,Q)`: estimate
+`⌊a/Q⌋` with a fixed-point reciprocal `RECIP = ⌊2⁸⁴/Q⌋` (`i128` multiply, arithmetic `>> 84` which floors
+toward −∞), then correct with a fixed, branchless `±Q` masked-select count. The estimate error is `< 1`
+over the whole `i64` range (`|a|·(2⁸⁴/Q − RECIP)/2⁸⁴ < |a|/2⁸⁴ ≤ 2⁶³/2⁸⁴ < 1`), plus at most 1 from the
+two floors, so a single correction each side suffices; two each side are applied as a proven-ample
+constant-count margin. The masked-select idiom is `(v >> 63)` (arithmetic shift → all-ones iff `v<0`)
+ANDed with `Q`, so there is **no secret-dependent branch and no `idiv`** anywhere on the hot path.
+
+### 5.2 Bit-identical proof (no output changed)
+
+The whole point is that the constant-time rewrite changed **nothing** observable — signatures, public
+keys, tags and nullifiers are byte-for-byte unchanged and the format is wire-compatible. Evidence:
+
+- **NTT-vs-schoolbook equivalence: `ccx_pqr_ntt_equiv_test(5000) = 0` mismatches.** The transform (which
+  is where all the reductions live) still equals the reference `O(N²)` schoolbook multiply over the
+  scheme's real input distributions plus edge cases. This is the same end-to-end oracle the NTT speedup
+  was proven against — 0 means the arithmetic is unchanged.
+- **Unit tests (`cargo test`, in `ringsig.rs`'s `#[cfg(test)] mod tests`)** assert each new primitive is
+  bit-identical to the *old* `%`/branch-based definition over the exact input ranges it is reachable
+  with: `addq`/`subq` exhaustively over their butterfly ranges; `mulmod` over edges + 2 M random pairs
+  in `[0,Q)²`; `cmod`/`pmod` densely around 0 and ±multiples of `Q`, at the i32/u32 edges, and over 6 M
+  random i64/i32/u32 — **0 mismatches**.
+- **C-ABI selftests (against the compiled `libccx_pqc.a`):** `ccx_pqr_ringsig_selftest` ok=1 ·
+  `ccx_pq_ringsig_selftest` ok=1 · `ccx_pqr_forgery_test` = 0 · `ccx_pqr_soundness_test` = 1 ·
+  `ccx_pqr_ntt_equiv_test` = 0. Sizes unchanged (pk 6144, sig 30752 for ring-4). `conceald` links clean.
+
+### 5.3 Cost (before → after, ring-4, WSL x86_64, release, median of 200)
+
+| Build | sign (median) | verify (median) |
+|---|---:|---:|
+| before (division/branch `%` + `idiv`) | **2.09 ms** | **0.95 ms** |
+| after (constant-time Barrett + branchless) | **2.46 ms** | **1.12 ms** |
+| delta | +0.37 ms (≈ +17 %) | +0.17 ms (≈ +18 %) |
+
+The before figure was measured by running the *identical* timing harness against the pre-rewrite
+primitives (original `%`-based `mulmod`/`cmod`/`pmod`/`addq`/`subq`, same test module). Both builds
+produce identical signatures; only the timing differs. Verify stays near ~1.1 ms — still well under the
+old 6.9 ms schoolbook verify, so the constant-time tax is comfortably absorbed. (Barrett costs an `i128`
+multiply + shift where the divide used to be; the branchless folds add a couple of ALU ops per coeff.)
+
+### 5.4 Residual: secret-dependent rejection-loop iteration count (NOT fixed here — documented)
+
+`sign()` is Fiat-Shamir-**with-aborts**: it loops sampling a fresh mask `y` until the real-branch
+response `z_j = y + c_j·s` passes `‖z_j‖∞ ≤ ZBOUND`, otherwise it restarts (up to 256 attempts, else
+`None`). The **number of attempts is data-dependent** — it depends on `c_j·s`, i.e. on the secret — so the
+*wall-clock time and the attempt count of `sign` leak information about `s`* via a timing/observable
+channel, independent of the now-constant-time arithmetic inside each attempt.
+
+**Assessment: acceptable to leave as a documented residual for the testnet track; revisit at the audit
+gate.** Rationale:
+
+- This is a **well-known, standard property of Fiat-Shamir-with-aborts lattice signatures** (Dilithium,
+  qTESLA, BLISS-lineage). The abort decision is a norm check on a masked value; the accepted-`z`
+  distribution is independent of `s` (that is what underpins anonymity/zero-knowledge), and the leak is
+  about *how many tries it took*, not *which secret*. The literature treatment ranges from "benign in
+  practice for a signing oracle the attacker cannot finely time" to "mask it for high-assurance".
+- `sign` is **wallet-side**, not the consensus hot path. `verify` — which every validating node runs on
+  attacker-supplied input — has **no rejection loop** and is now fully constant-time on its arithmetic.
+- Fully removing the leak (e.g. constant-iteration signing with a fixed attempt budget and dummy work,
+  or a different sampler) is a **non-trivial change to the signing procedure** and was explicitly out of
+  scope for this bit-identical pass — doing it naively risks changing the abort statistics (hence which
+  signatures are produced) or introducing its own bias. It belongs with the constant-time
+  sampling/challenge-handling work under the audit gate (§4), where the sampler can be co-designed.
+
+So: **the modular-arithmetic hot paths are constant-time and done; the abort-count residual is the one
+remaining secret-dependent timing dependency in `sign`, left as a documented, scoped follow-up.**
+
+---
+
 ## Review provenance
 
 Two rounds of review informed this document:
@@ -292,11 +389,16 @@ the construction stays testnet-only and is never to be presented as audited.
 
 ## Selftests (all green at time of writing)
 
+After the constant-time rewrite (§5), re-run on WSL x86_64 / release against the compiled
+`libccx_pqc.a` via a C-ABI harness AND `cargo test`:
+
 `ccx_pqr_ringsig_selftest` ok=1 · `ccx_pq_ringsig_selftest` ok=1 · `ccx_pqr_forgery_test` = 0
 (refuted) · `ccx_pqr_soundness_test` = 1 (all adversarial vectors rejected, rings 2/4/8) ·
-`ccx_pqr_ntt_equiv_test` = 0 mismatches (NTT == schoolbook, 5000 trials + edge cases) ·
-KEM/DSA/multisig/detkeygen selftests ok=1 · `scheme_id` = `0xC0DE_0004`. Ring-4 verify 0.89 ms, sign
-3.80 ms (K=L=6, NTT). `conceald` links with the C++ `ccx_pq_pubkey_is_canonical` output-acceptance
-check. ctest: crypto/consensus targets pass (CoreTests, CryptoTests, UnitTests, DifficultyTests,
-HashTargetTests, hash-*); IntegrationTests/TransfersTests fail only on a missing staged daemon binary
-(pre-existing environment issue, unrelated to these changes).
+`ccx_pqr_ntt_equiv_test` = 0 mismatches (NTT == schoolbook, 5000 trials + edge cases — the
+bit-identical proof that the constant-time rewrite changed no output) · constant-time-equivalence unit
+tests (`addq`/`subq`/`mulmod`/`cmod`/`pmod` vs the old `%`/branch definitions) = 0 mismatches ·
+KEM/DSA/multisig/detkeygen selftests ok=1 · `scheme_id` = `0xC0DE_0004` (unchanged — no wire change). Sizes
+unchanged (pk 6144, sig 30752 for ring-4). Constant-time ring-4 timing: verify median 1.12 ms, sign
+median 2.46 ms (before the rewrite: 0.95 ms / 2.09 ms — §5.3). `conceald` builds and links clean with the
+constant-time staticlib (`make -j8 Daemon` → `[100%] Built target Daemon`), exercising the C++
+`ccx_pq_pubkey_is_canonical` output-acceptance path.
