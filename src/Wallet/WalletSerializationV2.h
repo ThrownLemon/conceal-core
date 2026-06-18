@@ -58,8 +58,14 @@ public:
   // Version 7: Argon2id KDF (salt + tunable cost, stored in a header) + XChaCha20-Poly1305 AEAD
   //   container suffix (CIP-0001 Q2 §1b). v6 wallets still load (MIN_VERSION=6) and are migrated to
   //   v7 on the next save. The decrypted container/cache layout is otherwise unchanged.
-  static const uint8_t SERIALIZATION_VERSION = 7;
+  // Version 8: as v7, PLUS a 32-byte keyed-MAC over the container PREFIX (version || nextIv ||
+  //   encrypted view+spend key records) stored inside the AEAD-sealed suffix and verified on open,
+  //   so a prefix tamper/rollback is detected (hardening item W11). The on-disk prefix encoding is
+  //   UNCHANGED from v7 — only an authentication tag is added inside the suffix — so the
+  //   FileMappedVector open path is untouched and v7 wallets migrate to v8 on the next save.
+  static const uint8_t SERIALIZATION_VERSION = 8;
   static const uint8_t AEAD_KDF_VERSION = 7; // first container version using Argon2id + AEAD suffix
+  static const uint8_t PREFIX_MAC_VERSION = 8; // first container version authenticating the prefix
 
 private:
   void loadKeyListAndBanalces(cn::ISerializer& serializer, bool saveCache);

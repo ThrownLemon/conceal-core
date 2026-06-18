@@ -102,6 +102,15 @@ int32_t ccx_wallet_aead_open(const uint8_t *key, size_t key_len,
                              const uint8_t *nonce, size_t nonce_len,
                              const uint8_t *ct, size_t ct_len,
                              uint8_t *pt_out, size_t pt_cap, size_t *pt_len_out);
+/* v8 wallet-file prefix authentication (hardening item W11): a 32-byte keyed SHAKE256 MAC over the
+   container PREFIX (version || nextIv || encrypted view+spend key records), keyed by a subkey
+   domain-separated from the AEAD encryption use of the Argon2id master key. The tag is stored INSIDE
+   the AEAD-sealed suffix (so it is itself confidential + authenticated) and re-verified against the
+   live prefix on open, detecting a prefix tamper/rollback the suffix AEAD alone cannot see. */
+size_t ccx_wallet_prefix_mac_bytes(void);  /* 32 */
+int32_t ccx_wallet_prefix_mac(const uint8_t *key, size_t key_len,
+                              const uint8_t *prefix, size_t prefix_len,
+                              uint8_t *tag_out, size_t tag_cap);
 /* Real PQ primitives self-tests — sizes via out-struct. */
 typedef struct { size_t pk, sk, ct_or_sig, ss; int32_t ok; } ccx_pq_sizes;
 ccx_pq_sizes ccx_mlkem768_selftest(void);

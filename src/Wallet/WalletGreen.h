@@ -363,6 +363,14 @@ protected:
   static void encryptAndSaveContainerData(ContainerStorage& storage, const crypto::chacha8_key& key, uint8_t version, const WalletKdfHeader* kdfHeader, const void* containerData, size_t containerDataSize);
   void loadWalletCache(std::unordered_set<crypto::PublicKey>& addedKeys, std::unordered_set<crypto::PublicKey>& deletedKeys, std::string& extra);
 
+  // Gather the canonical "prefix" bytes that the v8 keyed MAC authenticates: the ContainerStoragePrefix
+  // (version || nextIv || encrypted view keys) followed by every encrypted spend-key record, framed
+  // with the record count so an inserted/removed record is unambiguously detected. These are exactly
+  // the bytes that the unauthenticated chacha8 prefix layer holds (W11).
+  static std::vector<uint8_t> gatherContainerPrefixBytes(const ContainerStorage& storage);
+  // Compute the 32-byte v8 prefix MAC over gatherContainerPrefixBytes(storage) under `key`.
+  static std::vector<uint8_t> computeContainerPrefixMac(const ContainerStorage& storage, const crypto::chacha8_key& key);
+
   void copyContainerStorageKeys(const ContainerStorage& src, const crypto::chacha8_key& srcKey, ContainerStorage& dst, const crypto::chacha8_key& dstKey) const;
   static void copyContainerStoragePrefix(ContainerStorage& src, const crypto::chacha8_key& srcKey, ContainerStorage& dst, const crypto::chacha8_key& dstKey);
 
@@ -380,8 +388,14 @@ protected:
   // Read the Argon2id KDF header stored in the (v7) container suffix prefix. Throws if absent/invalid.
   static WalletKdfHeader readKdfHeader(const ContainerStorage &storage);
   // If the open wallet is in a pre-AEAD format (< version 7), re-key its prefix + spend records from
-  // the legacy KDF to a fresh Argon2id key and bump the container version. No-op for v7 wallets.
+  // the legacy KDF to a fresh Argon2id key and bump the container version. No-op for v7+ wallets.
   void migrateToAeadFormatIfNeeded();
+
+  // If the open wallet is a v7 wallet (AEAD suffix, but UNauthenticated prefix), bump it in-memory to
+  // v8 so the next seal authenticates the prefix (hardening item W11). This needs no rekey: v7 and v8
+  // share the same Argon2id key, KDF header and AEAD suffix; v8 only ADDS a keyed MAC over the prefix,
+  // computed and stored on the next encryptAndSaveContainerData. No-op for v8+ (or pre-AEAD) wallets.
+  void upgradeToPrefixMacVersionIfNeeded();
 
   // PQ wallet section (CIP-0001 wallet-address-v2). Serialized inside the AEAD container after the
   // WalletSerializerV2 stream, guarded by a presence byte so v7 wallets WITHOUT PQ keys round-trip

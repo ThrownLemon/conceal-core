@@ -108,5 +108,16 @@ namespace cn
 
     // Draw a fresh random AEAD nonce (24 bytes).
     static std::vector<uint8_t> randomNonce();
+
+    // Keyed-MAC tag length (32) for the v8 wallet-file prefix authentication.
+    static size_t prefixMacBytes();
+
+    // Compute the 32-byte keyed MAC over the container `prefix` bytes under the Argon2id container
+    // `key` (v8 wallet-file format, hardening item W11). The MAC key is domain-separated from the
+    // AEAD encryption use of `key`, so it is independent of the encryption key. Throws on FFI
+    // failure. The caller stores the tag inside the AEAD-sealed suffix and re-verifies it on open;
+    // a prefix tamper/rollback (which the suffix AEAD cannot see) is then detected.
+    static std::vector<uint8_t> prefixMac(const crypto::chacha8_key &key,
+                                          const uint8_t *prefix, size_t prefixSize);
   };
 } // namespace cn

@@ -368,6 +368,174 @@ TEST(WalletKdfContainer, tamperDetected)
   ASSERT_FALSE(openContainer("pw", bad, out));
 }
 
+// ---- v8 prefix MAC (hardening item W11) ----------------------------------------------------------
+//
+// The v8 wallet container authenticates the (chacha8-encrypted-but-unauthenticated) prefix — the
+// view/spend key records — with a 32-byte keyed SHAKE256 MAC stored inside the AEAD-sealed suffix.
+// These cover the WalletKdf::prefixMac primitive directly.
+
+TEST(WalletKdf, prefixMacIsDeterministicForSameKeyAndPrefix)
+{
+  WalletKdfHeader h = cheapHeader(0xb1);
+  crypto::chacha8_key key = WalletKdf::deriveKey("pw", h);
+  const std::vector<uint8_t> prefix = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+  std::vector<uint8_t> t1 = WalletKdf::prefixMac(key, prefix.data(), prefix.size());
+  std::vector<uint8_t> t2 = WalletKdf::prefixMac(key, prefix.data(), prefix.size());
+  ASSERT_EQ(WalletKdf::prefixMacBytes(), t1.size());
+  ASSERT_EQ(32u, t1.size());
+  ASSERT_EQ(t1, t2);
+}
+
+TEST(WalletKdf, prefixMacIsKeySensitive)
+{
+  WalletKdfHeader hA = cheapHeader(0xb2);
+  WalletKdfHeader hB = cheapHeader(0xb3);
+  crypto::chacha8_key kA = WalletKdf::deriveKey("pw", hA);
+  crypto::chacha8_key kB = WalletKdf::deriveKey("pw", hB);
+  const std::vector<uint8_t> prefix(40, 0x5a);
+
+  std::vector<uint8_t> tA = WalletKdf::prefixMac(kA, prefix.data(), prefix.size());
+  std::vector<uint8_t> tB = WalletKdf::prefixMac(kB, prefix.data(), prefix.size());
+  ASSERT_NE(tA, tB);
+}
+
+TEST(WalletKdf, prefixMacDetectsAnyPrefixByteFlip)
+{
+  WalletKdfHeader h = cheapHeader(0xb4);
+  crypto::chacha8_key key = WalletKdf::deriveKey("pw", h);
+  std::vector<uint8_t> prefix(48);
+  for (size_t i = 0; i < prefix.size(); ++i)
+  {
+    prefix[i] = static_cast<uint8_t>(i * 7 + 1);
+  }
+  const std::vector<uint8_t> tag = WalletKdf::prefixMac(key, prefix.data(), prefix.size());
+
+  // Flipping any single prefix byte must change the tag (a tampered/rolled-back prefix is detected).
+  for (size_t i = 0; i < prefix.size(); ++i)
+  {
+    std::vector<uint8_t> bad = prefix;
+    bad[i] ^= 0x01;
+    std::vector<uint8_t> badTag = WalletKdf::prefixMac(key, bad.data(), bad.size());
+    ASSERT_NE(tag, badTag) << "prefix tamper at byte " << i << " was not reflected in the MAC";
+  }
+}
+
+TEST(WalletKdf, prefixMacEmptyPrefixIsStable)
+{
+  WalletKdfHeader h = cheapHeader(0xb5);
+  crypto::chacha8_key key = WalletKdf::deriveKey("pw", h);
+  std::vector<uint8_t> t1 = WalletKdf::prefixMac(key, nullptr, 0);
+  std::vector<uint8_t> t2 = WalletKdf::prefixMac(key, nullptr, 0);
+  ASSERT_EQ(32u, t1.size());
+  ASSERT_EQ(t1, t2);
+}
+
+// ---- v7 -> v8 migrate-on-save (container-analogue) ----------------------------------------------
+//
+// The wallet's encryptAndSaveContainerData seals, for v8, [32-byte prefix MAC][container data]; v7
+// sealed the container data alone (no MAC). Migrate-on-save re-seals a v7 payload as v8 by computing
+// the MAC over the live prefix and prepending it. These model that exact re-seal so the migration's
+// security property — a post-migration prefix tamper is detected, which the v7 format could not do —
+// is covered even though the build constant now always WRITES v8 (so a genuine on-disk v7 file can
+// no longer be produced through the public wallet API without raw byte surgery).
+
+namespace
+{
+  // Seal exactly as the v8 wallet does: plaintext = prefixMac(key, prefix) || containerData.
+  std::vector<uint8_t> sealV8(const crypto::chacha8_key &key, const std::vector<uint8_t> &nonce,
+                              const std::vector<uint8_t> &prefix, const std::vector<uint8_t> &containerData)
+  {
+    std::vector<uint8_t> tag = WalletKdf::prefixMac(key, prefix.data(), prefix.size());
+    std::vector<uint8_t> plain;
+    plain.insert(plain.end(), tag.begin(), tag.end());
+    plain.insert(plain.end(), containerData.begin(), containerData.end());
+    return WalletKdf::aeadSeal(key, nonce, plain.data(), plain.size());
+  }
+
+  // Open + verify exactly as the v8 wallet does: AEAD-open, strip+verify the 32-byte prefix MAC
+  // against the live prefix, return the container data. Returns false on any failure.
+  bool openV8(const crypto::chacha8_key &key, const std::vector<uint8_t> &nonce,
+              const std::vector<uint8_t> &sealed, const std::vector<uint8_t> &livePrefix,
+              std::vector<uint8_t> &containerDataOut)
+  {
+    std::vector<uint8_t> plain;
+    if (!WalletKdf::aeadOpen(key, nonce, sealed.data(), sealed.size(), plain))
+    {
+      return false;
+    }
+    const size_t macLen = WalletKdf::prefixMacBytes();
+    if (plain.size() < macLen)
+    {
+      return false;
+    }
+    std::vector<uint8_t> expected = WalletKdf::prefixMac(key, livePrefix.data(), livePrefix.size());
+    if (expected.size() != macLen || std::memcmp(plain.data(), expected.data(), macLen) != 0)
+    {
+      return false; // prefix tamper/rollback
+    }
+    containerDataOut.assign(plain.begin() + macLen, plain.end());
+    return true;
+  }
+}
+
+TEST(WalletKdfContainer, migrateV7PayloadToV8ThenOpens)
+{
+  WalletKdfHeader header = cheapHeader(0xc1);
+  crypto::chacha8_key key = WalletKdf::deriveKey("pw", header);
+
+  // A "v7" payload: just the container data, sealed with no prefix binding.
+  const std::vector<uint8_t> containerData = {0x10, 0x20, 0x30, 0x40, 0x50};
+  const std::vector<uint8_t> prefix = {0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff};
+
+  std::vector<uint8_t> v7nonce = WalletKdf::randomNonce();
+  std::vector<uint8_t> v7sealed = WalletKdf::aeadSeal(key, v7nonce, containerData.data(), containerData.size());
+
+  // Migrate: open the v7 payload, then re-seal it as v8 binding the prefix.
+  std::vector<uint8_t> recovered;
+  ASSERT_TRUE(WalletKdf::aeadOpen(key, v7nonce, v7sealed.data(), v7sealed.size(), recovered));
+  ASSERT_EQ(containerData, recovered);
+
+  std::vector<uint8_t> v8nonce = WalletKdf::randomNonce();
+  std::vector<uint8_t> v8sealed = sealV8(key, v8nonce, prefix, recovered);
+
+  // The migrated v8 container opens and reproduces the data when the prefix is intact.
+  std::vector<uint8_t> out;
+  ASSERT_TRUE(openV8(key, v8nonce, v8sealed, prefix, out));
+  ASSERT_EQ(containerData, out);
+}
+
+TEST(WalletKdfContainer, v8PrefixTamperIsDetectedButV7CannotSee)
+{
+  WalletKdfHeader header = cheapHeader(0xc2);
+  crypto::chacha8_key key = WalletKdf::deriveKey("pw", header);
+
+  const std::vector<uint8_t> containerData(24, 0x5a);
+  std::vector<uint8_t> prefix = {1, 2, 3, 4, 5, 6, 7, 8};
+
+  std::vector<uint8_t> nonce = WalletKdf::randomNonce();
+  std::vector<uint8_t> sealed = sealV8(key, nonce, prefix, containerData);
+
+  // Intact prefix -> opens.
+  std::vector<uint8_t> out;
+  ASSERT_TRUE(openV8(key, nonce, sealed, prefix, out));
+  ASSERT_EQ(containerData, out);
+
+  // Tamper/rollback the prefix (e.g. a swapped-in forged key record) -> v8 open FAILS.
+  std::vector<uint8_t> tamperedPrefix = prefix;
+  tamperedPrefix[0] ^= 0x01;
+  std::vector<uint8_t> out2;
+  ASSERT_FALSE(openV8(key, nonce, sealed, tamperedPrefix, out2));
+
+  // The v7 format (no prefix binding) would NOT see the same change: the suffix AEAD still verifies
+  // because the prefix is outside the sealed region. This is exactly the W11 gap v8 closes.
+  std::vector<uint8_t> v7nonce = WalletKdf::randomNonce();
+  std::vector<uint8_t> v7sealed = WalletKdf::aeadSeal(key, v7nonce, containerData.data(), containerData.size());
+  std::vector<uint8_t> v7out;
+  ASSERT_TRUE(WalletKdf::aeadOpen(key, v7nonce, v7sealed.data(), v7sealed.size(), v7out));
+  ASSERT_EQ(containerData, v7out); // suffix opens regardless of any prefix change
+}
+
 // ---- ccx-pqc wallet-crypto FFI selftest ---------------------------------------------------------
 
 TEST(WalletKdf, ffiSelftestPasses)

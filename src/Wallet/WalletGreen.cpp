@@ -66,6 +66,18 @@ namespace
     }
   }
 
+  // Constant-time equality over equal-length byte ranges (no early-out on the first differing byte),
+  // used to compare the v8 prefix-MAC tag without leaking where a mismatch occurred via timing.
+  bool constantTimeEquals(const uint8_t *a, const uint8_t *b, size_t n)
+  {
+    unsigned char diff = 0;
+    for (size_t i = 0; i < n; ++i)
+    {
+      diff = static_cast<unsigned char>(diff | (a[i] ^ b[i]));
+    }
+    return diff == 0;
+  }
+
   std::vector<uint64_t> split(uint64_t amount, uint64_t dustThreshold)
   {
     std::vector<uint64_t> amounts;
@@ -841,9 +853,12 @@ namespace cn
     prefix->version = WalletSerializerV2::SERIALIZATION_VERSION;
     prefix->nextIv = crypto::rand<crypto::chacha8_iv>();
 
-    // New wallets use the v7 format: Argon2id (fresh salt + default cost) derives the container key,
-    // and the suffix container is XChaCha20-Poly1305 AEAD. The KDF header travels with the wallet so
-    // the key can be re-derived from the password on next open.
+    // New wallets use the v8 format: Argon2id (fresh salt + default cost) derives the container key,
+    // the suffix container is XChaCha20-Poly1305 AEAD, and the container prefix (view/spend key
+    // records) is authenticated by a keyed MAC stored inside the sealed suffix. The KDF header travels
+    // with the wallet so the key can be re-derived from the password on next open. (The empty-suffix
+    // save below carries a MAC over the view-key-only prefix; the first real save() that follows
+    // address creation re-seals with the MAC over the final prefix + spend records.)
     m_walletFormatVersion = WalletSerializerV2::SERIALIZATION_VERSION;
     m_kdfHeader = WalletKdf::makeHeader();
     m_key = deriveContainerKey(password, m_walletFormatVersion);
@@ -889,8 +904,10 @@ namespace cn
     {
       // Migrate-on-save: a wallet opened in the legacy chacha8/cn_slow_hash format (<v7) is upgraded
       // to the Argon2id + AEAD format here, transparently, before the cache is written. After this the
-      // file is v7 and stays v7. No data loss, no user friction (strategy: load-only legacy support).
+      // file is v7+ and stays v7+. No data loss, no user friction (strategy: load-only legacy support).
       migrateToAeadFormatIfNeeded();
+      // Migrate-on-save a v7 wallet up to v8 so its prefix gets authenticated on this save (W11).
+      upgradeToPrefixMacVersionIfNeeded();
 
       if (m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION)
       {
@@ -992,6 +1009,9 @@ namespace cn
       // Export in the wallet's current (v7) container format. Migrate first so a legacy wallet is
       // exported as Argon2id + AEAD rather than the deprecated chacha8 format.
       migrateToAeadFormatIfNeeded();
+      // Export in the authenticated-prefix v8 format (W11): upgrade a v7 wallet first so the export
+      // carries a prefix MAC.
+      upgradeToPrefixMacVersionIfNeeded();
 
       ContainerStorage newStorage(path, FileMappedVectorOpenMode::CREATE, m_containerStorage.prefixSize());
       storageCreated = true;
@@ -1163,6 +1183,32 @@ namespace cn
         // Authenticated-decryption failure: wrong password, tamper, or corruption.
         throw std::system_error(make_error_code(error::WRONG_PASSWORD), "Wallet container authentication failed");
       }
+
+      if (version >= WalletSerializerV2::PREFIX_MAC_VERSION)
+      {
+        // v8: the sealed plaintext is [32-byte prefix MAC tag][container data]. Strip the tag,
+        // recompute the keyed MAC over the LIVE prefix (the chacha8 view/spend key records as they
+        // are on disk right now), and constant-time-compare. A mismatch means the prefix was tampered
+        // or rolled back (e.g. forged/old encrypted key records swapped in) — which the suffix AEAD
+        // alone cannot detect because the prefix is outside the sealed region. FAIL the load loudly
+        // rather than trusting unauthenticated key material (hardening item W11).
+        const size_t macLen = WalletKdf::prefixMacBytes();
+        if (plaintext.size() < macLen)
+        {
+          throw std::system_error(make_error_code(error::WRONG_PASSWORD),
+                                  "Wallet container too small to hold the v8 prefix authentication tag");
+        }
+        std::vector<uint8_t> expected = computeContainerPrefixMac(storage, key);
+        if (expected.size() != macLen ||
+            !constantTimeEquals(plaintext.data(), expected.data(), macLen))
+        {
+          throw std::system_error(make_error_code(error::WRONG_PASSWORD),
+                                  "wallet prefix authentication failed (possible tamper/rollback)");
+        }
+        containerData.assign(plaintext.begin() + macLen, plaintext.end());
+        return;
+      }
+
       containerData.assign(plaintext.begin(), plaintext.end());
       return;
     }
@@ -1370,6 +1416,44 @@ namespace cn
     }
   }
 
+  std::vector<uint8_t> WalletGreen::gatherContainerPrefixBytes(const ContainerStorage &storage)
+  {
+    // The "prefix" the v8 MAC authenticates = the ContainerStoragePrefix (version || nextIv ||
+    // encrypted view keys, held in storage.prefix()) followed by every encrypted spend-key record
+    // (the FileMappedVector elements). We frame the record count as an 8-byte LE prefix so an inserted
+    // or removed record changes the MAC input unambiguously (rollback/truncation detection), then the
+    // raw record bytes. These are exactly the bytes the unauthenticated chacha8 prefix layer holds.
+    const uint8_t *prefixPtr = storage.prefix();
+    const size_t prefixSize = static_cast<size_t>(storage.prefixSize());
+    const uint64_t recordCount = storage.size();
+    const size_t recordBytes = static_cast<size_t>(recordCount) * sizeof(EncryptedWalletRecord);
+
+    std::vector<uint8_t> bytes;
+    bytes.reserve(prefixSize + sizeof(uint64_t) + recordBytes);
+    bytes.insert(bytes.end(), prefixPtr, prefixPtr + prefixSize);
+
+    // record count, little-endian (endian-independent on-disk MAC input)
+    uint8_t countLe[sizeof(uint64_t)];
+    for (size_t i = 0; i < sizeof(uint64_t); ++i)
+    {
+      countLe[i] = static_cast<uint8_t>((recordCount >> (8 * i)) & 0xff);
+    }
+    bytes.insert(bytes.end(), countLe, countLe + sizeof(countLe));
+
+    if (recordBytes != 0)
+    {
+      const uint8_t *recordPtr = reinterpret_cast<const uint8_t *>(storage.data());
+      bytes.insert(bytes.end(), recordPtr, recordPtr + recordBytes);
+    }
+    return bytes;
+  }
+
+  std::vector<uint8_t> WalletGreen::computeContainerPrefixMac(const ContainerStorage &storage, const crypto::chacha8_key &key)
+  {
+    const std::vector<uint8_t> prefixBytes = gatherContainerPrefixBytes(storage);
+    return WalletKdf::prefixMac(key, prefixBytes.data(), prefixBytes.size());
+  }
+
   void WalletGreen::encryptAndSaveContainerData(ContainerStorage &storage, const crypto::chacha8_key &key, uint8_t version, const WalletKdfHeader *kdfHeader, const void *containerData, size_t containerDataSize)
   {
     if (version >= WalletSerializerV2::AEAD_KDF_VERSION)
@@ -1383,8 +1467,30 @@ namespace cn
         throw std::runtime_error("encryptAndSaveContainerData: v7 save requires a valid KDF header");
       }
       std::vector<uint8_t> nonce = WalletKdf::randomNonce();
+
+      // v8+: authenticate the (chacha8-encrypted but unauthenticated) prefix too. We compute a keyed
+      // MAC over the live prefix bytes and PREPEND the 32-byte tag to the container plaintext before
+      // sealing, so the tag is itself confidential + AEAD-authenticated. On open we recompute the MAC
+      // over the live prefix and constant-time-compare to this stored tag (hardening item W11). The
+      // prefix/keys are already written into `storage` by the caller (copyContainerStoragePrefix +
+      // copyContainerStorageKeys, or initWithKeys) before this seal, so the MAC covers the final bytes.
+      std::vector<uint8_t> plaintext;
+      if (version >= WalletSerializerV2::PREFIX_MAC_VERSION)
+      {
+        std::vector<uint8_t> tag = computeContainerPrefixMac(storage, key);
+        plaintext.reserve(tag.size() + containerDataSize);
+        plaintext.insert(plaintext.end(), tag.begin(), tag.end());
+        const uint8_t *cd = reinterpret_cast<const uint8_t *>(containerData);
+        plaintext.insert(plaintext.end(), cd, cd + containerDataSize);
+      }
+      else
+      {
+        const uint8_t *cd = reinterpret_cast<const uint8_t *>(containerData);
+        plaintext.assign(cd, cd + containerDataSize);
+      }
+
       std::vector<uint8_t> sealed = WalletKdf::aeadSeal(key, nonce,
-                                                        reinterpret_cast<const uint8_t *>(containerData), containerDataSize);
+                                                        plaintext.empty() ? nullptr : plaintext.data(), plaintext.size());
 
       std::string suffix;
       common::StringOutputStream suffixStream(suffix);
@@ -1703,30 +1809,40 @@ namespace cn
       return;
     }
 
-    // Changing the password also upgrades a legacy wallet to the v7 (Argon2id + AEAD) format.
+    // Changing the password also upgrades a legacy wallet to the v7+ (Argon2id + AEAD) format.
     migrateToAeadFormatIfNeeded();
+
+    // The OLD on-disk suffix must be DECRYPTED with the format it was written in. Capture that before
+    // the v7->v8 upgrade below, which only affects how the NEW suffix is WRITTEN.
+    const uint8_t readVersion = m_walletFormatVersion;
+    // Migrate-on-save up to v8 so the rekeyed container authenticates its prefix (W11). v7 and v8 share
+    // the key/header/AEAD; v8 only adds the prefix MAC, so the prefix encoding is unchanged.
+    upgradeToPrefixMacVersionIfNeeded();
+    const uint8_t writeVersion = m_walletFormatVersion;
 
     // Rekey: draw a FRESH KDF header (new salt) for the new password and derive the new key with
     // Argon2id. Both the prefix records and the whole AEAD suffix are re-encrypted under it, so every
     // at-rest secret (including any PQ section in the container cache) is re-sealed under the new key.
-    const uint8_t version = m_walletFormatVersion;
     WalletKdfHeader newHeader = WalletKdf::makeHeader();
     crypto::chacha8_key newKey = WalletKdf::deriveKey(newPassword, newHeader);
 
-    m_containerStorage.atomicUpdate([this, newKey, version, &newHeader](ContainerStorage &newStorage)
+    m_containerStorage.atomicUpdate([this, newKey, readVersion, writeVersion, &newHeader](ContainerStorage &newStorage)
                                     {
     copyContainerStoragePrefix(m_containerStorage, m_key, newStorage, newKey);
     copyContainerStorageKeys(m_containerStorage, m_key, newStorage, newKey);
+    // copyContainerStoragePrefix copies the old on-disk version byte; stamp the new write version so a
+    // v7->v8 upgrade is reflected on disk.
+    reinterpret_cast<ContainerStoragePrefix *>(newStorage.prefix())->version = writeVersion;
 
     BinaryArray containerData;
     if (m_containerStorage.suffixSize() > 0) {
-      loadAndDecryptContainerData(m_containerStorage, m_key, version, containerData);
+      loadAndDecryptContainerData(m_containerStorage, m_key, readVersion, containerData);
     }
-    // For v7 ALWAYS write the sealed suffix (even when empty) so the new KDF-salt header is persisted;
+    // For v7+ ALWAYS write the sealed suffix (even when empty) so the new KDF-salt header is persisted;
     // otherwise a v7 wallet with no prior suffix would have no header and brick on next open. For
     // legacy (<=v6) only re-seal when there was a suffix (no header to carry).
-    if (version >= WalletSerializerV2::AEAD_KDF_VERSION || m_containerStorage.suffixSize() > 0) {
-      encryptAndSaveContainerData(newStorage, newKey, version, &newHeader, containerData.data(), containerData.size());
+    if (writeVersion >= WalletSerializerV2::AEAD_KDF_VERSION || m_containerStorage.suffixSize() > 0) {
+      encryptAndSaveContainerData(newStorage, newKey, writeVersion, &newHeader, containerData.data(), containerData.size());
     } });
 
     // Wipe the old password-derived container key before replacing it, so the superseded key does not
@@ -1777,6 +1893,27 @@ namespace cn
     m_walletFormatVersion = newVersion;
 
     m_logger(INFO, BRIGHT_WHITE) << "Wallet container migrated to Argon2id + AEAD format";
+  }
+
+  void WalletGreen::upgradeToPrefixMacVersionIfNeeded()
+  {
+    // Only a v7 wallet (AEAD suffix but unauthenticated prefix) needs this. Pre-AEAD wallets are
+    // handled by migrateToAeadFormatIfNeeded (which now targets v8 directly); v8+ already authenticate.
+    if (m_walletFormatVersion < WalletSerializerV2::AEAD_KDF_VERSION ||
+        m_walletFormatVersion >= WalletSerializerV2::PREFIX_MAC_VERSION)
+    {
+      return;
+    }
+
+    // No rekey needed: v7 and v8 share the same Argon2id key, KDF header and AEAD suffix cipher. The
+    // ONLY difference is that v8 prepends a keyed MAC over the prefix to the sealed plaintext. We just
+    // bump the in-memory version; the caller's subsequent seal (save/changePassword/export) writes the
+    // tag and stamps the on-disk version byte to 8 via copyContainerStoragePrefix. The on-disk prefix
+    // encoding is unchanged, so this can never brick an existing wallet.
+    m_walletFormatVersion = WalletSerializerV2::PREFIX_MAC_VERSION;
+    m_logger(INFO, BRIGHT_WHITE) << "Upgrading wallet container to v"
+                                 << static_cast<int>(WalletSerializerV2::PREFIX_MAC_VERSION)
+                                 << " (authenticated prefix)";
   }
 
   size_t WalletGreen::getAddressCount() const
