@@ -189,7 +189,12 @@ namespace cn
 		const uint8_t TRANSACTION_VERSION_3 = 3; /* PQ transactions (CIP-0001) */
 	const size_t  PQ_NULLIFIER_SIZE = 32;       /* ccx-pq nullifier length (bytes); bounds m_spent_pq_nullifiers keys */
 	const size_t  PQ_MIN_RING_SIZE = 2;         /* min distinct ring members for a PQ input (anonymity floor) */
-	const size_t  PQ_MAX_RING_SIZE = 16;        /* max ring members for a PQ input (bounds verify-cost CPU-DoS) */
+	const size_t  PQ_MAX_RING_SIZE = 8;         /* max ring members for a PQ input. Bounds verify-cost CPU-DoS
+	                                               AND keeps a PQ input inside the tx-size limit: sig grows
+	                                               linearly (sig_bytes = 6176 + n*6144), so a 1-in/1-out ring-8
+	                                               PQ tx ~62 KB fits CRYPTONOTE_MAX_TX_SIZE_LIMIT (~99.4 KB) with
+	                                               headroom for extra outputs/inputs; ring-16 (~111 KB) would not.
+	                                               Consensus: nodes reject PQ inputs with ring > this. */
 	const size_t  PQ_MULTISIG_MAX_KEYS = 16;    /* max n keys / m sigs in a PQ multisig (deposit) output/input;
 	                                               bounds the attacker-controlled length-prefixed arrays at the
 	                                               serialization boundary (OOM + verify-CPU DoS guard) */
