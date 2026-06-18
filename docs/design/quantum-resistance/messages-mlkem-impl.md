@@ -112,8 +112,12 @@ list), no regressions.
 - **Integrity is now provided** for the 0x06 field via **ChaCha20-Poly1305 AEAD**: tampering ANY byte
   of the sealed ciphertext (including the Poly1305 tag) makes `decrypt`/`open` fail, and no plaintext
   is exposed on failure. This closes the no-MAC limitation that the original chacha8 + 4-zero-byte
-  owner-test had. **The legacy 0x04 path still has that weak owner-test, by design** (left untouched
-  for wire compatibility; corrupting a 0x04 plaintext byte remains undetected there).
+  owner-test had. **The legacy 0x04 path still has that weak owner-test** but is now **decrypt-only**:
+  the classical successor is the authenticated `0x07` field (`tx_extra_authenticated_message`, same
+  Curve25519 ECDH key agreement as 0x04 but ChaCha20-Poly1305 AEAD with a domain-separated seed). The
+  wallet send path (`CryptoNoteFormatUtils.cpp`, `WalletGreen.cpp`) now emits `0x07` for new encrypted
+  messages and only falls back to `0x04` for unencrypted broadcast messages (no recipient ECDH); the
+  receive path decodes both. 0x04 is kept for wire compatibility with historical messages.
 - **Consensus posture:** `tx.extra` is opaque to block validation and carried verbatim, so adding
   `0x06` does not change block acceptance. Emission is gated to testnet (+ env flag). The parser bound
   mitigates R1 mis-framing; for mainnet the `0x06` parser handler should ship to all nodes before any

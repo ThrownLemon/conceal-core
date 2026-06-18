@@ -573,6 +573,12 @@ void TransfersConsumer::processOutputs(const TransactionBlockInfo& blockInfo, Tr
     }
   } else {
     auto messages = get_messages_from_extra(tx.getExtra(), tx.getTransactionPublicKey(), &sub.getKeys().spendSecretKey);
+    // Also scan authenticated classical messages (tx-extra 0x07). 0x07 uses the SAME classical key
+    // material as the legacy 0x04 field (ECDH between the tx secret key and the recipient spend key),
+    // so the recipient's spend secret decrypts it, mirroring the 0x04 call above. New messages are
+    // emitted as 0x07; 0x04 stays decode-only for history. Merge both so wallets see all messages.
+    auto authMessages = get_authenticated_messages_from_extra(tx.getExtra(), tx.getTransactionPublicKey(), &sub.getKeys().spendSecretKey);
+    messages.insert(messages.end(), authMessages.begin(), authMessages.end());
     // PoC (Option B): on testnet, also scan post-quantum messages (tx-extra 0x06) with the hardcoded
     // testnet ML-KEM recipient secret and merge them in. Production scanning uses the account's own
     // ML-KEM secret from a PQ address/wallet (step 4 of messages-mlkem.md) — TODO.

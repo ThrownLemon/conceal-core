@@ -137,10 +137,13 @@ seed→address round-trip; PQ-section save/load preserves keys; absent-section r
    parity test (wallet-built `PqKeyInput` ≡ injector-built) require a live testnet and are deferred.
 4. **Testnet `get_pq_outputs` RPC** (amount → [{global_index, key, kemCt, height}]) — not added.
 5. **CLI `pq_address` / `pq_balance` / `pq_transfer`** in `ConcealWallet` — not added.
-6. **Message send-path 0x04 → authenticated 0x07** migration (secondary item) — not done; the
-   serializer agent's `tx_extra_authenticated_message` (0x07) + `append_authenticated_message_to_extra`
-   exist; wiring `WalletGreen`/`CryptoNoteFormatUtils` to emit 0x07 (0x04 stays read-only) is left as a
-   merge wiring item.
+6. **Message send-path 0x04 → authenticated 0x07** migration (secondary item) — **done**.
+   `WalletGreen`/`CryptoNoteFormatUtils` now emit `tx_extra_authenticated_message` (0x07) via
+   `append_authenticated_message_to_extra` for new encrypted messages; the legacy `0x04` field is
+   decrypt-only (still emitted only for unencrypted broadcast messages that have no recipient ECDH).
+   The receive path (`TransfersConsumer`, `WalletGreen::getMessagesFromExtra`,
+   `PaymentGate/WalletService`) reads both 0x04 and 0x07 and merges. Round-trip + send-path unit tests
+   in `tests/UnitTests/TestAuthenticatedMessage{,SendPath}.cpp`.
 
 ---
 
