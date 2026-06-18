@@ -161,9 +161,88 @@ mainnet add: **raised `MAX_TX_SIZE`, redesigned fusion, MatRiCT-Au, raised `PQ_M
 - **Flaky `System`-dispatcher abort + a `UnitTests` UAF segfault** — **root-caused + fixed**
   (`docs/reviews/flaky-crash-analysis.md`).
 
+## 10. MatRiCT-Au integration path (from the author's reference code)
+
+The MatRiCT-Au reference implementation (Esgin/Steinfeld/Zhao, PKC 2022) is **already on the WSL bench**
+(`~/pqc-bench/repo-matrict`, C, builds with XKCP), and the team's **integration scaffold** exists too
+(`~/ccx-pqc-impl`, branch `pqc/v2-impl`) — whose README already states the plan: real ML-KEM/ML-DSA +
+an **insecure ring-sig stub** so the integration is built first, with "the audited lattice backend (C1)
+dropping in behind the same ABI." Our `pqc/testnet-poc` is the evolution of that scaffold (stub → the
+bespoke lattice stand-in we hardened). **MatRiCT-Au is the intended C1 backend. We wrap it, not recreate
+it.** From reading its actual API, here is the concrete delta.
+
+### 10.1 What MatRiCT-Au actually is (verified from source)
+
+- **A RingCT confidential-transaction prover, not a bare ring signature.** An *account* = `pk + amount
+  commitment`; `spend(ring, signerIdx, ask, amounts, recipientKeys, …) → {proof, serials, out
+  commitments}` consumes input amounts + commitment randomness and emits output commitments + a balance
+  proof + per-amount range proofs; `verify(…) → bool`. Shaped like Monero CLSAG+Bulletproof, not like
+  `generate_ring_signature(prefixHash, ring, sk, idx)`.
+- **The serial `s = H·sk` is the nullifier** — deterministic in the key, one per spent input. `verify`
+  takes it as **input** (doesn't return it); the integrator enforces uniqueness. **This is exactly our
+  model** (`check_pq_tx_input` + `m_spent_pq_nullifiers`) — a clean mapping.
+- **Optional accountability layer** (TdRowGen/Audit partially-decrypts to recover signer + amounts):
+  **strip it for a coin** (pass `t0=t1=t2=NULL`).
+
+### 10.2 Sizes & cost (note the packing gap)
+
+| | team measured | raw reference `sizeof` |
+|---|---:|---:|
+| Spend proof (ring-10, 1-in) | (part of 58 KB avg) | **~274 KB** [agent] |
+| Account / pubkey | — | 18 KB / 9 KB |
+| Serial (nullifier) | — | 512 B / input |
+| Verify | 45 ms [team] | — |
+
+The team's **58 KB avg** [team] is the authoritative decision number (packed wire format + input
+amortization). The reference struct is **~274–370 KB raw** because coefficients are full `uint64`; a real
+wire format packs mod-Q coeffs to ~31 bits (~½) and amortizes across inputs. **Closing the raw→58 KB gap
+is itself integration work** (a packed serializer) and should be re-confirmed against the bench harness.
+
+### 10.3 The four adapter gaps (what the wrapper must bridge)
+
+1. **Amount layer (the product fork).** Our `ccx_pq_*` ABI is signature-shaped (no amounts). MatRiCT-Au
+   is inseparable from amounts — so **taking it ≈ adopting RingCT**: Conceal would gain *confidential
+   amounts* (it has plaintext amounts today). That is a real value-model upgrade (commitments + balance
+   proof in consensus), not a backend swap. Using only a "ring core" fights the design and forfeits the
+   benefit. **Recommendation: treat MatRiCT-Au adoption as the RingCT migration it is.**
+2. **Message binding.** There is no `msgHash` parameter — the tx body is what its Fiat-Shamir `hash()`
+   covers. Binding a Conceal tx-prefix hash means **extending the FS hash input** in `spend.c`/`hash()`.
+3. **Compile-time ring size.** `N_SPENT`/`BETA` (10/50/100) + `M_SPENT` are `#define`s with `static`
+   fixed arrays; `spend`/`verify` take no runtime ring length. → either **compile per-(ring,inputs)
+   variant + dispatch**, or **parameterize the macros into runtime args** (a substantial rewrite — every
+   `static` buffer becomes heap/instance state).
+4. **Serial/nullifier lift.** `s` is a `spend` output the daemon must extract + uniqueness-check — which
+   we already do; smallest gap.
+
+### 10.4 Library-ization (the reference is a benchmark, not a library)
+
+Before it can live in the daemon: **(a)** make the CRS (`g`/`h`/`g_hat`) instance state, not file-scope
+statics; **(b)** thread-safety — it has a global AES-CTR PRG (`static __m128i round_key_*`) + `static`
+scratch arrays in `spend`/`verify` → not reentrant; serialize entry points or remove the statics (huge
+stack frames otherwise); **(c)** **ARM portability** — it uses x86 AES-NI intrinsics + `-march=native`
+(matters for mobile/wider nodes; needs an AES/SIMD shim); **(d)** a packed wire serializer (§10.2).
+
+### 10.5 What the PoC already de-risked (the reuse)
+
+tx v3 + variable-length TLV serialization; the **nullifier/serial double-spend set**
+(`m_spent_pq_nullifiers` ↔ MatRiCT's serial); the swappable C-ABI island; ML-KEM stealth (orthogonal);
+PQ deposits/messages; the constant-time discipline; wallet send/receive. The integration plumbing the
+scaffold reserved for "C1" is built and tested — MatRiCT-Au plugs into it.
+
+### 10.6 Work list & effort (honest)
+
+Multi-month, not a swap: **(1)** library-ize MatRiCT-Au (§10.4); **(2)** a RingCT-shaped C-ABI + a C++
+wrapper owning CRS lifetime, threading, ring-size dispatch, serialization, nullifier tracking; **(3)**
+the **RingCT consensus value model** (commitments + balance proof; amounts → commitments) — the largest
+new surface; **(4)** caps: **raise** `PQ_MAX_RING_SIZE` (we lowered it to 8 for the linear stand-in),
+raise `MAX_TX_SIZE`, redesign `FUSION_TX`; **(5)** the **audit** (the C1 gate). The bespoke stand-in stays
+the testnet backend until this lands behind the same slot.
+
 ## References
 
 - Conceal wiki — chain specs/features/fees: <https://conceal.network/wiki/doku.php?id=about>
+- MatRiCT-Au reference (author code): `~/pqc-bench/repo-matrict` — Esgin/Steinfeld/Zhao, PKC 2022
+- Team integration scaffold: `~/ccx-pqc-impl` (branch `pqc/v2-impl`)
 - Raw PoC measurements: [`measured-numbers.md`](measured-numbers.md)
 - Architecture / how-to-run: [`STATUS.md`](STATUS.md)
 - Ring-sig hardening + constant-time: [`ringsig-hardening.md`](ringsig-hardening.md)
