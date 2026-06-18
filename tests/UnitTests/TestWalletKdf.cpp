@@ -36,14 +36,23 @@ using namespace cn;
 
 namespace
 {
-  // Cheap Argon2 cost so the test suite stays fast; production wallets use WALLET_KDF_DEFAULT_*.
+  // Helper to set the LE cost fields (the struct stores them as little-endian byte arrays).
+  void putCost(WalletKdfHeader &h, uint32_t memKib, uint32_t iters, uint32_t par)
+  {
+    auto le = [](uint8_t out[4], uint32_t v) {
+      out[0] = (uint8_t)(v & 0xff); out[1] = (uint8_t)((v >> 8) & 0xff);
+      out[2] = (uint8_t)((v >> 16) & 0xff); out[3] = (uint8_t)((v >> 24) & 0xff);
+    };
+    le(h.memKibLe, memKib); le(h.iterationsLe, iters); le(h.parallelismLe, par);
+  }
+
+  // Cheap-but-valid Argon2 cost so the test suite stays fast; production wallets use the larger
+  // WALLET_KDF_DEFAULT_*. 8 MiB / 1 / 1 is exactly the enforced floor (still a valid header).
   WalletKdfHeader cheapHeader(uint8_t saltByte)
   {
     WalletKdfHeader h = WalletKdf::makeHeader();
     std::memset(h.salt, saltByte, sizeof(h.salt));
-    h.memKib = 8 * 1024; // 8 MiB
-    h.iterations = 1;
-    h.parallelism = 1;
+    putCost(h, WALLET_KDF_MIN_MEM_KIB, 1, 1);
     return h;
   }
 }
@@ -82,9 +91,9 @@ TEST(WalletKdf, makeHeaderIsValidAndUsesDefaults)
   WalletKdfHeader h = WalletKdf::makeHeader();
   ASSERT_TRUE(WalletKdf::isValidHeader(h));
   ASSERT_EQ(WALLET_KDF_VERSION_ARGON2ID, h.kdfVersion);
-  ASSERT_EQ(WALLET_KDF_DEFAULT_MEM_KIB, h.memKib);
-  ASSERT_EQ(WALLET_KDF_DEFAULT_ITERATIONS, h.iterations);
-  ASSERT_EQ(WALLET_KDF_DEFAULT_PARALLELISM, h.parallelism);
+  ASSERT_EQ(WALLET_KDF_DEFAULT_MEM_KIB, WalletKdf::memKib(h));
+  ASSERT_EQ(WALLET_KDF_DEFAULT_ITERATIONS, WalletKdf::iterations(h));
+  ASSERT_EQ(WALLET_KDF_DEFAULT_PARALLELISM, WalletKdf::parallelism(h));
 }
 
 TEST(WalletKdf, makeHeaderSaltIsRandomPerCall)
@@ -107,6 +116,71 @@ TEST(WalletKdf, deriveKeyRejectsInvalidHeader)
   WalletKdfHeader h;
   std::memset(&h, 0, sizeof(h)); // no magic
   ASSERT_THROW(WalletKdf::deriveKey("pw", h), std::runtime_error);
+}
+
+// W5: out-of-range cost params (from a hostile/corrupt on-disk header) must be rejected.
+TEST(WalletKdf, outOfRangeCostParamsRejected)
+{
+  // Too-low memory (near-free KDF).
+  {
+    WalletKdfHeader h = WalletKdf::makeHeader();
+    putCost(h, WALLET_KDF_MIN_MEM_KIB - 1, 1, 1);
+    ASSERT_FALSE(WalletKdf::isValidHeader(h));
+    ASSERT_THROW(WalletKdf::deriveKey("pw", h), std::runtime_error);
+  }
+  // Absurd memory (DoS-on-open).
+  {
+    WalletKdfHeader h = WalletKdf::makeHeader();
+    putCost(h, 4u * 1024u * 1024u /* 4 GiB */, 3, 1);
+    ASSERT_FALSE(WalletKdf::isValidHeader(h));
+  }
+  // Absurd iterations (DoS-on-open).
+  {
+    WalletKdfHeader h = WalletKdf::makeHeader();
+    putCost(h, WALLET_KDF_DEFAULT_MEM_KIB, 0x7fffffffu, 1);
+    ASSERT_FALSE(WalletKdf::isValidHeader(h));
+  }
+  // Zero iterations / zero parallelism.
+  {
+    WalletKdfHeader h = WalletKdf::makeHeader();
+    putCost(h, WALLET_KDF_DEFAULT_MEM_KIB, 0, 1);
+    ASSERT_FALSE(WalletKdf::isValidHeader(h));
+  }
+  // The defaults are in-range and accepted.
+  {
+    WalletKdfHeader h = WalletKdf::makeHeader();
+    ASSERT_TRUE(WalletKdf::isValidHeader(h));
+  }
+}
+
+// W8: cost fields are stored little-endian on disk (endianness-independent format).
+TEST(WalletKdf, costFieldsAreLittleEndian)
+{
+  WalletKdfHeader h = WalletKdf::makeHeader();
+  putCost(h, 0x01020304u, 0x00000003u, 0x00000001u);
+  // memKib bytes must be LE: 04 03 02 01
+  ASSERT_EQ(0x04, h.memKibLe[0]);
+  ASSERT_EQ(0x03, h.memKibLe[1]);
+  ASSERT_EQ(0x02, h.memKibLe[2]);
+  ASSERT_EQ(0x01, h.memKibLe[3]);
+  // Accessor reconstructs the host integer.
+  ASSERT_EQ(0x01020304u, WalletKdf::memKib(h));
+  ASSERT_EQ(3u, WalletKdf::iterations(h));
+  ASSERT_EQ(1u, WalletKdf::parallelism(h));
+}
+
+// W1: the salt comes from a CSPRNG, not a 32-bit-seeded mt19937. Two fresh headers must differ in
+// salt (this passes for any non-broken RNG, but together with the CSPRNG wiring documents intent).
+TEST(WalletKdf, freshHeadersHaveIndependentSalts)
+{
+  // Draw several; all must be distinct (mt19937 with a 32-bit seed could repeat across processes,
+  // but within one process the generator state advances; the real fix is the OsRng wiring).
+  WalletKdfHeader a = WalletKdf::makeHeader();
+  WalletKdfHeader b = WalletKdf::makeHeader();
+  WalletKdfHeader c = WalletKdf::makeHeader();
+  ASSERT_NE(0, std::memcmp(a.salt, b.salt, sizeof(a.salt)));
+  ASSERT_NE(0, std::memcmp(b.salt, c.salt, sizeof(b.salt)));
+  ASSERT_NE(0, std::memcmp(a.salt, c.salt, sizeof(a.salt)));
 }
 
 // ---- XChaCha20-Poly1305 AEAD --------------------------------------------------------------------

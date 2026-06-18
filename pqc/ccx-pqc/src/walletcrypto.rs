@@ -16,6 +16,7 @@
 use argon2::{Algorithm, Argon2, Params, Version};
 use chacha20poly1305::aead::{Aead, KeyInit};
 use chacha20poly1305::{Key, XChaCha20Poly1305, XNonce};
+use rand_core::{OsRng, RngCore};
 
 /// XChaCha20-Poly1305 key length.
 pub const KEY_BYTES: usize = 32;
@@ -23,6 +24,17 @@ pub const KEY_BYTES: usize = 32;
 pub const NONCE_BYTES: usize = 24;
 /// Poly1305 authentication tag length appended by seal().
 pub const TAG_BYTES: usize = 16;
+
+/// Fill `out` with cryptographically-secure random bytes from the OS CSPRNG.
+///
+/// The wallet's Argon2id salt and the XChaCha20-Poly1305 nonce MUST come from a real CSPRNG: the C++
+/// `Randomize` helper is `std::mt19937` seeded from a single 32-bit `random_device()` draw (only 32
+/// bits of entropy), so two wallets can collide on the same salt+nonce — and with the same password
+/// that is XChaCha20 nonce reuse, a catastrophic confidentiality/forgery break. `OsRng` reads the
+/// platform CSPRNG (getrandom/getentropy) and never blocks after early boot.
+pub fn fill_random(out: &mut [u8]) {
+    OsRng.fill_bytes(out);
+}
 
 /// Derive a 32-byte key from `password` + `salt` using Argon2id with the supplied cost parameters.
 ///

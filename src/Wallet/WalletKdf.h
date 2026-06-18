@@ -32,16 +32,19 @@ namespace cn
   // future KDF changes; salt + cost params are everything needed to reproduce the key from the
   // password. 16-byte salt is the RFC 9106 recommendation; the cost params are tunable so the bar
   // can be raised as hardware improves without changing the format.
+  // The three Argon2 cost fields are stored as explicit LITTLE-ENDIAN 4-byte arrays (not native
+  // uint32) so the wallet file is byte-identical across platforms (the header is written/read by raw
+  // copy). Use cost*Value()/setCost*() to access them as host integers.
 #pragma pack(push, 1)
   struct WalletKdfHeader
   {
-    uint8_t magic[4];     // 'C','K','D','F'
-    uint8_t kdfVersion;   // = 1 (Argon2id)
-    uint8_t reserved[3];  // padding / future flags (must be zero)
-    uint8_t salt[16];     // random per-wallet Argon2 salt
-    uint32_t memKib;      // Argon2 memory cost (KiB)
-    uint32_t iterations;  // Argon2 time cost (passes)
-    uint32_t parallelism; // Argon2 lanes
+    uint8_t magic[4];        // 'C','K','D','F'
+    uint8_t kdfVersion;      // = 1 (Argon2id)
+    uint8_t reserved[3];     // padding / future flags (must be zero)
+    uint8_t salt[16];        // random per-wallet Argon2 salt (CSPRNG)
+    uint8_t memKibLe[4];     // Argon2 memory cost (KiB), little-endian
+    uint8_t iterationsLe[4]; // Argon2 time cost (passes), little-endian
+    uint8_t parallelismLe[4];// Argon2 lanes, little-endian
   };
 #pragma pack(pop)
 
@@ -54,14 +57,31 @@ namespace cn
   static const uint32_t WALLET_KDF_DEFAULT_ITERATIONS = 3u;
   static const uint32_t WALLET_KDF_DEFAULT_PARALLELISM = 1u;
 
+  // Cost-parameter bounds enforced on EVERY header (including ones read from disk) so an
+  // attacker-supplied header cannot DoS-on-open (memKib=4 GiB / iterations=2^31) nor near-disable the
+  // KDF (memKib=8 / iterations=1). Argon2 also requires memKib >= 8*parallelism.
+  static const uint32_t WALLET_KDF_MIN_MEM_KIB = 8u * 1024u;       // 8 MiB floor
+  static const uint32_t WALLET_KDF_MAX_MEM_KIB = 1024u * 1024u;    // 1 GiB ceiling
+  static const uint32_t WALLET_KDF_MIN_ITERATIONS = 1u;
+  static const uint32_t WALLET_KDF_MAX_ITERATIONS = 32u;
+  static const uint32_t WALLET_KDF_MIN_PARALLELISM = 1u;
+  static const uint32_t WALLET_KDF_MAX_PARALLELISM = 16u;
+
   class WalletKdf
   {
   public:
-    // True iff `header` carries the Argon2id magic + a supported kdfVersion. Used to tell a v7
-    // (Argon2id) container apart from a zero-initialised / legacy prefix.
+    // Little-endian accessors for the cost fields (the on-disk encoding is canonical LE).
+    static uint32_t memKib(const WalletKdfHeader &header);
+    static uint32_t iterations(const WalletKdfHeader &header);
+    static uint32_t parallelism(const WalletKdfHeader &header);
+
+    // True iff `header` carries the Argon2id magic + a supported kdfVersion AND its cost parameters
+    // are within the enforced [min,max] bounds (so a corrupt/hostile on-disk header is rejected
+    // before it can DoS or weaken the KDF). Used to tell a v7 (Argon2id) container apart from a
+    // zero-initialised / legacy prefix and to validate cost params read from disk.
     static bool isValidHeader(const WalletKdfHeader &header);
 
-    // Fill `header` with the magic, version, default cost params and a fresh random salt.
+    // Fill `header` with the magic, version, default cost params and a fresh CSPRNG salt.
     static WalletKdfHeader makeHeader();
 
     // Derive the 32-byte container key from (password, header). Throws std::runtime_error on any

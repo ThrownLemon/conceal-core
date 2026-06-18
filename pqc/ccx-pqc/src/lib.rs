@@ -786,6 +786,20 @@ pub extern "C" fn ccx_pq_multisig_keygen_det(seed: *const u8, seed_len: usize,
 // consensus, so this is a pure local-storage upgrade with no fork implication. The pure logic lives
 // in walletcrypto.rs; these are the panic-guarded C ABI shims the C++ wallet links against.
 
+/// Fill `out` (len `out_len`) with CSPRNG bytes from the OS entropy source. The wallet uses this for
+/// the Argon2id salt and the XChaCha20 nonce — both MUST be CSPRNG-grade (the C++ mt19937 helper has
+/// only 32 bits of seed entropy, risking salt+nonce collisions across wallets). Returns 0 on success.
+#[no_mangle]
+pub extern "C" fn ccx_wallet_random_bytes(out: *mut u8, out_len: usize) -> i32 {
+    ffi_guard(-99, || {
+        if out.is_null() && out_len != 0 { return -1; }
+        if out_len == 0 { return 0; }
+        let buf = unsafe { std::slice::from_raw_parts_mut(out, out_len) };
+        walletcrypto::fill_random(buf);
+        0
+    })
+}
+
 /// XChaCha20-Poly1305 key size (32). Pinned for the C++ side to size buffers.
 #[no_mangle] pub extern "C" fn ccx_wallet_key_bytes() -> usize { walletcrypto::KEY_BYTES }
 /// XChaCha20-Poly1305 nonce size (24).

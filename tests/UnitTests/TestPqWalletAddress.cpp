@@ -210,6 +210,30 @@ TEST(PqAddress, pqOnlyWithStrayLegacyKeysRejected)
   ASSERT_FALSE(parsePqAccountAddressString(prefix, b, str));
 }
 
+// W7: the ring-sig scheme id is pinned and validated (not only the KEM scheme id).
+TEST(PqAddress, wrongRingSchemeIdRejected)
+{
+  PqAccountPublicAddress a = makeValidPqAddress(0xBB);
+  a.ringSchemeId = 0xCAFEBABE; // not PQ_RING_SCHEME_ID
+  std::string str = getPqAccountAddressAsStr(CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, a);
+
+  uint64_t prefix = 0;
+  PqAccountPublicAddress b;
+  ASSERT_FALSE(parsePqAccountAddressString(prefix, b, str));
+}
+
+// W4: an oversize string is rejected BEFORE the base58 decoder allocates/hashes.
+TEST(PqAddress, oversizeStringRejectedPreDecode)
+{
+  std::string huge(100000, 'X'); // far beyond any valid PQ address (~1.75k chars)
+  uint64_t prefix = 0;
+  PqAccountPublicAddress b;
+  ASSERT_FALSE(parsePqAccountAddressString(prefix, b, huge));
+
+  // An empty string is also rejected.
+  ASSERT_FALSE(parsePqAccountAddressString(prefix, b, std::string()));
+}
+
 // ---- Deterministic keygen (mnemonic recovery) ---------------------------------------------------
 
 TEST(PqAccountKeygen, sameSeedReproducesSameKeys)

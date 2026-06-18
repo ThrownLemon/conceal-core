@@ -79,6 +79,8 @@ int32_t ccx_pq_multisig_verify(const uint8_t *msg, size_t msg_len,
 size_t ccx_wallet_key_bytes(void);        /* 32 */
 size_t ccx_wallet_nonce_bytes(void);      /* 24 (XChaCha20 extended nonce) */
 size_t ccx_wallet_aead_tag_bytes(void);   /* 16 (Poly1305 tag) — sealed len = pt_len + this */
+/* CSPRNG (OS entropy) for the wallet salt + nonce — never use mt19937 for key/salt/nonce material. */
+int32_t ccx_wallet_random_bytes(uint8_t *out, size_t out_len);
 int32_t ccx_wallet_kdf_argon2id(const uint8_t *password, size_t password_len,
                                 const uint8_t *salt, size_t salt_len,
                                 uint32_t mem_kib, uint32_t iterations, uint32_t parallelism,

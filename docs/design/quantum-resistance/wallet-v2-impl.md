@@ -169,3 +169,51 @@ Built on the WSL x86_64 host (`~/conceal-core-wallet`): `cargo test` (walletcryp
 `ccx_pqc` + `CryptoNoteCore` + `Wallet` + `UnitTests`. Unit tests: `TestWalletKdf` 17/17,
 `TestPqWalletAddress` (PqAddress 9 + PqAccountKeygen 4 + PqWalletSection 2). See the final report for
 full `ctest` output and the determinism proof.
+
+---
+
+## Security-review fixes (W1–W11, four-reviewer convergence)
+
+Four independent reviews (Codex, Gemini, GLM, CodeRabbit) ran against this branch. Resolution:
+
+| # | Issue | Status |
+|---|-------|--------|
+| **W1** | Salt+nonce came from `Randomize::randomBytes` = `std::mt19937` seeded by 32 bits → cross-wallet salt+nonce collision = XChaCha20 nonce reuse. | **FIXED.** New `ccx_wallet_random_bytes` FFI (rand_core `OsRng`); `WalletKdf::makeHeader`/`randomNonce` use it. mt19937 no longer touches any key/salt/nonce. |
+| **W2** | v7 load auth failure (wrong password / corruption) was caught → caches cleared → next save overwrote the authenticated ciphertext, destroying keys. Same for `loadPqSection`. | **FIXED.** For version ≥ 7, load failures rethrow (abort load); the PQ-section read no longer swallows (the `endOfStream()` guard still skips the legitimate "no PQ section" case). |
+| **W3** | v7 `save()` did `resizeSuffix`+copy into the live mmap with no atomic rename → crash = unrecoverable tag mismatch. | **FIXED.** The plain `save()` v7 path now runs inside `ContainerStorage::atomicUpdate` (temp file → `msync`+`fsync` on flush → rename), republishing prefix+keys+new-suffix as one unit. (`changePassword`/`migrate` already wrote inside `atomicUpdate`.) |
+| **W4** | `parsePqAccountAddressString` fed unbounded input to the base58 decoder before any size check. | **FIXED.** Reject `str.empty()` or `str.size() > 2048` before `decode_addr`. |
+| **W5** | `readKdfHeader` accepted attacker-supplied `memKib`/`iterations`/`parallelism` unchecked (DoS-on-open or near-free KDF). | **FIXED.** `WalletKdf::isValidHeader` now enforces `[min,max]` on all three (8 MiB–1 GiB, 1–32 iters, 1–16 lanes, `memKib ≥ 8·parallelism`); validated on every parse+derive. |
+| **W6** | `changePassword` gated the re-seal on `suffixSize()>0`; a v7 wallet with no suffix would never persist the new KDF salt → brick. | **FIXED.** For version ≥ 7, `changePassword` always writes a sealed suffix (even empty). `migrateToAeadFormatIfNeeded` already did. |
+| **W7** | Only `kemSchemeId` was validated; `ringSchemeId` was not (despite the comment). | **FIXED.** Added `PQ_RING_SCHEME_ID = 0xC0DE0003` and validate `adr.ringSchemeId` in parse. |
+| **W8** | `WalletKdfHeader` cost fields were native-endian uint32 → platform-endian wallet file. | **FIXED.** Cost fields are now explicit little-endian `uint8_t[4]` with `putLe32`/`getLe32`; on-disk format is endian-independent. |
+| **W9** | Old password-derived key not wiped after `changePassword`. | **FIXED.** `secureZero` (volatile store) wipes `m_key` before reassignment. (Best-effort; not mlock-hardened.) |
+| **W10** | CR claimed `pq_ring_sig.h` declares `ccx_pq_wallet_crypto_selftest` but Rust exports `ccx_wallet_crypto_selftest`. | **NO-OP (false positive).** Verified: header and Rust both use `ccx_wallet_crypto_selftest`; the names already match. |
+| **W11** | The wallet PREFIX (view keys + per-wallet spend records) is still **unauthenticated chacha8** even in v7 — only the suffix container is AEAD. | **DOCUMENTED (deferred, by reviewer's instruction).** See below. |
+
+### W3 residual note (atomicity)
+
+The v7 `save()`, `changePassword`, and `migrateToAeadFormatIfNeeded` paths now all write through
+`atomicUpdate` (durable temp-file + rename), so an interrupted write leaves the previous good file
+intact. The legacy (≤v6) `save()` path is unchanged (it was never AEAD, so a torn write was already
+recoverable by re-sync). No known brick-on-crash remains for v7.
+
+### W11 — known v7 limitation: the container PREFIX is not authenticated
+
+In v7 the **suffix** (the serialized cache + PQ section) is XChaCha20-Poly1305 AEAD, but the
+**prefix** — `ContainerStoragePrefix` = `{version, nextIv, encryptedViewKeys}` plus the per-wallet
+`EncryptedWalletRecord` spend keys — is still **8-round chacha8 keyed by the Argon2id key, with no
+MAC**. Consequence: an attacker with write access to the wallet file can **tamper or roll back the
+prefix** (e.g. swap in old/forged encrypted view/spend key records) and it will **not be detected**
+by an authentication tag; detection relies only on the downstream `throwIfKeysMissmatch`
+(pub/priv consistency) check, which catches random corruption but not a structurally-valid
+substitution. The salt/cost header lives in the AEAD suffix and IS authenticated, but the prefix key
+material is not.
+
+**Why deferred:** authenticating the prefix means either (a) moving the view/spend key records out of
+the fixed-size `EncryptedWalletRecord` mmap prefix into the AEAD suffix (a larger container-format
+change + migration), or (b) adding a separate prefix MAC field — both change the on-disk layout that
+the `FileMappedVector` open path depends on. Recommended follow-up: in a v8 format, AEAD-wrap the
+entire container (prefix + suffix) under the Argon2id key with a single tag, or store an HMAC of the
+prefix in the authenticated suffix and verify it on open before trusting any prefix key. Until then,
+treat the wallet file as confidential-and-integrity-protected **for the cache** but only
+confidential **for the prefix keys** (rollback/tamper of the prefix is undetectable).

@@ -92,6 +92,14 @@ namespace cn {
   }
   //-----------------------------------------------------------------------
   bool parsePqAccountAddressString(uint64_t& prefix, PqAccountPublicAddress& adr, const std::string& str) {
+    // Cap the encoded length BEFORE decoding: decode_addr heap-allocates proportional to the input
+    // and runs the full cn_fast_hash checksum, so an attacker could feed a huge string. A valid PQ
+    // address payload is ~1.26 KB (version+flags+schemeIds + 1184-byte KEM PK + 64-byte legacy keys +
+    // checksum + varint tag) → ~1.75k Base58 chars; reject anything well beyond that up front.
+    const size_t MAX_PQ_ADDRESS_STR_LEN = 2048;
+    if (str.empty() || str.size() > MAX_PQ_ADDRESS_STR_LEN) {
+      return false;
+    }
     std::string data;
     if (!tools::base_58::decode_addr(str, prefix, data)) {
       return false; // bad checksum / not Base58 / wrong block sizing
@@ -107,6 +115,9 @@ namespace cn {
     }
     if (adr.kemSchemeId != PQ_KEM_SCHEME_ID) {
       return false; // unsupported KEM scheme (crypto-agility)
+    }
+    if (adr.ringSchemeId != PQ_RING_SCHEME_ID) {
+      return false; // unsupported ring-sig scheme (crypto-agility) — both schemeIds are pinned
     }
     if (adr.kemPublicKey.size() != PQ_KEM_PUBLIC_KEY_SIZE) {
       return false; // wrong ML-KEM-768 public-key length

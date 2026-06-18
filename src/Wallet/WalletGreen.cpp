@@ -55,6 +55,17 @@ using namespace logging;
 namespace
 {
 
+  // Best-effort secure wipe of sensitive bytes (a superseded key) that the compiler cannot optimise
+  // away (volatile store). Not a hardened zeroization (no mlock), but it removes the obvious linger.
+  void secureZero(void *p, size_t n)
+  {
+    volatile unsigned char *vp = reinterpret_cast<volatile unsigned char *>(p);
+    while (n--)
+    {
+      *vp++ = 0;
+    }
+  }
+
   std::vector<uint64_t> split(uint64_t amount, uint64_t dustThreshold)
   {
     std::vector<uint64_t> amounts;
@@ -880,9 +891,29 @@ namespace cn
       // to the Argon2id + AEAD format here, transparently, before the cache is written. After this the
       // file is v7 and stays v7. No data loss, no user friction (strategy: load-only legacy support).
       migrateToAeadFormatIfNeeded();
-      saveWalletCache(m_containerStorage, m_key, m_walletFormatVersion,
-                      m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION ? &m_kdfHeader : nullptr,
-                      saveLevel, extra);
+
+      if (m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION)
+      {
+        // W3: route the v7 save through atomicUpdate (temp file + fsync-on-flush + rename), so an
+        // interrupted save can never leave a half-written AEAD suffix (an unrecoverable tag mismatch).
+        // The whole container — prefix, keys, and the new sealed suffix — is republished as one unit;
+        // the prefix/keys are re-encrypted with the SAME key (identity re-key), then saveWalletCache
+        // writes the suffix into the TEMP container before the rename. changePassword/migrate already
+        // run their writes inside atomicUpdate; this brings the plain save() path to parity.
+        const crypto::chacha8_key key = m_key;
+        const WalletKdfHeader header = m_kdfHeader;
+        const uint8_t version = m_walletFormatVersion;
+        m_containerStorage.atomicUpdate([this, key, header, version, saveLevel, &extra](ContainerStorage &newStorage) {
+          copyContainerStoragePrefix(m_containerStorage, key, newStorage, key);
+          reinterpret_cast<ContainerStoragePrefix *>(newStorage.prefix())->version = version;
+          copyContainerStorageKeys(m_containerStorage, key, newStorage, key);
+          saveWalletCache(newStorage, key, version, &header, saveLevel, extra);
+        });
+      }
+      else
+      {
+        saveWalletCache(m_containerStorage, m_key, m_walletFormatVersion, nullptr, saveLevel, extra);
+      }
     }
     catch (const std::exception &e)
     {
@@ -1176,20 +1207,14 @@ namespace cn
     addedKeys = std::move(s.addedKeys());
     deletedKeys = std::move(s.deletedKeys());
 
-    // The PQ section follows the V2 stream (v7+ only). A v7 container written before PQ support has
-    // no trailing bytes, so only attempt the read when bytes remain; a failure resets PQ state rather
-    // than failing the whole load (the legacy/EC wallet keeps working).
+    // The PQ section follows the V2 stream (v7+ only). A v7 container written BEFORE PQ support has no
+    // trailing bytes, so the endOfStream() guard skips the read entirely for those. If trailing bytes
+    // ARE present they were AEAD-authenticated, so a parse failure is genuine corruption — we MUST NOT
+    // swallow it: swallowing would set m_pqEnabled=false and the next save() would write pqPresent=0,
+    // silently DELETING the PQ KEM keys. Let the exception propagate to abort the load.
     if (m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION && containerStream.endOfStream() == false)
     {
-      try
-      {
-        loadPqSection(containerStream);
-      }
-      catch (const std::exception &e)
-      {
-        m_logger(WARNING, BRIGHT_YELLOW) << "Failed to load PQ wallet section: " << e.what() << " (ignoring)";
-        m_pqEnabled = false;
-      }
+      loadPqSection(containerStream);
     }
 
     m_logger(INFO) << "Container cache loaded";
@@ -1368,8 +1393,14 @@ namespace cn
       suffixSerializer(nonce, "aeadNonce");
       suffixSerializer(sealed, "aeadContainer");
 
+      // resizeSuffix() republishes the prefix + keys atomically (temp-file + rename); the subsequent
+      // copy fills the new suffix region. See the W3 note in encryptAndSaveContainerData's caller and
+      // wallet-v2-impl.md for the residual tiny non-atomic window on the final suffix copy.
       storage.resizeSuffix(suffix.size());
-      std::copy(suffix.begin(), suffix.end(), storage.suffix());
+      if (!suffix.empty())
+      {
+        std::copy(suffix.begin(), suffix.end(), storage.suffix());
+      }
       return;
     }
 
@@ -1485,6 +1516,19 @@ namespace cn
         }
         catch (const std::exception &e)
         {
+          // For a v7 (AEAD) container, a load failure is an AUTHENTICATED failure — a wrong password
+          // or genuine corruption (Poly1305 verify failed), NOT a recoverable cache miss. Resetting
+          // here and continuing would let a later save() overwrite the authenticated ciphertext with
+          // empty/reset state, DESTROYING key material. So abort the load and surface the real error.
+          if (m_walletFormatVersion >= WalletSerializerV2::AEAD_KDF_VERSION)
+          {
+            m_logger(ERROR, BRIGHT_RED) << "Failed to load v7 cache (authenticated): " << e.what();
+            m_walletsContainer.clear();
+            m_containerStorage.close();
+            throw;
+          }
+          // Legacy (<=v6) chacha8 has no integrity, so a parse failure can be benign corruption — keep
+          // the historical reset-and-continue recovery there only.
           m_logger(ERROR, BRIGHT_RED) << "Failed to load cache: " << e.what() << ", reset wallet data";
           clearCaches(true, true);
           subscribeWallets();
@@ -1674,11 +1718,20 @@ namespace cn
     copyContainerStoragePrefix(m_containerStorage, m_key, newStorage, newKey);
     copyContainerStorageKeys(m_containerStorage, m_key, newStorage, newKey);
 
+    BinaryArray containerData;
     if (m_containerStorage.suffixSize() > 0) {
-      BinaryArray containerData;
       loadAndDecryptContainerData(m_containerStorage, m_key, version, containerData);
+    }
+    // For v7 ALWAYS write the sealed suffix (even when empty) so the new KDF-salt header is persisted;
+    // otherwise a v7 wallet with no prior suffix would have no header and brick on next open. For
+    // legacy (<=v6) only re-seal when there was a suffix (no header to carry).
+    if (version >= WalletSerializerV2::AEAD_KDF_VERSION || m_containerStorage.suffixSize() > 0) {
       encryptAndSaveContainerData(newStorage, newKey, version, &newHeader, containerData.data(), containerData.size());
     } });
+
+    // Wipe the old password-derived container key before replacing it, so the superseded key does not
+    // linger in process memory after a password change.
+    secureZero(m_key.data, sizeof(m_key.data));
 
     m_key = newKey;
     m_kdfHeader = newHeader;
