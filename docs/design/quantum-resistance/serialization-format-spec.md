@@ -71,7 +71,7 @@ varint — see §5.
 | `0x04` | legacy message | length-prefixed string `data` (chacha8 ciphertext, see §6) |
 | `0x05` | TTL | `varint(size)` + `varint(ttl)` |
 | `0x06` | **PQ message** | `{serializeAsBinary kemCt, string data}` — see §4.3 |
-| `0x07` | *(reserved)* | `tx_extra_authenticated_message` — classical-ECDH + ChaCha20-Poly1305 AEAD (see TASK 2 notes / §7). **Not yet wired in this branch.** |
+| `0x07` | **authenticated message** | `tx_extra_authenticated_message` — classical Curve25519 ECDH + ChaCha20-Poly1305 AEAD; body is a single length-prefixed `string data` (the sealed blob). See §4.6 / §6. |
 
 The extra parser (`parseTransactionExtra`) has **no `default` case**: an unknown tag stops further
 field recognition, and a field that over-reads its declared length consumes bytes belonging to the
@@ -164,6 +164,17 @@ varint term                                       // uint32
 > above). The golden vectors in the test encode the bare `TransactionOutputTarget` variant (tag +
 > body), i.e. without the leading `amount`, which is the unit under test for the variant serializers.
 
+### 4.6 tx-extra `0x07` authenticated message body (`tx_extra_authenticated_message`)
+After the `0x07` tag:
+```
+varint len, len raw bytes    // data (string) — ChaCha20-Poly1305 sealed blob = plaintext || 16-byte Poly1305 tag
+```
+No KEM ciphertext is carried (unlike `0x06`): the recipient re-derives the 32-byte AEAD seed from the
+tx public key + their spend secret via classical Curve25519 ECDH (`generate_key_derivation`, then
+`cn_fast_hash(derivation || 0x80 || 0x00)`), exactly like the legacy `0x04` field. The seed + the
+per-message index then key `ccx_pq_msg_seal/open`. Parse-time bound (same guard rationale as `0x06`):
+`TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE (16) <= data.size() <= TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE (8192)`.
+
 ### 4.5 tx-extra `0x06` PQ message body (`tx_extra_pq_message`)
 After the `0x06` tag:
 ```
@@ -222,9 +233,10 @@ varint count, count × 32 raw bytes   // transactionHashes (array of POD Hash)
 `tx_extra_message` (`0x04`) symmetric layer: `chacha8(msg || 4 zero bytes)`, key =
 `cn_fast_hash(Curve25519-ECDH-derivation || 0x80 || 0x00)`, nonce = `SWAP64LE(index)`. The 4 trailing
 zero bytes are a **probabilistic owner check (~1-in-2³²), NOT a MAC** — the stream cipher is malleable
-and tampering is generally undetected. This field should be treated as frozen legacy (decrypt-only).
-The `0x06` PQ message and the proposed `0x07` authenticated message both replace this with real
-ChaCha20-Poly1305 AEAD integrity.
+and tampering is generally undetected. This field is now treated as frozen legacy (decrypt-only).
+The `0x06` PQ message and the `0x07` authenticated classical message (§4.6) both replace this with
+real ChaCha20-Poly1305 AEAD integrity; `0x07` keeps the same classical ECDH key agreement as `0x04`,
+so it is the drop-in classical successor (new authenticated messages should use `0x07`, not `0x04`).
 
 ---
 
