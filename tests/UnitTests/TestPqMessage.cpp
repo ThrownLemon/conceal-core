@@ -3,10 +3,12 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 //
 // Unit tests for the post-quantum encrypted on-chain message field (tx-extra tag 0x06,
-// tx_extra_pq_message). Covers: the Rust ML-KEM message-KEM selftest, encrypt/decrypt round-trips
-// across message sizes and indices, wrong-recipient rejection, mixed-extra parsing and
-// get_pq_messages_from_extra filtering, tamper detection, oversize-length rejection by the parser,
-// and the invariant that the tx hash is taken over the raw tx.extra bytes (unchanged by 0x06).
+// tx_extra_pq_message). The field uses ML-KEM-768 for key agreement and ChaCha20-Poly1305 AEAD for
+// confidentiality AND integrity, so tampering ANY byte is detected. Covers: the Rust ML-KEM and
+// AEAD selftests, encrypt/decrypt round-trips across message sizes and indices, wrong-recipient
+// rejection, mixed-extra parsing and get_pq_messages_from_extra filtering, full-sweep tamper
+// detection, oversize/short-length rejection by the parser, and the invariant that the tx hash is
+// taken over the raw tx.extra bytes (unchanged by 0x06).
 // See docs/design/quantum-resistance/messages-mlkem.md.
 
 #include "gtest/gtest.h"
@@ -60,6 +62,14 @@ TEST(PqMessage, RustMsgKemSelftestPasses)
   ASSERT_EQ(ccx_pq_kem_ct_bytes(), s.ct_or_sig);
 }
 
+TEST(PqMessage, RustAeadSelftestPasses)
+{
+  // seal->open round-trip, full-sweep tamper rejection, wrong-seed and wrong-index rejection.
+  ccx_pq_sizes s = ccx_pq_msg_aead_selftest();
+  ASSERT_EQ(1, s.ok);
+  ASSERT_EQ(static_cast<size_t>(TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE), s.ct_or_sig);
+}
+
 // --- encrypt/decrypt round-trips ---------------------------------------------------------------
 
 TEST(PqMessage, RoundTripVariousSizesAndIndices)
@@ -82,7 +92,8 @@ TEST(PqMessage, RoundTripVariousSizesAndIndices)
       tx_extra_pq_message field;
       ASSERT_TRUE(field.encrypt(idx, msg, kp.pk));
       ASSERT_EQ(ccx_pq_kem_ct_bytes(), field.kemCt.size());
-      ASSERT_EQ(msg.size() + 4, field.data.size()); // 4-byte zero checksum appended
+      // data is the AEAD-sealed blob: plaintext + 16-byte Poly1305 tag.
+      ASSERT_EQ(msg.size() + TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE, field.data.size());
 
       // Round-trip through the production serializer/parser.
       std::vector<uint8_t> extra = writePqExtra(field);
@@ -106,7 +117,7 @@ TEST(PqMessage, WrongIndexFailsDecrypt)
   ASSERT_TRUE(field.encrypt(7, "secret payload", kp.pk));
 
   std::string out;
-  // The index is part of the chacha8 key + IV, so a wrong index must not decrypt.
+  // The index is bound into the AEAD key + nonce, so a wrong index fails the Poly1305 tag check.
   ASSERT_FALSE(field.decrypt(8, kp.sk, out));
   ASSERT_TRUE(field.decrypt(7, kp.sk, out));
   ASSERT_EQ("secret payload", out);
@@ -123,7 +134,8 @@ TEST(PqMessage, WrongRecipientReturnsFalseNoCrash)
   ASSERT_TRUE(field.encrypt(0, "for the right person only", sender.pk));
 
   std::string out;
-  ASSERT_FALSE(field.decrypt(0, stranger.sk, out)); // wrong KEM secret -> checksum fails, no crash
+  // Wrong KEM secret -> different AEAD seed -> Poly1305 tag fails, no crash, no plaintext exposed.
+  ASSERT_FALSE(field.decrypt(0, stranger.sk, out));
   ASSERT_TRUE(field.decrypt(0, sender.sk, out));
   ASSERT_EQ("for the right person only", out);
 }
@@ -175,25 +187,25 @@ TEST(PqMessage, MixedExtraParsesAllAndFiltersPqOnly)
 
 // --- tamper detection --------------------------------------------------------------------------
 
-TEST(PqMessage, TamperedCiphertextFailsNoFfiPanic)
+TEST(PqMessage, TamperedAnyByteFailsNoFfiPanic)
 {
   KemKeyPair kp;
   tx_extra_pq_message field;
   ASSERT_TRUE(field.encrypt(3, "do not tamper", kp.pk));
 
-  // Flip a byte in the trailing checksum region of the chacha8 ciphertext -> the 4-zero-byte
-  // owner-test fails. (chacha8 is a stream cipher with no MAC, matching the legacy 0x04 scheme: only
-  // the trailing checksum bytes are integrity-checked. Corrupting a plaintext byte is undetected by
-  // design — see messages-mlkem.md §5 "Integrity: unchanged from today".)
+  // Real integrity: flipping ANY byte of the AEAD-sealed data (ciphertext bytes OR the trailing
+  // 16-byte Poly1305 tag) must make decrypt fail. This is the whole point of the AEAD upgrade over
+  // the legacy chacha8 + 4-zero checksum, where corrupting a plaintext byte was undetected.
+  for (size_t i = 0; i < field.data.size(); ++i)
   {
     tx_extra_pq_message t = field;
-    t.data[t.data.size() - 1] ^= 0xFF; // last byte sits inside the 4-byte zero checksum
+    t.data[i] ^= 0xFF;
     std::string out;
-    ASSERT_FALSE(t.decrypt(3, kp.sk, out));
+    ASSERT_FALSE(t.decrypt(3, kp.sk, out)) << "data byte " << i << " tamper was not detected";
   }
 
-  // Flip a byte in the KEM ciphertext -> ML-KEM implicit rejection yields a different shared secret
-  // -> a different chacha8 key -> the whole keystream changes -> checksum fails, no FFI panic.
+  // Flipping any KEM-ciphertext byte -> ML-KEM implicit rejection yields a different shared secret
+  // -> a different AEAD key -> the Poly1305 tag check fails, no FFI panic.
   {
     tx_extra_pq_message t = field;
     t.kemCt[10] ^= 0xFF;
@@ -230,6 +242,19 @@ TEST(PqMessage, WrongKemCtLengthRejectedByParser)
   ASSERT_TRUE(field.encrypt(0, "abc", kp.pk));
   // Corrupt the kemCt length so it no longer equals ccx_pq_kem_ct_bytes().
   field.kemCt.resize(field.kemCt.size() - 1);
+
+  std::vector<uint8_t> extra = writePqExtra(field);
+  std::vector<TransactionExtraField> parsed;
+  ASSERT_FALSE(parseTransactionExtra(extra, parsed));
+}
+
+TEST(PqMessage, ShortSealedDataRejectedByParser)
+{
+  KemKeyPair kp;
+  tx_extra_pq_message field;
+  ASSERT_TRUE(field.encrypt(0, "abc", kp.pk));
+  // A valid sealed blob is at least the 16-byte Poly1305 tag; truncate below that.
+  field.data.resize(TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE - 1);
 
   std::vector<uint8_t> extra = writePqExtra(field);
   std::vector<TransactionExtraField> parsed;
