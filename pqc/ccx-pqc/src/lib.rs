@@ -230,6 +230,77 @@ pub extern "C" fn ccx_pq_kem_scan(kem_sk: *const u8, kem_sk_len: usize,
     0
 }
 
+// --- ML-KEM-768 encrypted on-chain messages (tx-extra 0x06) -----------------------------------
+// Mirrors derive_output/scan but with the message domain "ccx-msg-kem-v1" so a KEM key reused for
+// both stealth outputs and messages never yields the same 32-byte secret (domain separation).
+// The 32-byte secret is returned as-is; the C++ side mixes in the per-message index when it derives
+// the chacha8 key, so these two functions are index-independent.
+
+/// Sender: encapsulate to `kem_pk`, write the Kyber ciphertext to `ct_out`, and SHAKE256-derive a
+/// 32-byte message secret (domain "ccx-msg-kem-v1") from the shared secret into `key_out`.
+#[no_mangle]
+pub extern "C" fn ccx_pq_msg_kem_encap(kem_pk: *const u8, kem_pk_len: usize,
+                                       ct_out: *mut u8, ct_cap: usize,
+                                       key_out: *mut u8, key_cap: usize) -> i32 {
+    if kem_pk.is_null() || ct_out.is_null() || key_out.is_null() { return -1; }
+    if key_cap < 32 { return -2; }
+    let pkb = unsafe { std::slice::from_raw_parts(kem_pk, kem_pk_len) };
+    let pk = match <kyber768::PublicKey as KP>::from_bytes(pkb) { Ok(p) => p, Err(_) => return -1 };
+    let (ss, ct) = kyber768::encapsulate(&pk);
+    let ctb = ct.as_bytes();
+    if ct_cap < ctb.len() { return -2; }
+    let mut key = [0u8; 32];
+    shake(&[b"ccx-msg-kem-v1", ss.as_bytes()], &mut key);
+    unsafe {
+        std::ptr::copy_nonoverlapping(ctb.as_ptr(), ct_out, ctb.len());
+        std::ptr::copy_nonoverlapping(key.as_ptr(), key_out, 32);
+    }
+    0
+}
+
+/// Recipient: decapsulate `ct` with `kem_sk` and re-derive the same 32-byte message secret.
+#[no_mangle]
+pub extern "C" fn ccx_pq_msg_kem_decap(kem_sk: *const u8, kem_sk_len: usize,
+                                       ct: *const u8, ct_len: usize,
+                                       key_out: *mut u8, key_cap: usize) -> i32 {
+    if kem_sk.is_null() || ct.is_null() || key_out.is_null() { return -1; }
+    if key_cap < 32 { return -2; }
+    let skb = unsafe { std::slice::from_raw_parts(kem_sk, kem_sk_len) };
+    let ctb = unsafe { std::slice::from_raw_parts(ct, ct_len) };
+    let sk = match <kyber768::SecretKey as KS>::from_bytes(skb) { Ok(s) => s, Err(_) => return -1 };
+    let ctt = match <kyber768::Ciphertext as KC>::from_bytes(ctb) { Ok(c) => c, Err(_) => return -1 };
+    let ss = kyber768::decapsulate(&ctt, &sk);
+    let mut key = [0u8; 32];
+    shake(&[b"ccx-msg-kem-v1", ss.as_bytes()], &mut key);
+    unsafe { std::ptr::copy_nonoverlapping(key.as_ptr(), key_out, 32); }
+    0
+}
+
+/// Selftest: encap->decap round-trips to the SAME 32-byte message secret; a wrong recipient KEM
+/// secret recovers a DIFFERENT secret. Mirrors ccx_pq_kem_stealth_selftest. ok=1 means all pass.
+#[no_mangle]
+pub extern "C" fn ccx_pq_msg_kem_selftest() -> CcxPqSizes {
+    let (pk, sk) = kyber768::keypair();
+    let (pkb, skb) = (pk.as_bytes(), sk.as_bytes());
+    let mut ct = vec![0u8; KEM_CT];
+    let mut ka = [0u8; 32];
+    let r1 = ccx_pq_msg_kem_encap(pkb.as_ptr(), pkb.len(), ct.as_mut_ptr(), ct.len(), ka.as_mut_ptr(), 32);
+    let mut kb = [0u8; 32];
+    let r2 = ccx_pq_msg_kem_decap(skb.as_ptr(), skb.len(), ct.as_ptr(), ct.len(), kb.as_mut_ptr(), 32);
+
+    // a non-owner cannot recover the secret
+    let (_pk2, sk2) = kyber768::keypair();
+    let mut kc = [0u8; 32];
+    ccx_pq_msg_kem_decap(sk2.as_bytes().as_ptr(), sk2.as_bytes().len(), ct.as_ptr(), ct.len(), kc.as_mut_ptr(), 32);
+
+    // the message domain must NOT collide with the stealth domain for the same ciphertext/secret
+    let mut ks = [0u8; 32];
+    ccx_pq_kem_scan(skb.as_ptr(), skb.len(), ct.as_ptr(), ct.len(), ks.as_mut_ptr(), 32);
+
+    let ok = (r1 == 0 && r2 == 0 && ka == kb && ka != kc && ka != ks) as i32;
+    CcxPqSizes { pk: KEM_PK, sk: KEM_SK, ct_or_sig: KEM_CT, ss: 32, ok }
+}
+
 /// Selftest: recipient recovers the SAME one-time keypair the sender derived; a wrong recipient
 /// recovers a DIFFERENT seed (cannot derive the output key). Proves real ML-KEM stealth.
 #[no_mangle]
