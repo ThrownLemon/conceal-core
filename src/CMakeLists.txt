@@ -94,11 +94,18 @@ target_include_directories(Daemon PRIVATE ${CCX_PQC_INCLUDE})
 target_link_libraries(Daemon ${CCX_PQC_LIB} pthread dl m)
 target_link_libraries(ConcealWallet Wallet NodeRpcProxy Transfers Rpc Http CryptoNoteCore System Logging Common crypto ${Boost_LIBRARIES} Serialization Mnemonics)
 target_link_libraries(ConcealWallet ${CCX_PQC_LIB} pthread dl m)
+# concealwallet's pq_transfer passes the hardcoded testnet ML-KEM public key (no-silent-burn fix),
+# so the front-end also needs the ccx-pqc include dir at compile time.
+target_include_directories(ConcealWallet PRIVATE ${CCX_PQC_INCLUDE})
 target_link_libraries(PaymentGateService PaymentGate JsonRpcServer Wallet NodeRpcProxy Transfers CryptoNoteCore crypto P2P Rpc Http System Logging Common InProcessNode libminiupnpc-static BlockchainExplorer ${Boost_LIBRARIES} Serialization)
 # Rpc/PqSpendClient.o (in libRpc.a) references cn::buildPqSpendTransaction (in libCryptoNoteCore.a);
 # with static link ordering CryptoNoteCore must follow Rpc, so repeat it (+ crypto) after Rpc.
 target_link_libraries(PaymentGateService CryptoNoteCore crypto)
 target_link_libraries(PaymentGateService ${CCX_PQC_LIB} pthread dl m)
+# walletd's sendPqTransaction (WalletService.cpp, compiled into the PaymentGate lib) passes the
+# hardcoded testnet ML-KEM public key (no-silent-burn fix), so the PaymentGate lib also needs the
+# ccx-pqc include dir at compile time.
+target_include_directories(PaymentGate PRIVATE ${CCX_PQC_INCLUDE})
 target_link_libraries(Optimizer PaymentGate Rpc Http CryptoNoteCore Logging Serialization crypto System Common ${Boost_LIBRARIES})
 target_link_libraries(Optimizer ${CCX_PQC_LIB} pthread dl m)
 
