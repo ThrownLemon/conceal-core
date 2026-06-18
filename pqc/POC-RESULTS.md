@@ -27,11 +27,14 @@ The full post-quantum consensus lifecycle, in real `conceal-core` daemon code, w
      **mempool** nullifier set (`tx_pool_size` stays 1, before either is mined).
    - **Independent spend accepted** — spending a *different* output (different nullifier) succeeds, proving
      distinct per-output nullifiers (the old shared-key design marked every PQ output spent at once).
-6. **ML-KEM-768 stealth outputs (capability).** Real Kyber-768 encapsulate/decapsulate derives a one-time
-   output key the recipient (and only the recipient) can recover. `ccx_pq_kem_stealth_selftest` → ok=1
-   (recipient recovers the same one-time keypair; a wrong recipient recovers a different seed). This is a
-   genuine PQ recipient-unlinkability primitive, proven self-contained (full coinbase/injector integration
-   is the documented next step — see below).
+6. **ML-KEM-768 stealth outputs (on-chain).** The testnet coinbase derives each PQ output's one-time key by
+   **encapsulating to a testnet ML-KEM recipient** and publishes the Kyber-768 ciphertext in
+   `PqKeyOutput.kemCt` (coinbase grew to ~3.1 KB). The output key cannot be re-derived from height (Kyber
+   encapsulation is randomised); the injector **decapsulates the on-chain `kemCt` with the KEM secret** to
+   recover the spend key — it logs `signer output recognised as ours (KEM stealth scan OK)` and the daemon
+   accepts the spend. Only the KEM-secret holder can detect/spend an output. Genuine PQ recipient-
+   unlinkability, working live. (`ccx_pq_kem_stealth_selftest` → ok=1 also covers the primitive in isolation,
+   including that a wrong recipient recovers a different seed.)
 
 ## Consensus + crypto changes (all testnet-gated where it matters)
 
@@ -44,10 +47,10 @@ The full post-quantum consensus lifecycle, in real `conceal-core` daemon code, w
 | Spend validation | `check_pq_tx_input` (ring resolve + `ccx_pq_verify` + nullifier bind + unlock window) | `Blockchain.cpp` |
 | Output / input gates | accept `PqKeyOutput` / `PqKeyInput` (v3) | `CryptoNoteFormatUtils.cpp` |
 | Block-version gate | allow v3 PQ tx in v1 testnet blocks | `Blockchain.cpp` (`pushBlock`) |
-| PQ coinbase | fixed-denomination PQ output, distinct per-height key + remainder KeyOutput | `Currency.cpp` |
-| Shared key derivation | `derivePqCoinbaseSeed` (daemon == injector) | `pqc/include/pq_testnet_keys.h` |
+| PQ coinbase | fixed-denomination PQ output, ML-KEM stealth one-time key + remainder KeyOutput | `Currency.cpp` |
+| Testnet KEM recipient | hardcoded ML-KEM keypair (minted once via `ccx_pq_kem_keypair`) | `pqc/include/pq_testnet_kem_keypair.h` |
 | Mempool | in-pool PQ nullifier set (insert/erase/reject/serialize) | `TransactionPool.{h,cpp}` |
-| Injector | ring-of-N builder | `pqc/tools/pq_injector.cpp` |
+| Injector | parses on-chain coinbase txs, scans `kemCt`, ring-of-N builder | `pqc/tools/pq_injector.cpp` |
 | Run friction | pin testnet difficulty (LWMA overshoot stalled mining) | `Blockchain.cpp` |
 
 ## The one honest gap that remains: cryptographic signer-unlinkability
@@ -64,8 +67,6 @@ flat-stride ABI, GPLv3 Falcon C). It is the audit-gated long pole (CIP §5.3 / C
 
 ## Documented next steps (scoped, not yet done)
 
-- **Full ML-KEM stealth on-chain:** coinbase emits KEM-derived one-time keys + `kemCt`; the injector scans
-  `kemCt` to recover the spend key. Needs a small testnet-only `get_pq_outputs` RPC (or injector
-  block-reading) because Kyber encapsulation is randomised, so the injector cannot re-derive `kemCt` and must
-  read it from the chain.
-- **ZK ring-membership proof** for true signer-unlinkability (the long pole above).
+- **ZK ring-membership proof** for true signer-unlinkability (the long pole above) — the one remaining gap.
+- **Native wallet support** for PQ outputs (currently the injector tool stands in for a wallet); a
+  testnet-only `get_pq_outputs` RPC would replace the demo script's coinbase-tx fetching with a direct query.
