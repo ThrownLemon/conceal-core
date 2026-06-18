@@ -23,10 +23,25 @@
 #include "crypto/crypto.h"
 #include "CryptoNoteCore/TransactionExtra.h"
 
+#include "pq_ring_sig.h" // ccx_pq_kem_ct_bytes() for the 0x06 DoS test
+
 using namespace cn;
 
 namespace
 {
+  // Append an unsigned LEB128 varint (the on-wire length encoding) to a byte vector. Used to forge a
+  // tx-extra field whose declared length prefix is absurdly large without actually carrying that many
+  // bytes (review FIX 1 DoS check).
+  void appendVarint(std::vector<uint8_t> &out, uint64_t v)
+  {
+    while (v >= 0x80)
+    {
+      out.push_back(static_cast<uint8_t>((v & 0x7f) | 0x80));
+      v >>= 7;
+    }
+    out.push_back(static_cast<uint8_t>(v));
+  }
+
   // A sender tx keypair + a recipient account, the two halves of the classical ECDH the 0x07 field
   // (like the legacy 0x04 field) relies on.
   struct Parties
@@ -256,4 +271,80 @@ TEST(AuthenticatedMessage, RawExtraBytesAreCanonicalAndHashStable)
   crypto::Hash h1 = crypto::cn_fast_hash(extra.data(), extra.size());
   crypto::Hash h2 = crypto::cn_fast_hash(rewritten.data(), rewritten.size());
   ASSERT_EQ(0, memcmp(&h1, &h2, sizeof(crypto::Hash)));
+}
+
+// --- DoS: huge declared length prefix must be rejected BEFORE allocation (review FIX 1) ---------
+
+TEST(AuthenticatedMessage, HugeLengthPrefixRejectedWithoutAllocation_0x07)
+{
+  // Forge a 0x07 field whose declared data length is ~4 GiB but which carries only a couple of bytes.
+  // The bounded reader must reject this (declared length > field max AND > remaining stream) WITHOUT
+  // ever resizing a multi-GB buffer. The whole extra is only a handful of bytes, so if the parser
+  // returned cleanly we are safe; a pre-fix parser would try to allocate ~4 GiB here.
+  std::vector<uint8_t> extra;
+  extra.push_back(TX_EXTRA_AUTH_MESSAGE_TAG);
+  appendVarint(extra, 0xFFFFFFFFull); // declared length, far beyond the ~10-byte stream
+  extra.push_back(0xAA);              // one stray byte of "payload"
+
+  std::vector<TransactionExtraField> parsed;
+  ASSERT_FALSE(parseTransactionExtra(extra, parsed));
+}
+
+TEST(AuthenticatedMessage, HugeLengthPrefixRejectedWithoutAllocation_0x06)
+{
+  // Same DoS shape for the 0x06 PQ message: a huge kemCt length prefix on a tiny stream must be
+  // rejected before any allocation. (kemCt is read first, so an oversized kem length trips first.)
+  std::vector<uint8_t> extra;
+  extra.push_back(TX_EXTRA_PQ_MESSAGE_TAG);
+  appendVarint(extra, 0xFFFFFFFFull); // declared kemCt length, far beyond the stream and the kem size
+  extra.push_back(0xBB);
+
+  std::vector<TransactionExtraField> parsed;
+  ASSERT_FALSE(parseTransactionExtra(extra, parsed));
+}
+
+TEST(AuthenticatedMessage, LengthPrefixOverFieldMaxButUnderStreamRejected_0x07)
+{
+  // Edge case: declared length is within the remaining stream but OVER the field maximum. The bound
+  // is min(field max, remaining), so this must still be rejected (and proves the field-max arm of
+  // the check, not just the remaining-bytes arm).
+  const size_t over = static_cast<size_t>(TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE) + 1;
+  std::vector<uint8_t> extra;
+  extra.push_back(TX_EXTRA_AUTH_MESSAGE_TAG);
+  appendVarint(extra, over);
+  extra.resize(extra.size() + over, 0x00); // actually carry that many bytes so only the max-bound trips
+
+  std::vector<TransactionExtraField> parsed;
+  ASSERT_FALSE(parseTransactionExtra(extra, parsed));
+}
+
+// --- domain separation: 0x04 and 0x07 to the same recipient+index must NOT collide (review FIX 3) -
+
+TEST(AuthenticatedMessage, DomainSeparatedFromLegacy0x04)
+{
+  Parties p;
+  const size_t index = 0;
+  const std::string msg = "same plaintext, same recipient, same index";
+
+  // Legacy 0x04 encrypted message (recipient != null engages the chacha8 keystream keyed by the
+  // ECDH derivation with magic2 == 0x00).
+  tx_extra_message legacy;
+  ASSERT_TRUE(legacy.encrypt(index, msg, &p.recipientPub, p.txkey));
+
+  // Authenticated 0x07 message to the SAME recipient + index (magic2 == 0x07).
+  tx_extra_authenticated_message auth;
+  ASSERT_TRUE(auth.encrypt(index, msg, &p.recipientPub, p.txkey));
+
+  // Because the 0x07 seed is domain-separated (magic2 differs), the sealed/encrypted bytes must
+  // differ — the keystreams are derived from different seeds, so no correlation. (They also differ
+  // trivially in length thanks to the 16-byte AEAD tag vs the 4-byte legacy checksum, so compare the
+  // overlapping prefix too, which would still match if the keystream were shared.)
+  ASSERT_NE(legacy.data, auth.data);
+  const size_t overlap = std::min(legacy.data.size(), auth.data.size());
+  ASSERT_NE(0, memcmp(legacy.data.data(), auth.data.data(), overlap));
+
+  // And 0x07 still round-trips correctly under its own domain.
+  std::string out;
+  ASSERT_TRUE(auth.decrypt(index, p.txkey.publicKey, &p.recipientSpendSec, out));
+  ASSERT_EQ(msg, out);
 }

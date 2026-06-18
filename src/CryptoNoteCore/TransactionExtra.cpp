@@ -24,6 +24,35 @@ using namespace common;
 namespace cn
 {
 
+  namespace
+  {
+    // Read a length-prefixed (varint len + raw bytes) blob from the extra stream, but BOUND the
+    // declared length against both the configured field maximum AND the bytes actually remaining in
+    // the stream BEFORE allocating. The generic string/serializeAsBinary readers resize() to the
+    // declared length first (capped only at 128 MiB), so a tiny tx with a huge varint length prefix
+    // would otherwise force a multi-MB allocation before the read fails (DoS — review FIX 1). This
+    // helper rejects such a field early without ever allocating the oversized buffer.
+    // Returns false (caller must fail the whole parse) if the declared length is over maxLen or
+    // exceeds the remaining stream; the on-wire layout is unchanged — only the rejection is earlier.
+    bool readBoundedExtraBlob(common::MemoryInputStream &iss, size_t totalSize, size_t maxLen,
+                              std::string &out)
+    {
+      uint64_t len = 0;
+      common::readVarint(iss, len);
+      const size_t remaining = totalSize - iss.getPosition();
+      if (len > maxLen || len > remaining)
+      {
+        return false;
+      }
+      out.resize(static_cast<size_t>(len));
+      if (len > 0)
+      {
+        common::read(iss, &out[0], static_cast<size_t>(len));
+      }
+      return true;
+    }
+  }
+
   bool parseTransactionExtra(const std::vector<uint8_t> &transactionExtra, std::vector<TransactionExtraField> &transactionExtraFields)
   {
     transactionExtraFields.clear();
@@ -33,7 +62,8 @@ namespace cn
 
     try
     {
-      MemoryInputStream iss(transactionExtra.data(), transactionExtra.size());
+      const size_t extraSize = transactionExtra.size();
+      MemoryInputStream iss(transactionExtra.data(), extraSize);
       BinaryInputStreamSerializer ar(iss);
 
       int c = 0;
@@ -113,15 +143,24 @@ namespace cn
 
         case TX_EXTRA_PQ_MESSAGE_TAG:
         {
+          // Read both length-prefixed sub-fields (kemCt, data) with the declared length BOUNDED
+          // before allocation (review FIX 1: the generic serializeAsBinary/string readers resize to
+          // the declared varint length first, so a huge prefix would force a multi-MB alloc on a
+          // tiny tx). The parser has no default case, so an oversize/wrong-length field must be
+          // rejected before it can over-read into following fields. data is the AEAD-sealed blob, so
+          // it must be at least the 16-byte Poly1305 tag and at most the configured maximum; kemCt is
+          // exactly the ML-KEM ciphertext size.
+          const size_t kemBytes = ccx_pq_kem_ct_bytes();
           tx_extra_pq_message pqMessage;
-          ar(pqMessage, "pq_message");
-          // Bound the field: the parser has no default case, so an oversize/wrong-length field
-          // would otherwise consume bytes that belong to following fields (R1/R4). Reject early.
-          // data is the AEAD-sealed blob, so it must be at least the 16-byte Poly1305 tag and at
-          // most the configured maximum.
-          if (pqMessage.kemCt.size() != ccx_pq_kem_ct_bytes() ||
-              pqMessage.data.size() < TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE ||
-              pqMessage.data.size() > TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE)
+          std::string kemBlob;
+          if (!readBoundedExtraBlob(iss, extraSize, kemBytes, kemBlob) ||
+              kemBlob.size() != kemBytes)
+          {
+            return false;
+          }
+          pqMessage.kemCt.assign(kemBlob.begin(), kemBlob.end());
+          if (!readBoundedExtraBlob(iss, extraSize, TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE, pqMessage.data) ||
+              pqMessage.data.size() < TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE)
           {
             return false;
           }
@@ -131,13 +170,11 @@ namespace cn
 
         case TX_EXTRA_AUTH_MESSAGE_TAG:
         {
+          // Same bounded-before-allocation read as the 0x06 field (review FIX 1). data is the
+          // AEAD-sealed blob (>= 16-byte Poly1305 tag, <= configured maximum).
           tx_extra_authenticated_message authMessage;
-          ar(authMessage, "auth_message");
-          // Same early-reject bound as the 0x06 field: the parser has no default case, so an
-          // oversize/short length must be rejected before it can over-read into following fields.
-          // data is the AEAD-sealed blob (>= 16-byte Poly1305 tag, <= configured maximum).
-          if (authMessage.data.size() < TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE ||
-              authMessage.data.size() > TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE)
+          if (!readBoundedExtraBlob(iss, extraSize, TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE, authMessage.data) ||
+              authMessage.data.size() < TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE)
           {
             return false;
           }
@@ -653,15 +690,22 @@ namespace cn
   }
 
   // Authenticated classical message field (tx-extra 0x07) -----------------------------------------
-  // Key agreement is IDENTICAL to the legacy 0x04 message (Curve25519 ECDH between the tx secret key
-  // and the recipient spend public key; the 32-byte seed is cn_fast_hash(derivation || 0x80 || 0x00),
-  // the same message_key_data construction). The only change is the symmetric layer: instead of the
-  // unauthenticated chacha8 + 4-zero-byte owner-check, the payload is sealed with the existing
-  // ChaCha20-Poly1305 AEAD (ccx_pq_msg_seal/open, key+nonce derived from (seed, index)). This is REAL
-  // authenticated encryption — tampering ANY byte of the sealed blob (including the 16-byte Poly1305
-  // tag) makes open() fail, and a wrong recipient derives a different seed and also fails. `data`
-  // carries the sealed ciphertext (plaintext_len + 16-byte tag). The legacy 0x04 field is frozen to
-  // decrypt-only; new authenticated messages use 0x07.
+  // Key agreement reuses the same Curve25519 ECDH as the legacy 0x04 message (between the tx secret
+  // key and the recipient spend public key), BUT the seed is DOMAIN-SEPARATED from 0x04: the
+  // message_key_data magic bytes are (0x80, TX_EXTRA_AUTH_MESSAGE_TAG) here vs (0x80, 0x00) for 0x04,
+  // so a 0x04 and a 0x07 to the SAME recipient + index can never derive the same seed/keystream
+  // (review FIX 3). The symmetric layer is also upgraded: instead of the unauthenticated chacha8 +
+  // 4-zero-byte owner-check, the payload is sealed with the existing ChaCha20-Poly1305 AEAD
+  // (ccx_pq_msg_seal/open, key+nonce derived from (seed, index)). This is REAL authenticated
+  // encryption — tampering ANY byte of the sealed blob (including the 16-byte Poly1305 tag) makes
+  // open() fail, and a wrong recipient derives a different seed and also fails. `data` carries the
+  // sealed ciphertext (plaintext_len + 16-byte tag). The legacy 0x04 field is frozen to decrypt-only;
+  // new authenticated messages use 0x07.
+  //
+  // Nonce note: the AEAD nonce is bound to (seed, index); seed uniqueness rests on the protocol's
+  // existing per-tx-key uniqueness invariant (identical posture to legacy 0x04). Binding the tx
+  // prefix hash as AEAD AAD would harden this further but needs an FFI param change — see
+  // docs/reviews/tier1/serializer-review-response.md.
   bool tx_extra_authenticated_message::encrypt(size_t index, const std::string &message, const AccountPublicAddress *recipient, const KeyPair &txkey)
   {
     if (recipient == nullptr)
@@ -675,7 +719,7 @@ namespace cn
       return false;
     }
     key_data.magic1 = 0x80;
-    key_data.magic2 = 0;
+    key_data.magic2 = TX_EXTRA_AUTH_MESSAGE_TAG; // domain separation from legacy 0x04 (magic2 == 0)
     Hash seedHash = cn_fast_hash(&key_data, sizeof(message_key_data));
 
     std::vector<uint8_t> sealed(message.size() + TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, 0);
@@ -710,7 +754,7 @@ namespace cn
       return false;
     }
     key_data.magic1 = 0x80;
-    key_data.magic2 = 0;
+    key_data.magic2 = TX_EXTRA_AUTH_MESSAGE_TAG; // domain separation from legacy 0x04 (magic2 == 0)
     Hash seedHash = cn_fast_hash(&key_data, sizeof(message_key_data));
 
     std::vector<uint8_t> plain(data.size() - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, 0);
