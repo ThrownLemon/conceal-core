@@ -60,6 +60,10 @@ foreach(pqtgt CoreTests IntegrationTests NodeRpcProxyTests PerformanceTests Tran
   target_link_libraries(${pqtgt} ${CCX_PQC_LIB} pthread dl m)
 endforeach()
 
+# UnitTests/TestPqDeposits.cpp includes the ccx-pqc FFI header (pq_ring_sig.h) directly to exercise
+# the ML-DSA-65 deposit primitive, so UnitTests needs the PQ include dir (CIP-0001 UPGRADE_HEIGHT_V9).
+target_include_directories(UnitTests PRIVATE ${CCX_PQC_INCLUDE})
+
 
 add_custom_target(tests DEPENDS NodeRpcProxyTests PerformanceTests SystemTests UnitTests DifficultyTests HashTargetTests)
 
