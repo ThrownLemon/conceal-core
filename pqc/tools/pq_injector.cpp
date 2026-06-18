@@ -30,6 +30,7 @@
 
 #include "CryptoNote.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
+#include "CryptoNoteCore/PqSpendBuilder.h" // shared, verified PQ spend builder
 #include "CryptoNoteConfig.h"
 #include "Common/StringTools.h"
 #include "pq_ring_sig.h"
@@ -88,82 +89,31 @@ int main(int argc, char **argv)
     return 2;
   }
 
-  const size_t pkBytes = ccx_pq_pubkey_bytes();
-
-  // Build the ring from the on-chain one-time keys; remember the signer's key + kemCt.
-  std::vector<uint8_t> ring;
-  ring.reserve(static_cast<size_t>(ringSize) * pkBytes);
-  std::vector<uint8_t> signerKey, signerKemCt;
+  // Build the ring from the on-chain one-time keys and delegate to the shared, verified PQ spend
+  // builder (the same code path concealwallet + walletd use). Global indices are 0..N-1: the demo
+  // passes the coinbase PQ outputs mined at heights 1..N in ascending order, so line i == index i.
+  cn::PqSpendRequest req;
+  req.amount = amount;
+  req.fee = fee;
+  req.signerGlobalIndex = signerIdx;
+  req.kemSecretKey.assign(cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK));
+  req.ring.reserve(ringSize);
   for (uint32_t i = 0; i < ringSize; ++i)
   {
-    std::vector<uint8_t> key, kemCt;
-    if (!parseCoinbasePq(hexes[i], key, kemCt)) return 1;
-    if (key.size() != pkBytes) { std::fprintf(stderr, "error: ring member %u key size %zu\n", i, key.size()); return 1; }
-    ring.insert(ring.end(), key.begin(), key.end());
-    if (i == signerIdx) { signerKey = key; signerKemCt = kemCt; }
+    cn::PqRingMember m;
+    m.globalIndex = i;
+    if (!parseCoinbasePq(hexes[i], m.key, m.kemCt)) return 1;
+    req.ring.push_back(std::move(m));
   }
 
-  // Recover the signer's one-time keypair by decapsulating its kemCt with the testnet KEM secret.
-  uint8_t otSeed[32];
-  if (ccx_pq_kem_scan(cn::PQ_TESTNET_KEM_SK, sizeof(cn::PQ_TESTNET_KEM_SK),
-                      signerKemCt.data(), signerKemCt.size(), otSeed, sizeof(otSeed)) != 0)
+  cn::Transaction tx;
+  std::string err;
+  if (!cn::buildPqSpendTransaction(req, tx, err))
   {
-    std::fprintf(stderr, "error: KEM scan failed\n");
-    return 1;
-  }
-  std::vector<uint8_t> otPk(pkBytes, 0), otSk(ccx_pq_seckey_bytes(), 0);
-  if (ccx_pq_keygen(otSeed, sizeof(otSeed), otPk.data(), otPk.size(), otSk.data(), otSk.size()) != 0)
-  {
-    std::fprintf(stderr, "error: keygen from recovered seed failed\n");
-    return 1;
-  }
-  if (otPk != signerKey)
-  {
-    std::fprintf(stderr, "error: recovered one-time key does not match the on-chain output (not ours?)\n");
+    std::fprintf(stderr, "error: %s\n", err.c_str());
     return 1;
   }
   std::fprintf(stderr, "[injector] signer output recognised as ours (KEM stealth scan OK)\n");
-
-  std::vector<uint8_t> nullifier(ccx_pq_nullifier_bytes(), 0);
-  if (ccx_pq_nullifier(otSk.data(), otSk.size(), otPk.data(), otPk.size(),
-                       nullifier.data(), nullifier.size()) != 0)
-  {
-    std::fprintf(stderr, "error: nullifier failed\n");
-    return 1;
-  }
-
-  cn::PqKeyInput in;
-  in.amount = amount;
-  in.outputIndexes.resize(ringSize);
-  in.outputIndexes[0] = 0;
-  for (uint32_t i = 1; i < ringSize; ++i) in.outputIndexes[i] = 1; // consecutive global indices => deltas 1
-  in.nullifier = nullifier;
-
-  cn::PqKeyOutput out;
-  out.key = otPk; // throwaway recipient; kemCt empty
-  cn::TransactionOutput txout;
-  txout.amount = amount - fee;
-  txout.target = out;
-
-  cn::Transaction tx;
-  tx.version = cn::TRANSACTION_VERSION_3;
-  tx.unlockTime = 0;
-  tx.inputs.push_back(in);
-  tx.outputs.push_back(txout);
-
-  crypto::Hash signingHash = cn::getObjectHash(static_cast<const cn::TransactionPrefix &>(tx));
-
-  std::vector<uint8_t> sig(256 * 1024, 0);
-  size_t sigLen = sig.size();
-  int32_t rc = ccx_pq_sign(
-      reinterpret_cast<const uint8_t *>(&signingHash), sizeof(signingHash),
-      ring.data(), ringSize, pkBytes,
-      otSk.data(), otSk.size(), signerIdx,
-      sig.data(), &sigLen);
-  if (rc != 0) { std::fprintf(stderr, "error: sign failed (rc=%d)\n", (int)rc); return 1; }
-  sig.resize(sigLen);
-
-  boost::get<cn::PqKeyInput>(tx.inputs[0]).ringSig = sig;
 
   cn::BinaryArray blob = cn::toBinaryArray(tx);
   std::printf("%s\n", toHex(blob).c_str());
