@@ -195,6 +195,10 @@ namespace cn
     size_t getApproximateMaximumInputCount(size_t transactionSize, size_t outputCount, size_t mixinCount) const;
 
     bool validateOutput(uint64_t amount, const MultisignatureOutput &output, uint32_t height) const;
+    // PQ deposit output validity (CIP-0001): IDENTICAL term band + depositMinAmount rules as the
+    // Ed25519 MultisignatureOutput overload — only the output type differs.
+    bool validateOutput(uint64_t amount, const PqMultisigOutput &output, uint32_t height) const;
+    uint64_t getInterestForInput(const PqMultisigInput &input, uint32_t height) const;
 
     uint64_t getGenesisTimestamp() const;
 
@@ -275,6 +279,7 @@ namespace cn
     uint64_t m_upgradeHeightV6;
     uint64_t m_upgradeHeightV7;
     uint64_t m_upgradeHeightV8;
+    uint64_t m_upgradeHeightV9; /* PQ deposits (ML-DSA-65), CIP-0001 */
 
     unsigned int m_upgradeVotingThreshold;
     uint32_t m_upgradeVotingWindow;
@@ -579,6 +584,11 @@ namespace cn
       m_currency.m_upgradeHeightV8 = val;
       return *this;
     }
+    CurrencyBuilder &upgradeHeightV9(uint64_t val)
+    {
+      m_currency.m_upgradeHeightV9 = val;
+      return *this;
+    }
 
     CurrencyBuilder &upgradeVotingThreshold(unsigned int val);
     CurrencyBuilder &upgradeVotingWindow(uint32_t val)
@@ -660,6 +670,7 @@ namespace cn
         upgradeHeightV6(parameters::TESTNET_UPGRADE_HEIGHT_V6);
         upgradeHeightV7(parameters::TESTNET_UPGRADE_HEIGHT_V7);
         upgradeHeightV8(parameters::TESTNET_UPGRADE_HEIGHT_V8);
+        upgradeHeightV9(parameters::TESTNET_UPGRADE_HEIGHT_V9);
       }
       return *this;
     }
@@ -694,6 +705,20 @@ namespace cn
       else
       {
         return multisignatureInput.amount + m_currency.getInterestForInput(multisignatureInput, m_height);
+      }
+    }
+    // PQ deposit input — mirrors the MultisignatureInput case exactly: principal for a plain
+    // (term==0) PQ multisig, principal + accrued interest for a deposit (CIP-0001). validateInput
+    // binds input.term to the on-chain output.term before this runs, closing the mint-interest hole.
+    uint64_t operator()(const PqMultisigInput &pqMultisigInput) const
+    {
+      if (pqMultisigInput.term == 0)
+      {
+        return pqMultisigInput.amount;
+      }
+      else
+      {
+        return pqMultisigInput.amount + m_currency.getInterestForInput(pqMultisigInput, m_height);
       }
     }
   };

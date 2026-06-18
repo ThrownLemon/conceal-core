@@ -25,4 +25,4 @@ compile_commands.json
 *.json
 cmake-build*
 
-.cursorrules
+.cursorrules.claude/worktrees/

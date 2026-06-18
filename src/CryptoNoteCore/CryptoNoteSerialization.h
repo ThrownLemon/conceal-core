@@ -44,6 +44,8 @@ void serialize(TransactionOutputTarget& output, ISerializer& serializer);
 void serialize(KeyOutput& key, ISerializer& serializer);
 void serialize(PqKeyInput& key, ISerializer& serializer);
 void serialize(PqKeyOutput& out, ISerializer& serializer);
+void serialize(PqMultisigInput& in, ISerializer& serializer);
+void serialize(PqMultisigOutput& out, ISerializer& serializer);
 void serialize(MultisignatureOutput& multisignature, ISerializer& serializer);
 
 void serialize(BlockHeader& header, ISerializer& serializer);

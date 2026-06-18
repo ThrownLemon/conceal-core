@@ -63,6 +63,16 @@ namespace cn
           (void)r; //just to make compiler to shut up
           assert(r.second);
         }
+        else if (in.type() == typeid(PqMultisigInput))
+        {
+          // PQ deposit cells live in their own index namespace (m_pqMultisigOutputs), so track them
+          // in a SEPARATE set — a shared set would falsely defer a PQ deposit when a same-numbered
+          // Ed25519 multisig cell is already in the template.
+          const auto &pqmsig = boost::get<PqMultisigInput>(in);
+          auto r = m_usedPqDeposits.insert(std::make_pair(pqmsig.amount, pqmsig.outputIndex));
+          (void)r;
+          assert(r.second);
+        }
       }
 
       m_txHashes.push_back(txid);
@@ -94,12 +104,21 @@ namespace cn
             return false;
           }
         }
+        else if (in.type() == typeid(PqMultisigInput))
+        {
+          const auto &pqmsig = boost::get<PqMultisigInput>(in);
+          if (m_usedPqDeposits.count(std::make_pair(pqmsig.amount, pqmsig.outputIndex)))
+          {
+            return false;
+          }
+        }
       }
       return true;
     }
 
     std::unordered_set<crypto::KeyImage> m_keyImages;
     std::set<std::pair<uint64_t, uint64_t>> m_usedOutputs;
+    std::set<std::pair<uint64_t, uint64_t>> m_usedPqDeposits; // PQ deposit cells (separate keyspace)
     std::vector<crypto::Hash> m_txHashes;
   };
 
@@ -132,7 +151,7 @@ namespace cn
     for (const auto &in : tx.inputs)
     {
       const auto &inputType = in.type();
-      if (inputType == typeid(MultisignatureInput))
+      if (inputType == typeid(MultisignatureInput) || inputType == typeid(PqMultisigInput))
       {
         isWithdrawalTransaction = true;
       }
@@ -542,6 +561,7 @@ namespace cn
       m_spent_key_images.clear();
       m_spentOutputs.clear();
       m_spent_pq_nullifiers.clear();
+      m_spentPqDeposits.clear();
 
       m_paymentIdIndex.clear();
       m_timestampIndex.clear();
@@ -623,6 +643,7 @@ namespace cn
     KV_MEMBER(m_spent_key_images);
     KV_MEMBER(m_spentOutputs);
     KV_MEMBER(m_spent_pq_nullifiers);
+    KV_MEMBER(m_spentPqDeposits);
     KV_MEMBER(m_recentlyDeletedTransactions);
   }
 
@@ -757,6 +778,16 @@ namespace cn
           m_spent_pq_nullifiers.erase(nfk);
         }
       }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        if (!keptByBlock)
+        {
+          const auto &pqin = boost::get<PqMultisigInput>(in);
+          auto output = GlobalOutput(pqin.amount, pqin.outputIndex);
+          assert(m_spentPqDeposits.count(output));
+          m_spentPqDeposits.erase(output);
+        }
+      }
     }
 
     return true;
@@ -807,6 +838,16 @@ namespace cn
           assert(r.second);
         }
       }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        if (!keptByBlock)
+        {
+          const auto &pqin = boost::get<PqMultisigInput>(in);
+          auto r = m_spentPqDeposits.insert(GlobalOutput(pqin.amount, pqin.outputIndex));
+          (void)r;
+          assert(r.second);
+        }
+      }
     }
 
     return true;
@@ -837,6 +878,14 @@ namespace cn
       {
         const auto &pqin = boost::get<PqKeyInput>(in);
         if (m_spent_pq_nullifiers.count(std::string(pqin.nullifier.begin(), pqin.nullifier.end())))
+        {
+          return true;
+        }
+      }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        const auto &pqin = boost::get<PqMultisigInput>(in);
+        if (m_spentPqDeposits.count(GlobalOutput(pqin.amount, pqin.outputIndex)))
         {
           return true;
         }

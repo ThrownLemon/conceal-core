@@ -198,6 +198,11 @@ namespace cn {
     // In-pool post-quantum nullifiers (CIP-0001): rejects two unconfirmed PQ txs sharing a spend
     // tag. Keyed byte-identically to Blockchain::m_spent_pq_nullifiers (std::string of the bytes).
     std::set<std::string> m_spent_pq_nullifiers;
+    // In-pool PQ deposit cells (CIP-0001 UPGRADE_HEIGHT_V9): rejects two unconfirmed txs spending the
+    // same PQ deposit (amount, outputIndex). Tracked SEPARATELY from m_spentOutputs because PQ
+    // deposit cells live in their own index namespace (m_pqMultisigOutputs) — a shared set would
+    // falsely collide a PQ deposit with a same-amount Ed25519 multisig cell.
+    GlobalOutputsContainer m_spentPqDeposits;
 
     std::string m_config_folder;
     cn::ITransactionValidator& m_validator;
