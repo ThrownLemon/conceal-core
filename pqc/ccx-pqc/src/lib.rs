@@ -275,6 +275,7 @@ pub extern "C" fn ccx_pq_kem_scan(kem_sk: *const u8, kem_sk_len: usize,
 pub extern "C" fn ccx_pq_msg_kem_encap(kem_pk: *const u8, kem_pk_len: usize,
                                        ct_out: *mut u8, ct_cap: usize,
                                        key_out: *mut u8, key_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if kem_pk.is_null() || ct_out.is_null() || key_out.is_null() { return -1; }
     if key_cap < 32 { return -2; }
     let pkb = unsafe { std::slice::from_raw_parts(kem_pk, kem_pk_len) };
@@ -289,6 +290,7 @@ pub extern "C" fn ccx_pq_msg_kem_encap(kem_pk: *const u8, kem_pk_len: usize,
         std::ptr::copy_nonoverlapping(key.as_ptr(), key_out, 32);
     }
     0
+  })
 }
 
 /// Recipient: decapsulate `ct` with `kem_sk` and re-derive the same 32-byte message secret.
@@ -296,6 +298,7 @@ pub extern "C" fn ccx_pq_msg_kem_encap(kem_pk: *const u8, kem_pk_len: usize,
 pub extern "C" fn ccx_pq_msg_kem_decap(kem_sk: *const u8, kem_sk_len: usize,
                                        ct: *const u8, ct_len: usize,
                                        key_out: *mut u8, key_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if kem_sk.is_null() || ct.is_null() || key_out.is_null() { return -1; }
     if key_cap < 32 { return -2; }
     let skb = unsafe { std::slice::from_raw_parts(kem_sk, kem_sk_len) };
@@ -307,12 +310,14 @@ pub extern "C" fn ccx_pq_msg_kem_decap(kem_sk: *const u8, kem_sk_len: usize,
     shake(&[b"ccx-msg-kem-v1", ss.as_bytes()], &mut key);
     unsafe { std::ptr::copy_nonoverlapping(key.as_ptr(), key_out, 32); }
     0
+  })
 }
 
 /// Selftest: encap->decap round-trips to the SAME 32-byte message secret; a wrong recipient KEM
 /// secret recovers a DIFFERENT secret. Mirrors ccx_pq_kem_stealth_selftest. ok=1 means all pass.
 #[no_mangle]
 pub extern "C" fn ccx_pq_msg_kem_selftest() -> CcxPqSizes {
+  ffi_guard(CCX_SIZES_PANIC, || {
     let (pk, sk) = kyber768::keypair();
     let (pkb, skb) = (pk.as_bytes(), sk.as_bytes());
     let mut ct = vec![0u8; KEM_CT];
@@ -332,6 +337,7 @@ pub extern "C" fn ccx_pq_msg_kem_selftest() -> CcxPqSizes {
 
     let ok = (r1 == 0 && r2 == 0 && ka == kb && ka != kc && ka != ks) as i32;
     CcxPqSizes { pk: KEM_PK, sk: KEM_SK, ct_or_sig: KEM_CT, ss: 32, ok }
+  })
 }
 
 // --- ChaCha20-Poly1305 AEAD for PQ messages (tx-extra 0x06) ------------------------------------
@@ -359,6 +365,7 @@ fn derive_aead_key_nonce(seed: &[u8; 32], index: u64) -> ([u8; 32], [u8; 12]) {
 pub extern "C" fn ccx_pq_msg_seal(seed: *const u8, seed_len: usize, index: u64,
                                   pt: *const u8, pt_len: usize,
                                   ct_out: *mut u8, ct_cap: usize, ct_len_out: *mut usize) -> i32 {
+  ffi_guard(-99, || {
     if seed.is_null() || ct_out.is_null() || ct_len_out.is_null() { return -1; }
     if pt.is_null() && pt_len != 0 { return -1; }
     if seed_len < 32 { return -2; }
@@ -376,6 +383,7 @@ pub extern "C" fn ccx_pq_msg_seal(seed: *const u8, seed_len: usize, index: u64,
         *ct_len_out = sealed.len();
     }
     0
+  })
 }
 
 /// Open a sealed ciphertext produced by `ccx_pq_msg_seal` with the same (`seed`, `index`). On
@@ -385,6 +393,7 @@ pub extern "C" fn ccx_pq_msg_seal(seed: *const u8, seed_len: usize, index: u64,
 pub extern "C" fn ccx_pq_msg_open(seed: *const u8, seed_len: usize, index: u64,
                                   ct: *const u8, ct_len: usize,
                                   pt_out: *mut u8, pt_cap: usize, pt_len_out: *mut usize) -> i32 {
+  ffi_guard(-99, || {
     if seed.is_null() || ct.is_null() || pt_len_out.is_null() { return -1; }
     if seed_len < 32 { return -2; }
     if ct_len < AEAD_TAG { return -4; } // too short to even contain a tag
@@ -405,12 +414,14 @@ pub extern "C" fn ccx_pq_msg_open(seed: *const u8, seed_len: usize, index: u64,
     }
     unsafe { *pt_len_out = plain.len(); }
     0
+  })
 }
 
 /// Selftest: seal->open round-trips; flipping ANY sealed byte (ciphertext or tag) makes open fail;
 /// a wrong seed makes open fail; a wrong index makes open fail. ok=1 means all checks passed.
 #[no_mangle]
 pub extern "C" fn ccx_pq_msg_aead_selftest() -> CcxPqSizes {
+  ffi_guard(CCX_SIZES_PANIC, || {
     let seed = [0x11u8; 32];
     let wrong_seed = [0x22u8; 32];
     let index = 7u64;
@@ -453,6 +464,7 @@ pub extern "C" fn ccx_pq_msg_aead_selftest() -> CcxPqSizes {
 
     let ok = (round_trip_ok && tamper_all_rejected && wrong_seed_rejected && wrong_index_rejected) as i32;
     CcxPqSizes { pk: 32, sk: 12, ct_or_sig: AEAD_TAG, ss: msg.len() + AEAD_TAG, ok }
+  })
 }
 
 /// Selftest: recipient recovers the SAME one-time keypair the sender derived; a wrong recipient
@@ -590,6 +602,7 @@ pub extern "C" fn ccx_pq_ringsig_selftest() -> CcxPqSizes {
 #[no_mangle]
 pub extern "C" fn ccx_pq_multisig_keypair(pk_out: *mut u8, pk_cap: usize,
                                           sk_out: *mut u8, sk_cap: usize) -> i32 {
+  ffi_guard(-99, || {
     if pk_out.is_null() || sk_out.is_null() { return -1; }
     let pkb = dilithium3::public_key_bytes();
     let skb = dilithium3::secret_key_bytes();
@@ -600,6 +613,7 @@ pub extern "C" fn ccx_pq_multisig_keypair(pk_out: *mut u8, pk_cap: usize,
         std::ptr::copy_nonoverlapping(sk.as_bytes().as_ptr(), sk_out, skb);
     }
     0
+  })
 }
 
 /// Sign `msg` with an ML-DSA-65 secret key, producing a DETACHED signature.
@@ -609,6 +623,7 @@ pub extern "C" fn ccx_pq_multisig_keypair(pk_out: *mut u8, pk_cap: usize,
 pub extern "C" fn ccx_pq_multisig_sign(msg: *const u8, msg_len: usize,
                                        sk: *const u8, sk_len: usize,
                                        sig_out: *mut u8, sig_len: *mut usize) -> i32 {
+  ffi_guard(-99, || {
     if sig_len.is_null() { return -1; }
     let need = dilithium3::signature_bytes();
     if sig_out.is_null() { unsafe { *sig_len = need; } return 0; }   // size query
@@ -625,6 +640,7 @@ pub extern "C" fn ccx_pq_multisig_sign(msg: *const u8, msg_len: usize,
         *sig_len = need;
     }
     0
+  })
 }
 
 /// Verify a DETACHED ML-DSA-65 signature `sig` over `msg` under public key `pk`.
@@ -634,6 +650,9 @@ pub extern "C" fn ccx_pq_multisig_sign(msg: *const u8, msg_len: usize,
 pub extern "C" fn ccx_pq_multisig_verify(msg: *const u8, msg_len: usize,
                                          pk: *const u8, pk_len: usize,
                                          sig: *const u8, sig_len: usize) -> i32 {
+  // Consensus-path: the daemon's deposit-spend validator calls this per (key, sig) pair. A panic
+  // here must become a rejection (-99 != 0), never UB that could crash a validating node.
+  ffi_guard(-99, || {
     if msg.is_null() || pk.is_null() || sig.is_null() { return -1; }
     if pk_len != dilithium3::public_key_bytes() { return -4; }
     if sig_len != dilithium3::signature_bytes() { return -3; }
@@ -646,6 +665,7 @@ pub extern "C" fn ccx_pq_multisig_verify(msg: *const u8, msg_len: usize,
         Ok(()) => 0,
         Err(_) => -5,
     }
+  })
 }
 
 /// Selftest for the ML-DSA-65 multisig backend: a fresh keypair signs a message; the detached
@@ -653,6 +673,7 @@ pub extern "C" fn ccx_pq_multisig_verify(msg: *const u8, msg_len: usize,
 /// ok=1 means every check passed. Exercises the exact C-ABI the daemon's deposit validator uses.
 #[no_mangle]
 pub extern "C" fn ccx_pq_multisig_selftest() -> CcxPqSizes {
+  ffi_guard(CCX_SIZES_PANIC, || {
     let pkb = dilithium3::public_key_bytes();
     let skb = dilithium3::secret_key_bytes();
     let sgb = dilithium3::signature_bytes();
@@ -687,4 +708,5 @@ pub extern "C" fn ccx_pq_multisig_selftest() -> CcxPqSizes {
 
     let ok = (roundtrip_ok && tamper_rejected && wrongkey_rejected && wrongmsg_rejected) as i32;
     CcxPqSizes { pk: pkb, sk: skb, ct_or_sig: sgb, ss: 0, ok }
+  })
 }
