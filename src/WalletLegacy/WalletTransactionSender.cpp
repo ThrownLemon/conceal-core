@@ -14,8 +14,10 @@
 #include "CryptoNoteCore/CryptoNoteBasicImpl.h"
 #include "WalletLegacy/WalletTransactionSender.h"
 #include "WalletLegacy/WalletUtils.h"
+#include "pq_testnet_kem_keypair.h" // PoC: hardcoded testnet ML-KEM recipient key (Option B)
 
 #include <Logging/LoggerGroup.h>
+#include <cstdlib>
 #include <random>
 
 using namespace crypto;
@@ -236,6 +238,12 @@ namespace cn
     context->mixIn = mixIn;
     context->ttl = ttl;
 
+    // PoC (Option B): on testnet, opt in to the post-quantum message path (tx-extra 0x06) via the
+    // CCX_PQ_MESSAGES env flag, encapsulating to the hardcoded testnet ML-KEM recipient key. Default
+    // OFF so legacy testnet behavior is unchanged. Production key distribution (per-recipient ML-KEM
+    // pubkey from a PQ address) is step 4 of docs/design/quantum-resistance/messages-mlkem.md — TODO.
+    const bool usePqMessages = m_testnet && std::getenv("CCX_PQ_MESSAGES") != nullptr;
+
     for (const TransactionMessage &message : messages)
     {
       AccountPublicAddress address;
@@ -245,7 +253,16 @@ namespace cn
         throw std::system_error(make_error_code(error::BAD_ADDRESS));
       }
 
-      context->messages.push_back({message.message, true, address});
+      tx_message_entry entry;
+      entry.message = message.message;
+      entry.encrypt = true;
+      entry.addr = address;
+      if (usePqMessages)
+      {
+        entry.pq = true;
+        entry.kemPub.assign(PQ_TESTNET_KEM_PK, PQ_TESTNET_KEM_PK + sizeof(PQ_TESTNET_KEM_PK));
+      }
+      context->messages.push_back(entry);
     }
 
     if (context->mixIn != 0)

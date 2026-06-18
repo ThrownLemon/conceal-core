@@ -73,6 +73,16 @@ endif ()
 add_dependencies(CryptoNoteCore ccx_pqc)
 target_include_directories(CryptoNoteCore PRIVATE ${CCX_PQC_INCLUDE})
 
+# WalletLegacy now references the hardcoded testnet ML-KEM key header (PQ message PoC, Option B),
+# so the Wallet lib needs the ccx-pqc include dir at compile time.
+add_dependencies(Wallet ccx_pqc)
+target_include_directories(Wallet PRIVATE ${CCX_PQC_INCLUDE})
+
+# TransfersConsumer scans PQ messages (tx-extra 0x06) on testnet with the hardcoded testnet ML-KEM
+# secret header (PQ message PoC, Option B), so the Transfers lib also needs the ccx-pqc include dir.
+add_dependencies(Transfers ccx_pqc)
+target_include_directories(Transfers PRIVATE ${CCX_PQC_INCLUDE})
+
 target_link_libraries(Daemon CryptoNoteCore P2P Rpc System Http Logging Common crypto libminiupnpc-static BlockchainExplorer ${Boost_LIBRARIES} Serialization)
 add_dependencies(Daemon ccx_pqc)
 target_include_directories(Daemon PRIVATE ${CCX_PQC_INCLUDE})

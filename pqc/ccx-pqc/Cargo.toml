@@ -19,6 +19,10 @@ panic = "unwind"
 
 [dependencies]
 sha3 = "0.10"
+# ChaCha20-Poly1305 AEAD for the PQ message field (tx-extra 0x06): real authenticated encryption so
+# tampering ANY byte is detected. Matches the RustCrypto 0.10 generation used by sha3. The key/nonce
+# are derived deterministically (SHAKE256), so no RNG feature is needed.
+chacha20poly1305 = "0.10"
 pqcrypto-kyber = "0.8"
 pqcrypto-dilithium = "0.5"
 pqcrypto-traits = "0.3"

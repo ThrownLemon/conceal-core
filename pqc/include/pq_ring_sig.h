@@ -27,16 +27,36 @@ int32_t ccx_pq_verify(const uint8_t *msg, size_t msg_len,
 size_t ccx_pq_kem_pubkey_bytes(void);
 size_t ccx_pq_kem_seckey_bytes(void);
 size_t ccx_pq_kem_ct_bytes(void);
+int32_t ccx_pq_kem_keypair(uint8_t *pk_out, size_t pk_cap, uint8_t *sk_out, size_t sk_cap);
 int32_t ccx_pq_kem_derive_output(const uint8_t *kem_pk, size_t kem_pk_len,
                                  uint8_t *ct_out, size_t ct_cap, uint8_t *seed_out, size_t seed_cap);
 int32_t ccx_pq_kem_scan(const uint8_t *kem_sk, size_t kem_sk_len,
                         const uint8_t *ct, size_t ct_len, uint8_t *seed_out, size_t seed_cap);
+/* ML-KEM-768 encrypted on-chain messages (tx-extra 0x06): same KEM as the stealth pair but with a
+   distinct message domain ("ccx-msg-kem-v1") so a key reused for both never yields the same secret.
+   The 32-byte secret is index-independent; the caller mixes in the per-message index. */
+int32_t ccx_pq_msg_kem_encap(const uint8_t *kem_pk, size_t kem_pk_len,
+                             uint8_t *ct_out, size_t ct_cap, uint8_t *key_out, size_t key_cap);
+int32_t ccx_pq_msg_kem_decap(const uint8_t *kem_sk, size_t kem_sk_len,
+                             const uint8_t *ct, size_t ct_len, uint8_t *key_out, size_t key_cap);
+/* ChaCha20-Poly1305 AEAD for the PQ message field (tx-extra 0x06): real authenticated encryption.
+   Key + 12-byte nonce are derived from (the 32-byte KEM seed, index) via SHAKE256 "ccx-msg-aead-v1".
+   seal() writes pt_len + 16 bytes (ciphertext || Poly1305 tag); open() verifies the tag and writes
+   NOTHING on authentication failure. Both return 0 on success, negative on error. */
+int32_t ccx_pq_msg_seal(const uint8_t *seed, size_t seed_len, uint64_t index,
+                        const uint8_t *pt, size_t pt_len,
+                        uint8_t *ct_out, size_t ct_cap, size_t *ct_len_out);
+int32_t ccx_pq_msg_open(const uint8_t *seed, size_t seed_len, uint64_t index,
+                        const uint8_t *ct, size_t ct_len,
+                        uint8_t *pt_out, size_t pt_cap, size_t *pt_len_out);
 /* Real PQ primitives self-tests — sizes via out-struct. */
 typedef struct { size_t pk, sk, ct_or_sig, ss; int32_t ok; } ccx_pq_sizes;
 ccx_pq_sizes ccx_mlkem768_selftest(void);
 ccx_pq_sizes ccx_mldsa_selftest(void);
 ccx_pq_sizes ccx_pq_ringsig_selftest(void);
 ccx_pq_sizes ccx_pq_kem_stealth_selftest(void);
+ccx_pq_sizes ccx_pq_msg_kem_selftest(void);
+ccx_pq_sizes ccx_pq_msg_aead_selftest(void);
 #ifdef __cplusplus
 }
 #endif

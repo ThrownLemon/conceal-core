@@ -17,6 +17,7 @@
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/TransactionApi.h"
 #include "CryptoNoteCore/TransactionExtra.h"
+#include "pq_testnet_kem_keypair.h" // PoC: hardcoded testnet ML-KEM recipient key (Option B)
 
 #include "IWallet.h"
 #include "INode.h"
@@ -572,6 +573,14 @@ void TransfersConsumer::processOutputs(const TransactionBlockInfo& blockInfo, Tr
     }
   } else {
     auto messages = get_messages_from_extra(tx.getExtra(), tx.getTransactionPublicKey(), &sub.getKeys().spendSecretKey);
+    // PoC (Option B): on testnet, also scan post-quantum messages (tx-extra 0x06) with the hardcoded
+    // testnet ML-KEM recipient secret and merge them in. Production scanning uses the account's own
+    // ML-KEM secret from a PQ address/wallet (step 4 of messages-mlkem.md) — TODO.
+    if (m_currency.isTestnet()) {
+      std::vector<uint8_t> kemSec(PQ_TESTNET_KEM_SK, PQ_TESTNET_KEM_SK + sizeof(PQ_TESTNET_KEM_SK));
+      auto pqMessages = get_pq_messages_from_extra(tx.getExtra(), kemSec);
+      messages.insert(messages.end(), pqMessages.begin(), pqMessages.end());
+    }
     updated = sub.addTransaction(blockInfo, tx, transfers, std::move(messages));
     contains = updated;
   }

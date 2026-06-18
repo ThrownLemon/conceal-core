@@ -15,6 +15,8 @@
 #include "CryptoNoteTools.h"
 #include "Serialization/BinaryOutputStreamSerializer.h"
 #include "Serialization/BinaryInputStreamSerializer.h"
+#include "Serialization/SerializationOverloads.h"
+#include "pq_ring_sig.h" // ccx-pqc FFI: ML-KEM-768 message KEM (tx-extra 0x06)
 
 using namespace crypto;
 using namespace common;
@@ -108,6 +110,24 @@ namespace cn
           transactionExtraFields.push_back(ttl);
           break;
         }
+
+        case TX_EXTRA_PQ_MESSAGE_TAG:
+        {
+          tx_extra_pq_message pqMessage;
+          ar(pqMessage, "pq_message");
+          // Bound the field: the parser has no default case, so an oversize/wrong-length field
+          // would otherwise consume bytes that belong to following fields (R1/R4). Reject early.
+          // data is the AEAD-sealed blob, so it must be at least the 16-byte Poly1305 tag and at
+          // most the configured maximum.
+          if (pqMessage.kemCt.size() != ccx_pq_kem_ct_bytes() ||
+              pqMessage.data.size() < TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE ||
+              pqMessage.data.size() > TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE)
+          {
+            return false;
+          }
+          transactionExtraFields.push_back(pqMessage);
+          break;
+        }
         }
       }
     }
@@ -160,6 +180,11 @@ namespace cn
     {
       appendTTLToExtra(extra, t.ttl);
       return true;
+    }
+
+    bool operator()(const tx_extra_pq_message &t)
+    {
+      return append_pq_message_to_extra(extra, t);
     }
   };
 
@@ -271,6 +296,46 @@ namespace cn
       }
       std::string res;
       if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recepient_secret_key, res))
+      {
+        result.push_back(res);
+      }
+      ++i;
+    }
+    return result;
+  }
+
+  bool append_pq_message_to_extra(std::vector<uint8_t> &tx_extra, const tx_extra_pq_message &message)
+  {
+    BinaryArray blob;
+    if (!toBinaryArray(message, blob))
+    {
+      return false;
+    }
+
+    tx_extra.reserve(tx_extra.size() + 1 + blob.size());
+    tx_extra.push_back(TX_EXTRA_PQ_MESSAGE_TAG);
+    std::copy(reinterpret_cast<const uint8_t *>(blob.data()), reinterpret_cast<const uint8_t *>(blob.data() + blob.size()), std::back_inserter(tx_extra));
+
+    return true;
+  }
+
+  std::vector<std::string> get_pq_messages_from_extra(const std::vector<uint8_t> &extra, const std::vector<uint8_t> &recipientKemSec)
+  {
+    std::vector<TransactionExtraField> tx_extra_fields;
+    std::vector<std::string> result;
+    if (!parseTransactionExtra(extra, tx_extra_fields))
+    {
+      return result;
+    }
+    size_t i = 0;
+    for (const auto &f : tx_extra_fields)
+    {
+      if (f.type() != typeid(tx_extra_pq_message))
+      {
+        continue;
+      }
+      std::string res;
+      if (boost::get<tx_extra_pq_message>(f).decrypt(i, recipientKemSec, res))
       {
         result.push_back(res);
       }
@@ -444,6 +509,84 @@ namespace cn
 
   bool tx_extra_message::serialize(ISerializer &s)
   {
+    s(data, "data");
+    return true;
+  }
+
+  // ML-KEM-768 message field (tx-extra 0x06) ----------------------------------------------------
+  // The KEM derives a 32-byte seed (ccx_pq_msg_kem_encap/decap, domain "ccx-msg-kem-v1"); the seed
+  // and the per-message index then key a ChaCha20-Poly1305 AEAD (ccx_pq_msg_seal/open, which derive
+  // a 32-byte key + 12-byte nonce via SHAKE256 "ccx-msg-aead-v1"). This is REAL authenticated
+  // encryption: tampering ANY byte of the sealed ciphertext (incl. the Poly1305 tag) makes open()
+  // fail, unlike the legacy 0x04 chacha8 + 4-zero-byte owner-test (which has no MAC and is left
+  // untouched). `data` carries the sealed ciphertext (plaintext_len + 16-byte tag).
+  bool tx_extra_pq_message::encrypt(size_t index, const std::string &message, const std::vector<uint8_t> &recipientKemPub)
+  {
+    if (recipientKemPub.size() != ccx_pq_kem_pubkey_bytes())
+    {
+      return false;
+    }
+
+    kemCt.assign(ccx_pq_kem_ct_bytes(), 0);
+    uint8_t seed[32];
+    if (ccx_pq_msg_kem_encap(recipientKemPub.data(), recipientKemPub.size(),
+                             kemCt.data(), kemCt.size(), seed, sizeof(seed)) != 0)
+    {
+      kemCt.clear();
+      return false;
+    }
+
+    std::vector<uint8_t> sealed(message.size() + TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE, 0);
+    size_t sealedLen = 0;
+    int rc = ccx_pq_msg_seal(seed, sizeof(seed), static_cast<uint64_t>(index),
+                             reinterpret_cast<const uint8_t *>(message.data()), message.size(),
+                             sealed.data(), sealed.size(), &sealedLen);
+    if (rc != 0 || sealedLen != sealed.size())
+    {
+      kemCt.clear();
+      return false;
+    }
+
+    data.assign(reinterpret_cast<const char *>(sealed.data()), sealedLen);
+    return true;
+  }
+
+  bool tx_extra_pq_message::decrypt(size_t index, const std::vector<uint8_t> &recipientKemSec, std::string &message) const
+  {
+    if (data.size() < TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE)
+    {
+      return false;
+    }
+    if (kemCt.size() != ccx_pq_kem_ct_bytes() || recipientKemSec.size() != ccx_pq_kem_seckey_bytes())
+    {
+      return false;
+    }
+
+    uint8_t seed[32];
+    if (ccx_pq_msg_kem_decap(recipientKemSec.data(), recipientKemSec.size(),
+                             kemCt.data(), kemCt.size(), seed, sizeof(seed)) != 0)
+    {
+      return false;
+    }
+
+    std::vector<uint8_t> plain(data.size() - TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE, 0);
+    size_t plainLen = 0;
+    int rc = ccx_pq_msg_open(seed, sizeof(seed), static_cast<uint64_t>(index),
+                             reinterpret_cast<const uint8_t *>(data.data()), data.size(),
+                             plain.data(), plain.size(), &plainLen);
+    // open() returns non-zero (and writes nothing) on auth failure / wrong recipient.
+    if (rc != 0 || plainLen != plain.size())
+    {
+      return false;
+    }
+
+    message.assign(reinterpret_cast<const char *>(plain.data()), plainLen);
+    return true;
+  }
+
+  bool tx_extra_pq_message::serialize(ISerializer &s)
+  {
+    serializeAsBinary(kemCt, "kem", s);
     s(data, "data");
     return true;
   }

@@ -1,6 +1,6 @@
 add_definitions(-DMINIUPNP_STATICLIB)
 
-include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} ../version)
+include_directories(${gtest_SOURCE_DIR}/include ${gtest_SOURCE_DIR} ../version ${CCX_PQC_INCLUDE})
 
 file(GLOB_RECURSE CoreTests CoreTests/*)
 file(GLOB_RECURSE CryptoTests crypto/*)
