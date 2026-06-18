@@ -111,6 +111,11 @@ namespace cn
 		const uint64_t UPGRADE_HEIGHT_V6 = 104200;	  /* LWMA3 */
 		const uint64_t UPGRADE_HEIGHT_V7 = 195765;	  /* Cryptoight Conceal */
 		const uint64_t UPGRADE_HEIGHT_V8 = 661300;	  /* LWMA1, CN-GPU, Halving */
+		/* PQ deposits (CIP-0001, ML-DSA-65). Mainnet height is a FAR-FUTURE sentinel well past the
+		   last hardcoded checkpoint (~2,070,000) so PQ deposits are never auto-trusted inside the
+		   checkpoint zone and never activate on mainnet until the ML-DSA deposit integration is
+		   audited. This is consensus-critical: do not lower it without an audit + a coordinated fork. */
+		const uint64_t UPGRADE_HEIGHT_V9 = 5000000;	  /* PQ deposits (ML-DSA-65) — audit-gated sentinel */
 		const unsigned UPGRADE_VOTING_THRESHOLD = 90; // percent
 		const size_t UPGRADE_VOTING_WINDOW = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;
 		const size_t UPGRADE_WINDOW = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;
@@ -124,6 +129,7 @@ namespace cn
 		const uint64_t TESTNET_UPGRADE_HEIGHT_V6 = 48;	  /* LWMA3 */
 		const uint64_t TESTNET_UPGRADE_HEIGHT_V7 = 60;	  /* Cryptoight Conceal */
 		const uint64_t TESTNET_UPGRADE_HEIGHT_V8 = 72;	  /* LWMA1, CN-GPU, Halving */
+		const uint64_t TESTNET_UPGRADE_HEIGHT_V9 = 80;	  /* PQ deposits (ML-DSA-65) — testnet PoC activation */
 
 		const uint32_t TESTNET_DEPOSIT_MIN_TERM_V3 = 30;		/* testnet deposits 1 month -> 1 hour */
 		const uint32_t TESTNET_DEPOSIT_MAX_TERM_V3 = 12 * 30;	/* testnet deposits 1 year -> 12 hour */
@@ -163,6 +169,9 @@ namespace cn
 	const size_t  PQ_NULLIFIER_SIZE = 32;       /* ccx-pq nullifier length (bytes); bounds m_spent_pq_nullifiers keys */
 	const size_t  PQ_MIN_RING_SIZE = 2;         /* min distinct ring members for a PQ input (anonymity floor) */
 	const size_t  PQ_MAX_RING_SIZE = 16;        /* max ring members for a PQ input (bounds verify-cost CPU-DoS) */
+	const size_t  PQ_MULTISIG_MAX_KEYS = 16;    /* max n keys / m sigs in a PQ multisig (deposit) output/input;
+	                                               bounds the attacker-controlled length-prefixed arrays at the
+	                                               serialization boundary (OOM + verify-CPU DoS guard) */
 	/* Testnet PoC only (CIP-0001): deterministic seed for the PQ keypair that owns testnet coinbase
 	   PQ outputs. The daemon (coinbase) derives the public key; the injector derives the secret key.
 	   NOT a stealth/KEM scheme — a single shared known key, sufficient to exercise the spend path. */
@@ -181,6 +190,7 @@ namespace cn
 	const uint8_t BLOCK_MAJOR_VERSION_4 = 4; // LWMA3
 	const uint8_t BLOCK_MAJOR_VERSION_7 = 7; /* Cryptonight Conceal */
 	const uint8_t BLOCK_MAJOR_VERSION_8 = 8; /* LWMA1, CN-GPU, Halving */
+	const uint8_t BLOCK_MAJOR_VERSION_9 = 9; /* PQ deposits (ML-DSA-65), CIP-0001 — UPGRADE_HEIGHT_V9 */
 	const uint8_t BLOCK_MINOR_VERSION_0 = 0;
 	const uint8_t BLOCK_MINOR_VERSION_1 = 1;
 
