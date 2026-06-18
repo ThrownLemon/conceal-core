@@ -70,8 +70,8 @@ human money-path review.
 | KEM encap/decap | n/a (ECDH ~60 µs) | sub-ms (ML-KEM-768) | standardised, fast |
 
 > The NTT rewrite already cut ring-4 verify ~9.5× (6.54 ms → 0.69 ms at the old params); the K=L=6 bump
-> brought it back to ~0.9 ms. A **constant-time** rewrite of the modular arithmetic (mainnet gate, in
-> progress) will add some cost — see §6 for the measured before/after once landed.
+> brought it back to ~0.9 ms. The **constant-time** rewrite of the modular arithmetic (mainnet gate —
+> now **done**, §6) adds +17–18%, keeping verify ~1.1 ms / sign ~2.5 ms — bit-identical, no wire change.
 
 ### 3.3 Transaction-size scaling vs. the consensus limit
 
@@ -148,8 +148,15 @@ threat that is likely years out — that trades a future probabilistic risk for 
 
 ## 6. Remaining gates (in priority order)
 
-1. **Ring-sig constant-time** — modular arithmetic Barrett/Montgomery + branchless selects, bit-identical
-   outputs. *[In progress; before/after timing to be appended here.]*
+1. **Ring-sig constant-time** — ✅ **done for the modular-arithmetic hot paths.** Barrett reduction (no
+   `idiv`) for `mulmod`, division-free centered reduce for `cmod`/`pmod`, branchless masked selects for
+   the `addq`/`subq` NTT butterflies — no secret-dependent branch or division remains on the reductions
+   over the secret `s`/masks `y`/`z`. **Bit-identical** (NTT-equivalence 0 mismatches + exhaustive/random
+   equivalence tests + selftests green; wire format unchanged). Measured cost (ring-4): **verify +18%
+   (0.95 → 1.12 ms), sign +17% (2.09 → 2.46 ms)**. *Residual:* `sign()`'s Fiat-Shamir-with-aborts
+   rejection loop still has a secret-dependent **iteration count** (the `‖z‖∞ ≤ ZBOUND` abort depends on
+   the mask norm) — a standard lattice-sig property, wallet-side only (`verify` has no loop). Deferred to
+   the audit/constant-time-sampling work; documented in `ringsig-hardening.md`.
 2. **Ring-sig parameter calibration** — run a current lattice estimator over the MSIS (forgery) and MLWE
    (key-recovery) instances; replace the heuristic K=L=6 with a justified set.
 3. **Ring-sig audit** — professional cryptographic review of the AOS/LSAG-over-module-lattice
