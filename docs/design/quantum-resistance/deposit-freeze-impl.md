@@ -35,18 +35,20 @@ static bool transactionContainsClassicalDeposit(const Transaction &tx) {
 }
 ```
 
-Defined twice — `Blockchain.cpp:102` and `TransactionPool.cpp:43` (mempool twin, cross-referenced; keep in
-sync). A non-deposit multisig (`term == 0`) is unaffected. It inspects **outputs only** — a withdraw tx
-(which carries a `MultisignatureInput` and only normal `term==0` outputs) is *not* matched, which is why
+Defined **once** as a shared free function in `CryptoNoteFormatUtils.{h,cpp}` (single source of truth, commit
+`0b1c79f`), called from both the authoritative `pushBlock` gate and the mempool/template policy gates so they
+can't drift apart. A non-deposit multisig (`term == 0`) is unaffected. It inspects **outputs only** — a withdraw
+tx (which carries a `MultisignatureInput` and only normal `term==0` outputs) is *not* matched, which is why
 withdrawing an existing deposit is never frozen.
 
-## The three gate sites
+## The four gate sites
 
 | Site | File:line | Condition | Role |
 |---|---|---|---|
-| **Per-tx block-connection** | `Blockchain.cpp:~3158` (in `pushBlock`) | `transactionContainsClassicalDeposit(tx) && block.height >= upgradeHeight(V9)` → `isTransactionValid = false` | **Authoritative consensus rejection.** Directly mirrors the PQ-enable per-tx gate a few lines above. |
-| **Coinbase guard** | `Blockchain.cpp:~3101` (in `pushBlock`) | same, on `blockData.baseTransaction`, `m_blocks.size() >= upgradeHeight(V9)` → `m_verification_failed` | Rejects a malicious post-V9 coinbase that tries to mint a classical deposit cell to bypass the freeze. A genuine coinbase never carries one. Mirrors the PQ coinbase guard. |
-| **Mempool acceptance** | `TransactionPool.cpp:~283` (in `add_tx`) | `!keptByBlock && transactionContainsClassicalDeposit(tx) && height >= upgradeHeight(V9)` → `tvc.m_verification_failed`, reject | Keeps a frozen deposit out of the pool / relay / block templates, so it never **stalls mining**. Loose txs only — a tx returning from a popped block (`keptByBlock`) was valid when mined and must not be re-rejected. |
+| **Per-tx block-connection** | `Blockchain.cpp` (in `pushBlock`) | `transactionContainsClassicalDeposit(tx) && block.height >= upgradeHeight(V9)` → `isTransactionValid = false` | **Authoritative consensus rejection.** Directly mirrors the PQ-enable per-tx gate a few lines above. |
+| **Coinbase guard** | `Blockchain.cpp` (in `pushBlock`) | same, on `blockData.baseTransaction`, `m_blocks.size() >= upgradeHeight(V9)` → `m_verification_failed` | Rejects a malicious post-V9 coinbase that tries to mint a classical deposit cell to bypass the freeze. A genuine coinbase never carries one. Mirrors the PQ coinbase guard. |
+| **Mempool acceptance** | `TransactionPool.cpp` (in `add_tx`) | `!keptByBlock && transactionContainsClassicalDeposit(tx) && height >= upgradeHeight(V9)` → `tvc.m_verification_failed`, reject | Rejects a frozen deposit at submission/relay so it never enters the local pool. Loose txs only — a tx returning from a popped block (`keptByBlock`) was valid when mined and must not be re-rejected. |
+| **Block-template skip** | `TransactionPool.cpp` (in `fill_block_template`) | `transactionContainsClassicalDeposit(tx) && height >= upgradeHeight(V9)` → skip (don't select) | Anti-stall (commit `c9fb3bb`): a deposit created just before V9, still in the pool when the chain crosses the boundary (or relayed from a non-enforcing peer), is never selected into a template — otherwise the block would fail at `pushBlock` and mining would stall. Liveness-only; cannot fork the chain. |
 
 ### Why `>=` (and never `>`)
 

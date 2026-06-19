@@ -155,10 +155,11 @@ unlinkability)</td>
 <td><strong>Deposit freeze (Option 3)</strong></td>
 <td>classical (Ed25519) deposit creation frozen at/after V9 — PQ-only
 deposits after the fork; creation-side only (existing deposits stay
-spendable). 3 gates: <code>pushBlock</code> per-tx + coinbase,
-<code>add_tx</code> acceptance</td>
-<td><code>Blockchain.cpp</code>
-(<code>transactionContainsClassicalDeposit</code>),
+spendable). 4 gates: <code>pushBlock</code> per-tx + coinbase,
+<code>add_tx</code> acceptance, <code>fill_block_template</code> skip
+(anti-stall)</td>
+<td>predicate <code>transactionContainsClassicalDeposit</code> shared in
+<code>CryptoNoteFormatUtils</code>; <code>Blockchain.cpp</code>,
 <code>TransactionPool.cpp</code>; see <a
 href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a></td>
 </tr>
