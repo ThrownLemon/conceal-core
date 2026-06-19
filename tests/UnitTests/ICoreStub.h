@@ -61,6 +61,7 @@ public:
   virtual void on_synchronized() override {}
   virtual bool getOutByMSigGIndex(uint64_t amount, uint64_t gindex, cn::MultisignatureOutput& out) override { return true; }
   virtual bool getPqOutputs(uint64_t amount, std::vector<cn::PqOutputEntry>& outs) override { outs.clear(); return true; }
+  virtual bool getPqMultisigOutputs(uint64_t amount, std::vector<cn::PqMultisigOutputEntry>& outs) override { outs.clear(); return true; }
   virtual size_t addChain(const std::vector<const cn::IBlock*>& chain) override;
 
   virtual crypto::Hash getBlockIdByHeight(uint32_t height) override;

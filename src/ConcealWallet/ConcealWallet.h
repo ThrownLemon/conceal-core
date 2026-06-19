@@ -116,6 +116,8 @@ namespace cn
     bool pq_transfer(const std::vector<std::string> &args);
     bool pq_address(const std::vector<std::string> &args);
     bool pq_receive(const std::vector<std::string> &args);
+    bool pq_deposit(const std::vector<std::string> &args);
+    bool pq_withdraw(const std::vector<std::string> &args);
     /* End of Commands */
 
     /* Derive this wallet's deterministic PQ KEM keypair (mnemonic-restorable) from the legacy spend

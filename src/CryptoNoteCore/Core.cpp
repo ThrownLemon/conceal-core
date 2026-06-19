@@ -504,6 +504,10 @@ bool core::getPqOutputs(uint64_t amount, std::vector<PqOutputEntry>& outs) {
   return m_blockchain.getPqOutputs(amount, outs);
 }
 
+bool core::getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry>& outs) {
+  return m_blockchain.getPqMultisigOutputs(amount, outs);
+}
+
 void core::pause_mining() {
   m_miner->pause();
 }

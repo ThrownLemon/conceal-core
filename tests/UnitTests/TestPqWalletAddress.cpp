@@ -248,6 +248,11 @@ TEST(PqAccountKeygen, sameSeedReproducesSameKeys)
   ASSERT_EQ(k1.kemSecretKey, k2.kemSecretKey) << "same seed must reproduce the same KEM secret key";
   ASSERT_EQ(k1.kemSchemeId, k2.kemSchemeId);
   ASSERT_EQ(k1.ringSchemeId, k2.ringSchemeId);
+  // The ML-DSA-65 deposit-signing keypair must reproduce identically too (mnemonic recovery of the
+  // PQ deposit key — CIP-0001 UPGRADE_HEIGHT_V9).
+  ASSERT_EQ(k1.dsaPublicKey, k2.dsaPublicKey) << "same seed must reproduce the same ML-DSA public key";
+  ASSERT_EQ(k1.dsaSecretKey, k2.dsaSecretKey) << "same seed must reproduce the same ML-DSA secret key";
+  ASSERT_EQ(k1.dsaSchemeId, k2.dsaSchemeId);
 }
 
 TEST(PqAccountKeygen, differentSeedYieldsDifferentKeys)
@@ -256,6 +261,54 @@ TEST(PqAccountKeygen, differentSeedYieldsDifferentKeys)
   PqAccountKeys k2 = PqAccount::generateFromSeed(seedFromByte(0x02));
   ASSERT_NE(k1.kemPublicKey, k2.kemPublicKey);
   ASSERT_NE(k1.kemSecretKey, k2.kemSecretKey);
+  ASSERT_NE(k1.dsaPublicKey, k2.dsaPublicKey);
+  ASSERT_NE(k1.dsaSecretKey, k2.dsaSecretKey);
+}
+
+TEST(PqAccountKeygen, dsaKeySizesAreMldsa65)
+{
+  // ML-DSA-65 (FIPS 204) fixed sizes: pk = 1952, sk = 4032. These are the lengths consensus
+  // (check_pq_multisig / check_outs_valid) re-checks at the FFI boundary, so the derived keypair
+  // MUST match them exactly or every PQ deposit this wallet creates would be rejected.
+  PqAccountKeys keys = PqAccount::generateFromSeed(seedFromByte(0x99));
+  ASSERT_EQ(static_cast<size_t>(1952), keys.dsaPublicKey.size());
+  ASSERT_EQ(static_cast<size_t>(4032), keys.dsaSecretKey.size());
+  ASSERT_EQ(ccx_pq_multisig_pubkey_bytes(), keys.dsaPublicKey.size());
+  ASSERT_EQ(ccx_pq_multisig_seckey_bytes(), keys.dsaSecretKey.size());
+}
+
+TEST(PqAccountKeygen, dsaSeedIsDomainSeparatedFromMasterAndKem)
+{
+  crypto::SecretKey master = seedFromByte(0x5a);
+  crypto::Hash dsaSeed = PqAccount::deriveDsaSeed(master);
+  crypto::Hash kemSeed = PqAccount::deriveKemSeed(master);
+  // The DSA seed must differ from the raw master seed AND from the KEM seed (independent domains),
+  // otherwise the deposit-signing key would be derivable from / collide with the receive key.
+  ASSERT_NE(0, std::memcmp(dsaSeed.data, master.data, sizeof(master.data)));
+  ASSERT_NE(0, std::memcmp(dsaSeed.data, kemSeed.data, sizeof(kemSeed.data)));
+}
+
+TEST(PqAccountKeygen, dsaKeypairSignsAndVerifies)
+{
+  // End-to-end sanity: the derived ML-DSA keypair actually signs a message that verifies under its
+  // own public key (the exact FFI consensus uses in check_pq_multisig). Guards against a derivation
+  // that produces well-sized but non-functional key material.
+  PqAccountKeys keys = PqAccount::generateFromSeed(seedFromByte(0x33));
+  const uint8_t msg[32] = {0xde, 0xad, 0xbe, 0xef};
+  std::vector<uint8_t> sig(ccx_pq_sig_bytes() + 1024, 0);
+  size_t sigLen = sig.size();
+  ASSERT_EQ(0, ccx_pq_multisig_sign(msg, sizeof(msg),
+                                    keys.dsaSecretKey.data(), keys.dsaSecretKey.size(),
+                                    sig.data(), &sigLen));
+  sig.resize(sigLen);
+  ASSERT_EQ(0, ccx_pq_multisig_verify(msg, sizeof(msg),
+                                      keys.dsaPublicKey.data(), keys.dsaPublicKey.size(),
+                                      sig.data(), sig.size()));
+  // A wrong message must NOT verify.
+  const uint8_t wrongMsg[32] = {0x01};
+  ASSERT_NE(0, ccx_pq_multisig_verify(wrongMsg, sizeof(wrongMsg),
+                                      keys.dsaPublicKey.data(), keys.dsaPublicKey.size(),
+                                      sig.data(), sig.size()));
 }
 
 TEST(PqAccountKeygen, kemSeedIsDomainSeparatedFromMaster)

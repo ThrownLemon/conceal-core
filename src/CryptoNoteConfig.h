@@ -133,6 +133,12 @@ namespace cn
 
 		const uint32_t TESTNET_DEPOSIT_MIN_TERM_V3 = 30;		/* testnet deposits 1 month -> 1 hour */
 		const uint32_t TESTNET_DEPOSIT_MAX_TERM_V3 = 12 * 30;	/* testnet deposits 1 year -> 12 hour */
+		/* Testnet-only minimum deposit amount (CIP-0001 PoC). Mainnet keeps DEPOSIT_MIN_AMOUNT = 1 CCX;
+		   on testnet a PQ deposit is funded from one PQ coinbase output (PQ_TESTNET_COINBASE_AMOUNT =
+		   0.1 CCX), which is below the 1-CCX mainnet floor, so the PQ-deposit PoC path is untestable
+		   without a testnet-scoped floor. This is a TESTNET consensus parameter (like the term overrides
+		   above) — it never changes what mainnet accepts. */
+		const uint64_t TESTNET_DEPOSIT_MIN_AMOUNT = 10000;	/* 0.01 CCX — below one PQ coinbase output */
 		const uint32_t TESTNET_DEPOSIT_HEIGHT_V3 = 60;		
 		const uint32_t TESTNET_DEPOSIT_HEIGHT_V4 = 300000;
 		const uint32_t TESTNET_BLOCK_WITH_MISSING_INTEREST = 0; /* testnet is not impacted */
@@ -183,6 +189,7 @@ namespace cn
 	const uint8_t PQ_ADDRESS_VERSION = 2;            /* PqAccountPublicAddress.pqVersion */
 	const uint32_t PQ_KEM_SCHEME_ID = 0xC0DE0203;    /* ML-KEM-768 message/stealth KEM scheme id (agility pin) */
 	const uint32_t PQ_RING_SCHEME_ID = 0xC0DE0004;   /* lattice linkable-ring-sig scheme id == ccx_pq_scheme_id() (K=L=6) */
+	const uint32_t PQ_DSA_SCHEME_ID = 0xC0DE0204;    /* ML-DSA-65 (FIPS 204) PQ deposit multisig scheme id (agility pin) */
 
 	const uint8_t TRANSACTION_VERSION_1 = 1;
 	const uint8_t TRANSACTION_VERSION_2 = 2;
@@ -203,6 +210,8 @@ namespace cn
 	   peer processing by asking for an unbounded number of amounts or an unbounded bucket. */
 	const size_t  PQ_GET_OUTPUTS_MAX_AMOUNTS  = 64;   /* max distinct amounts per get_pq_outputs request */
 	const size_t  PQ_GET_OUTPUTS_MAX_PER_AMOUNT = 1000; /* max entries returned per amount (lowest indices) */
+	const size_t  PQ_GET_MULTISIG_OUTPUTS_MAX_AMOUNTS  = 64;   /* max distinct amounts per get_pq_multisig_outputs request */
+	const size_t  PQ_GET_MULTISIG_OUTPUTS_MAX_PER_AMOUNT = 1000; /* max deposit cells returned per amount (lowest indices) */
 	/* Testnet PoC only (CIP-0001): deterministic seed for the PQ keypair that owns testnet coinbase
 	   PQ outputs. The daemon (coinbase) derives the public key; the injector derives the secret key.
 	   NOT a stealth/KEM scheme — a single shared known key, sufficient to exercise the spend path. */

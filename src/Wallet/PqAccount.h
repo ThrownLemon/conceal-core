@@ -25,12 +25,24 @@ namespace cn
 {
   // A derived PQ account: the long-term ML-KEM keypair (the address-bearing "detect/receive" key)
   // plus the scheme pins. The 4096-byte ring-sig key is per-output/derived and is NOT here.
+  //
+  // The ML-DSA-65 keypair (dsaPublicKey/dsaSecretKey) is the account-level PQ deposit signing key
+  // (CIP-0001 UPGRADE_HEIGHT_V9). Under the v1 single-key design (D1) every PqMultisigOutput deposit
+  // this wallet creates names this ONE dsaPublicKey, and a withdrawal is signed by dsaSecretKey. The
+  // wallet recognizes its own deposits by matching the on-chain output key against dsaPublicKey (a
+  // named-key match, not a stealth scan). Deterministic from the master seed, so it is fully
+  // mnemonic-restorable with zero per-deposit state. (Privacy note: deposits to the same wallet share
+  // this key and are therefore linkable — acceptable for the testnet PoC; per-deposit indexed keys
+  // are deferred to D2.)
   struct PqAccountKeys
   {
     std::vector<uint8_t> kemPublicKey;  // ML-KEM-768 PK (PQ_KEM_PUBLIC_KEY_SIZE)
     std::vector<uint8_t> kemSecretKey;  // ML-KEM-768 SK (kept encrypted in the wallet; needed to scan)
+    std::vector<uint8_t> dsaPublicKey;  // ML-DSA-65 PK (ccx_pq_multisig_pubkey_bytes() == 1952)
+    std::vector<uint8_t> dsaSecretKey;  // ML-DSA-65 SK (ccx_pq_multisig_seckey_bytes() == 4032; encrypted at rest)
     uint32_t kemSchemeId;
     uint32_t ringSchemeId;
+    uint32_t dsaSchemeId;
   };
 
   class PqAccount
@@ -40,6 +52,12 @@ namespace cn
     // (cn_fast_hash of "ccx-pq-kem-acct" || master). Deterministic and domain-separated from the
     // legacy spend/view derivation so the KEM seed != the spend seed.
     static crypto::Hash deriveKemSeed(const crypto::SecretKey &masterSeed);
+
+    // Derive the 32-byte PQ ML-DSA (deposit-signing) seed from the master seed via a domain-separated
+    // hash (cn_fast_hash of "ccx-pq-multisig-acct" || master). A DISTINCT domain tag from the KEM and
+    // ring seeds, so the three account seeds are mutually independent (per ccx-pqc detkeygen domain
+    // separation). Deterministic: same master seed -> same DSA keypair, hence mnemonic-restorable.
+    static crypto::Hash deriveDsaSeed(const crypto::SecretKey &masterSeed);
 
     // Derive the full PQ account (ML-KEM keypair + scheme ids) from the master seed by calling the
     // deterministic keygen FFI. Throws std::runtime_error on FFI failure. Deterministic: same master

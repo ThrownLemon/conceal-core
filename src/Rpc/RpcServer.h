@@ -64,6 +64,7 @@ private:
   bool on_get_transactions(const COMMAND_RPC_GET_TRANSACTIONS::request& req, COMMAND_RPC_GET_TRANSACTIONS::response& res);
   bool on_get_random_outs_json(const COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_JSON::request& req, COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_JSON::response& res);
   bool on_get_pq_outputs(const COMMAND_RPC_GET_PQ_OUTPUTS::request& req, COMMAND_RPC_GET_PQ_OUTPUTS::response& res);
+  bool on_get_pq_multisig_outputs(const COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::request& req, COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::response& res);
   bool on_send_raw_tx(const COMMAND_RPC_SEND_RAW_TX::request& req, COMMAND_RPC_SEND_RAW_TX::response& res);
   bool on_start_mining(const COMMAND_RPC_START_MINING::request& req, COMMAND_RPC_START_MINING::response& res);
   bool on_stop_mining(const COMMAND_RPC_STOP_MINING::request& req, COMMAND_RPC_STOP_MINING::response& res);

@@ -39,6 +39,7 @@
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
 #include "Rpc/HttpClient.h"
 #include "Rpc/PqSpendClient.h"
+#include "Rpc/PqDepositClient.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
 #include "CryptoNoteConfig.h"
 #include "Wallet/PqAccount.h"                 // cn::PqAccount (deterministic, mnemonic-restorable PQ KEM keypair)
@@ -350,6 +351,8 @@ conceal_wallet::conceal_wallet(platform_system::Dispatcher& dispatcher, const cn
   m_consoleHandler.setHandler("pq_address", boost::bind(&conceal_wallet::pq_address, this, boost::arg<1>()), "pq_address - Show this wallet's deterministic post-quantum (testnet PoC) receive address (ccxp)");
   m_consoleHandler.setHandler("pq_transfer", boost::bind(&conceal_wallet::pq_transfer, this, boost::arg<1>()), "pq_transfer <pq_address | self> [ringSize] [fee] - Build + relay a post-quantum (testnet PoC) spend to a PQ address (or back to this wallet) via the remote node");
   m_consoleHandler.setHandler("pq_receive", boost::bind(&conceal_wallet::pq_receive, this, boost::arg<1>()), "pq_receive - Show post-quantum (testnet PoC) outputs received to THIS wallet's PQ address");
+  m_consoleHandler.setHandler("pq_deposit", boost::bind(&conceal_wallet::pq_deposit, this, boost::arg<1>()), "pq_deposit <months> <amount> [fee] [ringSize] - Lock a post-quantum (testnet PoC) deposit of <amount> for <months> (term = months * depositMinTermV3), funded from a PQ output, via the remote node");
+  m_consoleHandler.setHandler("pq_withdraw", boost::bind(&conceal_wallet::pq_withdraw, this, boost::arg<1>()), "pq_withdraw <output_index> [amount] - Withdraw a matured post-quantum (testnet PoC) deposit owned by this wallet (principal + interest), via the remote node");
 }
 
 std::string conceal_wallet::wallet_menu(bool do_ext)
@@ -2260,6 +2263,285 @@ bool conceal_wallet::pq_transfer(const std::vector<std::string> &args)
   else
   {
     fail_msg_writer() << err;
+  }
+
+  return true;
+}
+
+bool conceal_wallet::pq_deposit(const std::vector<std::string> &args)
+{
+  // pq_deposit <months> <amount> [fee] [ringSize]
+  if (args.size() < 2)
+  {
+    fail_msg_writer() << "Usage: pq_deposit <months> <amount> [fee] [ringSize]";
+    return true;
+  }
+
+  uint32_t months = 0;
+  uint64_t amount = 0;
+  uint64_t fee = 1000;
+  uint32_t ringSize = 4;
+  try
+  {
+    months = boost::lexical_cast<uint32_t>(args[0]);
+    if (!m_currency.parseAmount(args[1], amount))
+    {
+      fail_msg_writer() << "Invalid amount: " << args[1];
+      return true;
+    }
+    if (args.size() >= 3)
+    {
+      fee = boost::lexical_cast<uint64_t>(args[2]);
+    }
+    if (args.size() >= 4)
+    {
+      ringSize = boost::lexical_cast<uint32_t>(args[3]);
+    }
+  }
+  catch (const boost::bad_lexical_cast&)
+  {
+    fail_msg_writer() << "Usage: pq_deposit <months> <amount> [fee] [ringSize]";
+    return true;
+  }
+
+  if (months == 0)
+  {
+    fail_msg_writer() << "months must be >= 1";
+    return true;
+  }
+
+  // term = months * depositMinTermV3 — byte-identical to what consensus enforces, so pre-validate
+  // exactly what Currency::validateOutput(PqMultisigOutput) accepts (term band + % depositMinTermV3
+  // + depositMinAmount). Off-band terms / too-small amounts are rejected client-side with a clear
+  // message instead of bouncing off the daemon.
+  const uint64_t termWide = static_cast<uint64_t>(months) * m_currency.depositMinTermV3();
+  if (termWide > m_currency.depositMaxTermV3())
+  {
+    fail_msg_writer() << "term " << termWide << " exceeds the maximum deposit term "
+                      << m_currency.depositMaxTermV3() << " (reduce <months>)";
+    return true;
+  }
+  const uint32_t term = static_cast<uint32_t>(termWide);
+  if (term < m_currency.depositMinTermV3() || term % m_currency.depositMinTermV3() != 0)
+  {
+    fail_msg_writer() << "term " << term << " is out of band (must be a multiple of "
+                      << m_currency.depositMinTermV3() << ")";
+    return true;
+  }
+  if (amount < m_currency.depositMinAmount())
+  {
+    fail_msg_writer() << "amount " << m_currency.formatAmount(amount)
+                      << " is below the minimum deposit amount "
+                      << m_currency.formatAmount(m_currency.depositMinAmount());
+    return true;
+  }
+
+  // The deposit is funded from one fixed-denomination PQ coinbase output. The deposit locks `amount`
+  // and the remainder (inputAmount - amount - fee) is returned to this wallet as PQ change.
+  const uint64_t inputAmount = cn::PQ_TESTNET_COINBASE_AMOUNT;
+  if (inputAmount < amount || inputAmount - amount < fee)
+  {
+    fail_msg_writer() << "deposit amount + fee exceeds a single PQ funding output ("
+                      << m_currency.formatAmount(inputAmount) << ")";
+    return true;
+  }
+
+  std::vector<uint8_t> depositDsaPubKey;
+  std::vector<uint8_t> changeKemPubKey;
+  std::vector<std::vector<uint8_t>> candidateKemSecretKeys;
+  // Wipe the live ML-KEM secret-key copies on every exit path.
+  struct KemSecretsWiper
+  {
+    std::vector<std::vector<uint8_t>>& v;
+    ~KemSecretsWiper()
+    {
+      for (size_t i = 0; i < v.size(); ++i)
+      {
+        secure_wipe(v[i].data(), v[i].size());
+      }
+    }
+  } kemSecretsWiper{candidateKemSecretKeys};
+  try
+  {
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    depositDsaPubKey = keys.dsaPublicKey;     // the deposit cell names this wallet's account ML-DSA key
+    changeKemPubKey = keys.kemPublicKey;      // PQ change comes back to this wallet
+    candidateKemSecretKeys.push_back(keys.kemSecretKey);
+    candidateKemSecretKeys.push_back(std::vector<uint8_t>(
+        cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to derive PQ keys: " << e.what();
+    return true;
+  }
+
+  std::string txHash, status, err;
+  if (cn::pqDepositViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
+                             inputAmount, amount, fee, term, ringSize,
+                             candidateKemSecretKeys, depositDsaPubKey, changeKemPubKey,
+                             txHash, status, err))
+  {
+    success_msg_writer() << "PQ deposit relayed: " << txHash << " status=" << status
+                         << " (amount=" << m_currency.formatAmount(amount)
+                         << " term=" << term << " blocks)";
+  }
+  else
+  {
+    fail_msg_writer() << err;
+  }
+
+  return true;
+}
+
+bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
+{
+  // pq_withdraw <output_index> [amount]
+  if (args.empty())
+  {
+    fail_msg_writer() << "Usage: pq_withdraw <output_index> [amount]";
+    return true;
+  }
+
+  uint32_t outputIndex = 0;
+  uint64_t amount = cn::PQ_TESTNET_COINBASE_AMOUNT; // default funding/deposit denomination bucket
+  try
+  {
+    outputIndex = boost::lexical_cast<uint32_t>(args[0]);
+    if (args.size() >= 2 && !m_currency.parseAmount(args[1], amount))
+    {
+      fail_msg_writer() << "Invalid amount: " << args[1];
+      return true;
+    }
+  }
+  catch (const boost::bad_lexical_cast&)
+  {
+    fail_msg_writer() << "Usage: pq_withdraw <output_index> [amount]";
+    return true;
+  }
+
+  std::vector<uint8_t> dsaPubKey;
+  std::vector<std::vector<uint8_t>> signingSecretKeys;
+  std::vector<uint8_t> payoutKemPubKey;
+  struct DsaWiper
+  {
+    std::vector<std::vector<uint8_t>>& v;
+    ~DsaWiper()
+    {
+      for (size_t i = 0; i < v.size(); ++i)
+      {
+        secure_wipe(v[i].data(), v[i].size());
+      }
+    }
+  } dsaWiper{signingSecretKeys};
+  try
+  {
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    dsaPubKey = keys.dsaPublicKey;
+    signingSecretKeys.push_back(keys.dsaSecretKey);
+    payoutKemPubKey = keys.kemPublicKey;
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to derive PQ keys: " << e.what();
+    return true;
+  }
+
+  try
+  {
+    HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
+
+    // Enumerate the deposit cells for this amount and named-key match the wallet's account DSA pubkey.
+    cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::request greq;
+    greq.amounts.push_back(amount);
+    cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::response gres;
+    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_multisig_outputs", greq, gres);
+    if (gres.status != CORE_RPC_STATUS_OK)
+    {
+      fail_msg_writer() << "get_pq_multisig_outputs failed: " << gres.status;
+      return true;
+    }
+
+    const std::string dsaPubHex = common::toHex(dsaPubKey);
+    const cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::pq_msig_out_entry* cell = nullptr;
+    for (const auto& ofa : gres.outs)
+    {
+      if (ofa.amount != amount)
+      {
+        continue;
+      }
+      for (const auto& e : ofa.outs)
+      {
+        if (e.output_index != outputIndex)
+        {
+          continue;
+        }
+        // Named-key match: keys[0] must equal this wallet's account DSA pubkey (the D1 single-key
+        // ownership test). An empty key list is a malformed cell.
+        if (e.keys.empty() || e.keys[0] != dsaPubHex)
+        {
+          fail_msg_writer() << "deposit cell " << outputIndex << " is not owned by this wallet";
+          return true;
+        }
+        cell = &e;
+        break;
+      }
+      if (cell)
+      {
+        break;
+      }
+    }
+    if (!cell)
+    {
+      fail_msg_writer() << "no PQ deposit cell with output_index " << outputIndex
+                        << " and amount " << m_currency.formatAmount(amount);
+      return true;
+    }
+    if (cell->is_used)
+    {
+      fail_msg_writer() << "deposit cell " << outputIndex << " is already spent";
+      return true;
+    }
+    if (cell->term == 0)
+    {
+      fail_msg_writer() << "cell " << outputIndex << " is a plain PQ multisig, not a deposit (term 0)";
+      return true;
+    }
+
+    // Maturity: consensus rejects a withdrawal until createdHeight + term <= currentHeight.
+    const uint32_t currentHeight = m_node->getLastLocalBlockHeight();
+    const uint64_t unlockHeight = static_cast<uint64_t>(cell->height) + cell->term;
+    if (unlockHeight > currentHeight)
+    {
+      fail_msg_writer() << "deposit not matured: unlocks at height " << unlockHeight
+                        << " (current " << currentHeight << ")";
+      return true;
+    }
+
+    // Interest = what the daemon credits = calculateInterest(amount, term, currentHeight - term),
+    // exactly mirroring Currency::getInterestForInput (verified by the interest-parity unit test).
+    const uint32_t lockHeight = currentHeight - cell->term;
+    const uint64_t interest = m_currency.calculateInterest(amount, cell->term, lockHeight);
+
+    std::string txHash, status, err;
+    if (cn::pqWithdrawViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
+                                amount, outputIndex, cell->term,
+                                static_cast<uint8_t>(cell->required_signature_count),
+                                interest, signingSecretKeys, payoutKemPubKey,
+                                txHash, status, err))
+    {
+      success_msg_writer() << "PQ withdraw relayed: " << txHash << " status=" << status
+                           << " (principal=" << m_currency.formatAmount(amount)
+                           << " interest=" << m_currency.formatAmount(interest) << ")";
+    }
+    else
+    {
+      fail_msg_writer() << err;
+    }
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "pq_withdraw failed: " << e.what();
   }
 
   return true;
