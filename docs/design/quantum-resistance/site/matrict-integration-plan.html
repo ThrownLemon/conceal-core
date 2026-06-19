@@ -244,17 +244,25 @@ gates)</h2>
 </thead>
 <tbody>
 <tr>
-<td><strong>P0 — library-ize</strong> <em>(milestone 1 done —
+<td><strong>P0 — library-ize</strong> <em>(milestones 1+2 done —
 <code>~/matrict-lib</code> on WSL)</em></td>
 <td>Turn <code>repo-matrict</code> into a static lib + clean header;
 per-ring-size builds + dispatch; thread-safety (PRG/scratch); ARM/AES
 shim; packed serializer</td>
-<td><code>libmatrict_n{10,50,100}m1.a</code> + <code>matrict.h</code> +
-dispatcher built; correctness preserved (50/50 each, 4-thread PASS,
-SHAKE fallback PASS). <strong>Remaining for P0:</strong> packed
-serializer (still raw <code>sizeof</code>); full reentrancy
-(spend/verify scratch on interim coarse lock); aarch64 <em>run</em>
-(needs aarch64 <code>libXKCP.a</code>)</td>
+<td><strong>M1:</strong> <code>libmatrict_n{10,50,100}m1.a</code> +
+<code>matrict.h</code> + dispatcher; correctness 50/50 each.
+<strong>M2:</strong> canonical range-checked <strong>packed
+serializer</strong> (<code>matrict_serialize.{h,c}</code>) →
+<strong>107/112/118 KB</strong> (2.7× vs ~292 KB raw raw-sizeof;
+round-trip byte-exact 30/30). <strong>Full reentrancy</strong> — TLS
+scratch (<code>matrict_tls.h</code>), coarse lock retired, 8-thread
+64/64, <strong>TSan 0 races</strong> (API contract: per-call
+<code>g_hat</code>). <strong>aarch64 full run</strong> under qemu
+(selftest 20/20, serialize 10/10, byte-portable wire).
+<strong>Remaining:</strong> the ~58 KB target needs <em>algebraic
+proof-compression</em> (a crypto change, not serialization) — deferred
+to the integration; the packer is ready to sit behind a compressed
+proof</td>
 </tr>
 <tr>
 <td><strong>P1 — adapter</strong></td>
