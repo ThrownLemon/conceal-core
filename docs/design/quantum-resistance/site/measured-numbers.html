@@ -1086,6 +1086,98 @@ plaintext path. The work is in the <em>integration</em> (clean-room
 reimpl over PQClean Falcon, compact packing, constant-time/deterministic
 sampler, audit), not the cryptography. <em>(Raw notes on WSL
 <code>~/raptor-bench-notes.md</code>.)</em></p>
+<h3
+id="i1--clean-room-spike-built--adversarially-reviewed--hardened-2026-06-20">I.1
+— Clean-room spike BUILT + adversarially reviewed + hardened
+(2026-06-20)</h3>
+<p>The clean-room reimplementation now exists as an isolated Rust crate
+(<code>~/raptor-spike/</code> on the WSL host — <strong>not</strong> in
+the live tree, <strong>not</strong> merged). Construction from eprint
+2018/857 only; Falcon-512 from <strong>PQClean (MIT)</strong>, fips202
+(public-domain), randombytes (MIT) — <strong>zero GPL</strong>,
+independently license-verified. Behind the existing
+<code>ccx_pq_*</code> C ABI; builds clean, <strong>harness 25/25 +
+adversary 12/12 + C-ABI 6/6 + stats PASS</strong>.</p>
+<p><strong>Measured (post-hardening, WSL x86_64):</strong> ring-6
+compact sig <strong>9,719 B</strong> (under 10 KB; matches the paper's
+Table 1(b) ~9,720 B), verify 5.4 ms. Sign time <strong>rose to ~40 ms @
+ring-6</strong> (from ~11 ms) — the <em>honest</em> cost of the
+anonymity fix below (genuine Falcon sampling per non-signer, not the
+demo CLT). Sizes ~unchanged.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">ring</th>
+<th style="text-align: right;">sig B</th>
+<th style="text-align: right;">sign ms</th>
+<th style="text-align: right;">verify ms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">4,661</td>
+<td style="text-align: right;">23</td>
+<td style="text-align: right;">2.1</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;"><strong>9,719</strong></td>
+<td style="text-align: right;">40</td>
+<td style="text-align: right;">5.4</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">12,251</td>
+<td style="text-align: right;">48</td>
+<td style="text-align: right;">7.1</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">22,344</td>
+<td style="text-align: right;">82</td>
+<td style="text-align: right;">13.8</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Two independent adversarial reviews</strong> (Codex
+deep-soundness + Claude license/harness) + a hardening pass:</p>
+<ul>
+<li>✅ <strong>License clean</strong> (confirmed), <strong>construction
+faithful</strong> to §6.5, <strong>linkability crux enforced by
+code</strong>.</li>
+<li>🔴→🛠 <strong>CRITICAL anonymity bug found + fixed.</strong>
+Non-signer members were sampled from a CLT approximation (truncated
+tails) → statistically distinguishable from the signer's genuine Falcon
+preimage = ring-anonymity break under repeated observation.
+<strong>Fixed:</strong> non-signer <code>(r0,r1)</code> now drawn from
+Falcon's own preimage sampler (throwaway key/random target). Evidence:
+signer vs non-signer coeff stddev 165.96 vs 165.62 (0.2%), kurtosis ≈0
+both — coincide within sampling noise. <em>Honest:</em> this shows the
+sampler <strong>matches</strong> Falcon's; it does <strong>not</strong>
+<em>prove</em> indistinguishability (formal statistical-distance bound =
+audit item).</li>
+<li>🛠 All other findings fixed: <code>b_i∈{0,1}^256</code> validation,
+FFI preimage assertion, length-prefixed transcript, hard (not
+debug-only) consistency check, retry→panic, expanded adversary suite
+(forged-OTS, replay, ring-1, null-ring, b-tamper), and a <strong>KAT
+tripwire</strong> for keygen FP-determinism (detects cross-platform
+drift).</li>
+</ul>
+<p><strong>STILL requires humans — NOT production-ready to guard
+funds</strong> (an implementation pass can't close these): (1)
+<strong>cross-platform FP determinism</strong> — the KAT
+<em>detects</em> Falcon-FP-keygen drift but the real fix is an
+integer/emulated-FP (FPEMU) Falcon build (a C-source patch) — <em>the #1
+phase-2 blocker</em>; (2) norm-bound <strong>B1 re-derivation</strong>
+for the ring setting; (3) formal <strong>anonymity</strong> proof; (4)
+formal <strong>unforgeability</strong> reduction; (5)
+<strong>professional external audit</strong>; (6) <code>paramch_h</code>
+nothing-up-my-sleeve <strong>ceremony</strong>; (7) production wallet
+<strong>KDF</strong> for per-spend randomness; (8) NTT (perf). Verdict
+(Codex): <em>"engineering-hardened, comprehensively tested,
+deterministic on this platform — but not production-ready."</em> Full
+writeup: <code>~/raptor-spike/CODEX-ASSESS.md</code>.</p>
 <hr />
 <h2 id="summary--headline-measured-numbers">Summary — headline measured
 numbers</h2>

@@ -394,6 +394,44 @@ maturity — it is the **production candidate to track** for the small-ring plai
 *integration* (clean-room reimpl over PQClean Falcon, compact packing, constant-time/deterministic sampler, audit),
 not the cryptography. *(Raw notes on WSL `~/raptor-bench-notes.md`.)*
 
+### I.1 — Clean-room spike BUILT + adversarially reviewed + hardened (2026-06-20)
+
+The clean-room reimplementation now exists as an isolated Rust crate (`~/raptor-spike/` on the WSL host — **not**
+in the live tree, **not** merged). Construction from eprint 2018/857 only; Falcon-512 from **PQClean (MIT)**,
+fips202 (public-domain), randombytes (MIT) — **zero GPL**, independently license-verified. Behind the existing
+`ccx_pq_*` C ABI; builds clean, **harness 25/25 + adversary 12/12 + C-ABI 6/6 + stats PASS**.
+
+**Measured (post-hardening, WSL x86_64):** ring-6 compact sig **9,719 B** (under 10 KB; matches the paper's
+Table 1(b) ~9,720 B), verify 5.4 ms. Sign time **rose to ~40 ms @ ring-6** (from ~11 ms) — the *honest* cost of
+the anonymity fix below (genuine Falcon sampling per non-signer, not the demo CLT). Sizes ~unchanged.
+
+| ring | sig B | sign ms | verify ms |
+|---:|---:|---:|---:|
+| 2 | 4,661 | 23 | 2.1 |
+| 6 | **9,719** | 40 | 5.4 |
+| 8 | 12,251 | 48 | 7.1 |
+| 16 | 22,344 | 82 | 13.8 |
+
+**Two independent adversarial reviews** (Codex deep-soundness + Claude license/harness) + a hardening pass:
+- ✅ **License clean** (confirmed), **construction faithful** to §6.5, **linkability crux enforced by code**.
+- 🔴→🛠 **CRITICAL anonymity bug found + fixed.** Non-signer members were sampled from a CLT approximation
+  (truncated tails) → statistically distinguishable from the signer's genuine Falcon preimage = ring-anonymity
+  break under repeated observation. **Fixed:** non-signer `(r0,r1)` now drawn from Falcon's own preimage sampler
+  (throwaway key/random target). Evidence: signer vs non-signer coeff stddev 165.96 vs 165.62 (0.2%), kurtosis ≈0
+  both — coincide within sampling noise. *Honest:* this shows the sampler **matches** Falcon's; it does **not**
+  *prove* indistinguishability (formal statistical-distance bound = audit item).
+- 🛠 All other findings fixed: `b_i∈{0,1}^256` validation, FFI preimage assertion, length-prefixed transcript,
+  hard (not debug-only) consistency check, retry→panic, expanded adversary suite (forged-OTS, replay, ring-1,
+  null-ring, b-tamper), and a **KAT tripwire** for keygen FP-determinism (detects cross-platform drift).
+
+**STILL requires humans — NOT production-ready to guard funds** (an implementation pass can't close these):
+(1) **cross-platform FP determinism** — the KAT *detects* Falcon-FP-keygen drift but the real fix is an
+integer/emulated-FP (FPEMU) Falcon build (a C-source patch) — *the #1 phase-2 blocker*; (2) norm-bound **B1
+re-derivation** for the ring setting; (3) formal **anonymity** proof; (4) formal **unforgeability** reduction;
+(5) **professional external audit**; (6) `paramch_h` nothing-up-my-sleeve **ceremony**; (7) production wallet
+**KDF** for per-spend randomness; (8) NTT (perf). Verdict (Codex): *"engineering-hardened, comprehensively tested,
+deterministic on this platform — but not production-ready."* Full writeup: `~/raptor-spike/CODEX-ASSESS.md`.
+
 ---
 
 ## Summary — headline measured numbers

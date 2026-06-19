@@ -290,7 +290,17 @@ e.g. a wallet-file brick-on-close (W11) before merge.</li>
 (see <code>poc-vs-mainnet-report.md</code> §6)</h2>
 <ol type="1">
 <li>Lattice ring-sig: constant-time [in progress], parameter
-calibration, <strong>professional audit</strong> — mainnet blocker.</li>
+calibration, <strong>professional audit</strong> — mainnet blocker.
+<strong>Production-scheme direction (D1) = Raptor</strong> (clean-room
+over PQClean Falcon): isolated spike BUILT + adversarially reviewed +
+hardened (<code>~/raptor-spike/</code> on WSL, NOT merged) — ring-6 9.7
+KB, all suites green, a CRITICAL anonymity bug found+fixed; see
+<code>measured-numbers.md</code> §I.1. Open before any consensus use:
+<strong>cross-platform FP-determinism</strong> (Falcon integer/FPEMU
+keygen — KAT only <em>detects</em> drift), B1 norm-bound re-derivation,
+formal anonymity/unforgeability proofs, <code>paramch_h</code> ceremony,
+and the audit. "It verifies" ≠ "it's sound" — NOT production-ready to
+guard funds.</li>
 <li>Ring-sig size scales linearly (ring-16 ≈ 111 KB &gt; max tx) — needs
 a ring-size/limit policy or a log-proof scheme.</li>
 <li>Human line-by-line review of the ML-DSA deposit money paths + the
