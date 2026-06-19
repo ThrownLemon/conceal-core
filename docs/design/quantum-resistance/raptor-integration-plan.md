@@ -5,7 +5,13 @@
 > `0x52415054` "RAPT". **Build green, 72/72 PQ unit tests, e2e consensus GREEN** (ring-4 spend accepted,
 > double-spend rejected, independent nullifier accepted). One consensus-critical bug found+fixed in flight:
 > a fips202/randombytes symbol collision (Falcon vs pqcrypto) → namespaced to `ccxfalcon_*`. Metrics in
-> `measured-numbers.md` §I.2. The §5 audit gates are UNCHANGED — still NOT mainnet-ready.
+> `measured-numbers.md` §I.2.
+>
+> **VETTED by 4 reviewers** (Claude + Codex + GLM + CodeRabbit) — `docs/reviews/raptor-integration/VET-SUMMARY.md`.
+> Codex found 1 CRITICAL (deterministic per-spend sign seed = lattice nonce reuse) + 3 HIGH, **all fixed/verified**
+> (per-spend OsRng entropy, strict `sk_len==SK`, canonical-`aots` check); GLM's dormant KAT tripwire **activated**;
+> CodeRabbit's 3 findings were all vendored-PQClean (2 moot, 1 OOM-only-documented). The §5 audit gates remain —
+> still NOT mainnet-ready.
 
 *Ordered port plan (multi-agent integration-surface map + verified synthesis, 2026-06-20). Replaces
 conceal-core's demo-grade in-house lattice ring-sig stand-in (`pqc/ccx-pqc/src/ringsig.rs`,

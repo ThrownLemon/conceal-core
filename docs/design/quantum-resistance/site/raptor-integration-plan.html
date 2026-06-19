@@ -118,7 +118,16 @@ double-spend rejected, independent nullifier accepted). One
 consensus-critical bug found+fixed in flight: a fips202/randombytes
 symbol collision (Falcon vs pqcrypto) → namespaced to
 <code>ccxfalcon_*</code>. Metrics in <code>measured-numbers.md</code>
-§I.2. The §5 audit gates are UNCHANGED — still NOT mainnet-ready.</p>
+§I.2.</p>
+<p><strong>VETTED by 4 reviewers</strong> (Claude + Codex + GLM +
+CodeRabbit) —
+<code>docs/reviews/raptor-integration/VET-SUMMARY.md</code>. Codex found
+1 CRITICAL (deterministic per-spend sign seed = lattice nonce reuse) + 3
+HIGH, <strong>all fixed/verified</strong> (per-spend OsRng entropy,
+strict <code>sk_len==SK</code>, canonical-<code>aots</code> check);
+GLM's dormant KAT tripwire <strong>activated</strong>; CodeRabbit's 3
+findings were all vendored-PQClean (2 moot, 1 OOM-only-documented). The
+§5 audit gates remain — still NOT mainnet-ready.</p>
 </blockquote>
 <p><em>Ordered port plan (multi-agent integration-surface map + verified
 synthesis, 2026-06-20). Replaces conceal-core's demo-grade in-house
