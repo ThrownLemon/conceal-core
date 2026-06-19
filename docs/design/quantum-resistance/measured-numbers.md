@@ -310,6 +310,39 @@ figure. See [`pq-scheme-landscape.md`](pq-scheme-landscape.md).*
 
 ---
 
+## H. Candidate scheme — Gao et al. RingCT vs MatRiCT-Au (FC/PKC 2025) — **[measured this session]**
+
+Benchmarked on the WSL host (AMD Ryzen 9 5950X) to test the "Gao is ~50% smaller / ~20% faster" claim that the
+abstract-level scan (§[`pq-scheme-landscape.md`](pq-scheme-landscape.md)) had ranked as the top confidential-
+amounts successor. **The claim did not survive contact with the code.**
+
+| Metric | Gao LinearSum (Go ref, N=10) | MatRiCT-Au n10m1 (in-repo C) | Paper |
+|---|---|---|---|
+| Proof size | 43.9 KB *(ring-sig component only; no serializer)* | **107.4 KB** packed (292.5 KB raw) | **no absolute numbers — % plots only** |
+| Verify | ~724 ms (Go/LaGo) | **~12 ms** (median 11.95) | "~20% faster vs MatRiCT/+" |
+| Prove | ~1204 ms (Go/LaGo) | **63 ms** (median) | "~20–30% faster vs MatRiCT/+" |
+| Prover mem | ~95 MB RSS (Go) | ~30.5 MB RSS | — |
+| Full verifying RingCT? | **NO** — ring-sig only; amount/balance proof not wired (and its MatRiCT baseline `Test*Proof` **fails to verify**) | **YES** (30/30, ring+amounts+audit) | — |
+
+**Why the "~50% smaller" claim is misleading for this decision:**
+- The paper has **no numeric tables** (Figures 1–4 are matlab plots; results are text percentages only).
+- The "~50%" is the **ring-sig component vs the *original* MatRiCT (2019)** measured inside Gao's own Go impl
+  under a *smaller parameter set* — **not vs MatRiCT-Au** (which is *newer* than Gao's baseline); vs MatRiCT+
+  it's only ~15–20%.
+- Under a **shared** param set (q=65537, d=64) the runnable Go ref produced **234 vs 224 elements — Gao
+  slightly *larger***. The entire claimed advantage lives in a parameter-set choice (dropping the binary proof
+  → smaller q/n) the shared-settings harness can't express.
+- The 43.9 KB (Gao, ring-sig only) vs 107.4 KB (MatRiCT-Au, full spend) are **different objects** — not
+  apples-to-apples. The ~700 ms Go verify vs ~12 ms C is mostly language (~60×), not algorithm.
+
+**Verdict:** Gao is **not a demonstrated win over MatRiCT-Au** on obtainable evidence. Confirming it would need
+porting Gao's param-set + balance-proof into the MatRiCT-Au C code and measuring a full verifying spend — a
+multi-week research task, not a benchmark. **Note also:** MatRiCT-Au verify measured here is **~12 ms** (Ryzen
+5950X), vs the **45 ms** [paper, i7-8750H] cited elsewhere in these docs — a hardware/impl gap, not a
+discrepancy in the scheme. *(Raw notes: `docs/specs/quantum-resistance/gao-bench-notes.md`.)*
+
+---
+
 ## Summary — headline measured numbers
 
 | Metric | Classical | Post-quantum (v3) |

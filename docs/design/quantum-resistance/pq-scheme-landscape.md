@@ -2,6 +2,18 @@
 
 # Post-Quantum Confidential-Transaction Crypto: Decision-Grade Scan for Conceal
 
+> **⚠ BENCHMARK FOLLOW-UP (supersedes the abstract-level rankings below).** Two candidates from this scan were
+> then *measured* (built + run); see [`measured-numbers.md`](measured-numbers.md) §G/§H:
+> - **Gao et al. — DOWNGRADED.** The "~50% smaller / ~20% faster" is vs the *original* MatRiCT (2019), **not
+>   MatRiCT-Au**; the paper has no absolute tables; under a shared param set the Go ref was *slightly larger*;
+>   the Go impl is partial (ring-sig only) and its MatRiCT baseline doesn't verify. **Not a demonstrated win
+>   over MatRiCT-Au.** The "#1 successor" ranking below is retracted.
+> - **ELRS — CONFIRMED (measured).** Flat ~25–29 KB at any ring size, 32-byte keys, 0.3 ms amortized verify —
+>   a real size win for the *plaintext-amounts* path. Gated on the single-verify (~128 ms unbatched) experiment.
+> - **MatRiCT-Au measured:** 107.4 KB, ~12 ms verify, 63 ms prove (Ryzen 5950X) — remains the only full,
+>   verifying RingCT measured. Treat the per-scheme numbers below as *abstract-level hypotheses* unless §G/§H
+>   marks them measured.
+
 **Scope:** Find a post-quantum (PQ) private-payment scheme that beats Conceal's provisional default — **MatRiCT-Au** (lattice linkable-ring RingCT; ~107 KB measured proof floor, ~45 ms verify, unaudited research code) — on size/verify/maturity while keeping the four things Conceal actually needs: **sender anonymity (ring/set), confidential amounts, a double-spend nullifier, and a real implementation + credible audit path.**
 
 **Source-access caveat (applies to every absolute number below):** all five research angles independently reported that `eprint.iacr.org` hard-blocks automated fetches (HTTP 403/Cloudflare). The only primary PDFs read end-to-end were the PolyU-hosted Gao et al. copy ([polyu.edu.hk PDF](https://www4.comp.polyu.edu.hk/~shanggao/publications/Lattice-based_Zero-knowledge_Proofs_for_Blockchain_Confidential_Transactions.pdf)), the USENIX BulletCT paper, and arXiv (ChipmunkRing, the SoK). **Every other absolute KB/ms figure comes from abstracts and search summaries, not from tables the researchers read.** Treat them as hypotheses to confirm against the PDF for Conceal's exact transaction shape (1-in / multi-in, ring size) before relying on them. The MatRiCT-Au baseline itself was *not* independently re-derived from `2022/142`; it is grounded in this repo's own prior library-ization measurements under `docs/design/quantum-resistance/`.

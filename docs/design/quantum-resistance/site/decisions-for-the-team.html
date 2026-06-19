@@ -227,14 +227,23 @@ href="pq-scheme-landscape.md"><code>pq-scheme-landscape.md</code></a>).</strong>
 MatRiCT-Au is PKC 2022; the field moved. The scan surfaced two that
 change this decision:</p>
 <ul>
-<li><strong>Gao et al. (FC/PKC 2025, eprint 2021/1674)</strong> — the
-same lattice RingCT model (ring + confidential amounts + nullifier) but
-<strong>~50% smaller / ~20% faster</strong> than MatRiCT,
-<em>corrector-value-free</em> (directly helps Conceal's multi-input
-fusion/deposit txs), with <strong>open Go reference code</strong>. The
-strongest drop-in successor <em>if confidential amounts are
-required</em>. (Catch: no built-in auditability; absolute KB unconfirmed
-— eprint was blocked; Go ≠ C++11; unaudited.)</li>
+<li><strong>Gao et al. (FC/PKC 2025, eprint 2021/1674)</strong> — looked
+like the strongest confidential-amounts successor from the abstract, but
+<strong>benchmarking it this session DID NOT hold up the claim</strong>
+(see <a href="measured-numbers.md"><code>measured-numbers.md</code></a>
+§H): the paper has <strong>no absolute size/time tables</strong> (only
+plots); its "~50% smaller / ~20% faster" is vs the <strong>original
+MatRiCT (2019)</strong> — <em>not</em> MatRiCT-Au, which is newer than
+Gao's baseline — and only ~15–20% vs MatRiCT+; under a shared param set
+the runnable Go ref came out <em>slightly larger</em> (the advantage
+lives entirely in a parameter-set choice the code can't express); the Go
+impl is <strong>partial</strong> (ring-sig only) and its <strong>MatRiCT
+baseline doesn't even verify</strong>, so no apples-to-apples is
+possible. <strong>Verdict: not a demonstrated win over MatRiCT-Au — do
+not treat as a successor without a multi-week port of its param-set +
+balance-proof into the MatRiCT-Au C code.</strong> MatRiCT-Au remains
+the only full, verifying RingCT spend measured here (107.4 KB, ~12 ms
+verify, 63 ms prove on a Ryzen 5950X).</li>
 <li><strong>ELRS / STARK linkable ring sig (ESORICS 2024, eprint
 2024/553)</strong> — <strong>measured this session</strong> (built + ran
 the reference impl): <strong>flat ~25–29 KB at <em>any</em> ring
@@ -274,9 +283,15 @@ in-repo MatRiCT-Au at Conceal's ring size — before committing.</p>
 proof-compression sub-decision, and the
 confidential-amounts/auditability fork above. <strong>Who
 confirms:</strong> core team — this is the headline strategic call.
-<strong>Revised default:</strong> keep MatRiCT-Au provisional, but
-<strong>evaluate Gao et al. (confidential) / ELRS (plaintext)
-next</strong> rather than treating MatRiCT-Au as settled.</p>
+<strong>Where it stands after this session's benchmarks:</strong> for
+<strong>confidential amounts</strong>, MatRiCT-Au is still the only
+measured, full, verifying RingCT — no scanned alternative (incl. Gao et
+al.) demonstrably beats it without major research effort. For
+<strong>plaintext amounts</strong>, <strong>ELRS is a genuine measured
+win on size</strong> (flat ~25–29 KB vs the lattice stand-in's linear
+growth) — gated on the single-verify experiment. So the live
+sub-decision is the <strong>confidential-vs-plaintext fork</strong>, not
+"which RingCT."</p>
 <hr />
 <h2
 id="d2--upgrade_height_v9-fork-timing--height--default-stay-on-the-sentinel--placeholder-pending-consensus">D2
