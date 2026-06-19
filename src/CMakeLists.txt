@@ -126,6 +126,16 @@ target_link_libraries(ClassicalTxMeasure CryptoNoteCore Serialization System Log
 target_link_libraries(ClassicalTxMeasure ${CCX_PQC_LIB} pthread dl m)
 set_property(TARGET ClassicalTxMeasure PROPERTY OUTPUT_NAME "classical_tx_measure")
 
+# Classical deposit injector — testnet PoC harness tool (CIP-0001 Option-3 freeze demo): builds+signs
+# a REAL classical deposit tx (MultisignatureOutput, term!=0) spending the testnet coinbase remainder,
+# and prints raw hex for sendrawtransaction. Classical twin of pq_injector; no consensus code touched.
+add_executable(ClassicalDepositInjector ${CMAKE_SOURCE_DIR}/pqc/tools/classical_deposit_injector.cpp)
+add_dependencies(ClassicalDepositInjector ccx_pqc)
+target_include_directories(ClassicalDepositInjector PRIVATE ${CCX_PQC_INCLUDE})
+target_link_libraries(ClassicalDepositInjector CryptoNoteCore Serialization System Logging Common crypto ${Boost_LIBRARIES})
+target_link_libraries(ClassicalDepositInjector ${CCX_PQC_LIB} pthread dl m)
+set_property(TARGET ClassicalDepositInjector PROPERTY OUTPUT_NAME "classical_deposit_injector")
+
 if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux" OR APPLE AND NOT ANDROID)
   target_link_libraries(ConcealWallet -lresolv)
   target_link_libraries(Daemon -lresolv)
