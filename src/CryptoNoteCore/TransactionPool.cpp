@@ -540,6 +540,17 @@ namespace cn
         continue;
       }
 
+      // PQ-ONLY DEPOSIT FREEZE (CIP-0001 UPGRADE_HEIGHT_V9, Option 3): never select a classical (Ed25519)
+      // deposit creation into a block template at/after V9. add_tx already rejects new ones, but a deposit
+      // created just before V9 can still be sitting in the pool when the chain crosses the boundary;
+      // including it would make the block fail at pushBlock and stall mining. Skipping it here is
+      // liveness-only and cannot fork the chain (the authoritative rejection is in pushBlock).
+      if (transactionContainsClassicalDeposit(txd.tx) &&
+          height >= m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9))
+      {
+        continue;
+      }
+
       uint64_t inputs_amount = m_currency.getTransactionAllInputsAmount(txd.tx, height);
       uint64_t outputs_amount = get_outs_money_amount(txd.tx);
 
