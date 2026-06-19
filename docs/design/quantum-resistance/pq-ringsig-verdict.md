@@ -2,6 +2,13 @@
 
 # PQ Linkable Ring Signature Verdict for Conceal (Plaintext-Amounts Path)
 
+> **MEASURED UPDATE (supersedes Raptor estimates below).** Conceal decided to keep **small rings**, selecting
+> Raptor as the lead. It was then built + benchmarked ([`measured-numbers.md`](measured-numbers.md) §I):
+> **10.2 KB @ ring-6 (4.1× smaller than the in-house stand-in, not 5×), 0.79 ms verify (2.5× faster),
+> NIST cat-1 *calibrated* (Falcon-512), confirmed linkable.** Corrections to the table below: Raptor is **C, not
+> Rust**; **GPLv3**; the compact size needs the reference's TODO packing (binary emits ~4× bloat). It beats the
+> stand-in on every axis — the work is the *integration*, not the crypto.
+
 **Question:** Is ELRS (ESORICS 2024, eprint 2024/553) the right PQ linkable ring signature to proceed with, or is something newer/better available?
 
 **Short answer:** Proceed with ELRS as the working target **only if Conceal commits to growing rings beyond ~32** — otherwise ELRS is genuinely *oversized and over-engineered* for Conceal's actual operating point (mixin 5–16), where a linear lattice scheme is smaller **and** rests on a cleaner assumption. The decision hinges almost entirely on one committed parameter: **maximum ring size.**

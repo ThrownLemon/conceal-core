@@ -147,15 +147,25 @@ amounts</strong>. Leaderboard at Conceal's ring size (confirm the exact
 KB against the real PDFs — eprint was blocked, see <a
 href="pq-ringsig-verdict.md"><code>pq-ringsig-verdict.md</code></a>):</p>
 <ul>
-<li><strong>Raptor</strong> (NTRU, ACNS 2019) —
-<strong>leading.</strong> ~8–10 KB at ring-6/8 (≈ <strong>5×
-smaller</strong> than the PoC's in-house lattice stand-in at ~43 KB @
-ring-6), <strong>natively linkable</strong>, <strong>NTRU/Ring-SIS
-reduction</strong> (NTRU is the Falcon/FIPS-205-adjacent family —
-well-studied), <strong>public Rust PoC</strong>
-(<code>zhenfeizhang/raptor</code>). Linear size, which is <em>fine</em>
-now that rings stay small. Catch: unaudited; ring-6 KB needs confirming
-(cited at 100-bit).</li>
+<li><strong>Raptor</strong> (Falcon-512 / NTRU, ACNS 2019) —
+<strong>leading, now MEASURED</strong> (built + ran the C reference; see
+<a href="measured-numbers.md"><code>measured-numbers.md</code></a> §I).
+<strong>10.2 KB @ ring-6 = 4.1× smaller</strong> than the in-house
+stand-in (42 KB), and <strong>~2.5× faster verify</strong> (0.79 ms vs
+1.97 ms — and verify is the consensus hot path). <strong>NIST cat-1,
+<em>calibrated</em></strong> (Falcon-512 — the NIST FN-DSA lineage), vs
+the stand-in's <em>uncalibrated demo-grade</em> params — so the win is
+<em>not</em> bought by lowering security. <strong>Confirmed
+LINKABLE</strong> (OTS-tag → key-image/nullifier). Linear size, fine at
+small rings. <strong>Real catches:</strong> (1) the 10 KB is the
+paper-compact size — the reference binary emits a <strong>~4× bloated
+encoding</strong>; production must implement the compact packing (~14
+bits/coeff, a TODO in the repo); (2) <strong>GPLv3</strong> — license
+compatibility with Conceal must be cleared; (3) it's <strong>C, not
+Rust</strong> → C-FFI integration, not the existing <code>ccx-pqc</code>
+Rust-FFI pattern; (4) Falcon's floating-point Gaussian sampler is a
+known constant-time/portability hazard; (5) unaudited research
+code.</li>
 <li><strong>Harden the in-house lattice stand-in</strong> (the PoC's
 K=L=6 LSAG) — fallback. Already integrated + working end-to-end, but
 <strong>demo-grade</strong>: biased sampling, not constant-time, params

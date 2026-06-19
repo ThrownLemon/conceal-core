@@ -978,6 +978,105 @@ is <strong>~12 ms</strong> (Ryzen 5950X), vs the <strong>45 ms</strong>
 not a discrepancy in the scheme. <em>(Raw notes: <a
 href="gao-bench-notes.md"><code>gao-bench-notes.md</code></a>.)</em></p>
 <hr />
+<h2
+id="i-candidate-scheme--raptor-falcon-512-linkable-ring-sig-vs-the-in-house-stand-in--measured-this-session">I.
+Candidate scheme — Raptor (Falcon-512 linkable ring sig) vs the in-house
+stand-in — <strong>[measured this session]</strong></h2>
+<p>For the <strong>small-ring plaintext</strong> path (D1, after the
+ring-size fork was decided small), the <strong>Raptor</strong> reference
+(<a
+href="https://github.com/zhenfeizhang/raptor"><code>github.com/zhenfeizhang/raptor</code></a>
+— <strong>C</strong>, Falcon-512 + NTRU/Falcon chameleon-hash, GPLv3)
+was <strong>built + run</strong> on the WSL host (release, core-pinned,
+200 iters/point), head-to-head against the PoC's in-house lattice
+ring-sig stand-in (<code>ccx-pqc</code> K=L=6, N=256).</p>
+<table>
+<thead>
+<tr>
+<th>ring</th>
+<th><strong>Raptor sig (compact)</strong></th>
+<th>Raptor verify</th>
+<th>Raptor sign</th>
+<th>stand-in sig</th>
+<th>stand-in verify</th>
+<th><strong>size ratio</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4</td>
+<td><strong>7.3 KB</strong></td>
+<td>0.53 ms</td>
+<td>0.86 ms</td>
+<td>30.0 KB</td>
+<td>1.13 ms</td>
+<td><strong>4.1×</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>10.2 KB</strong></td>
+<td>0.79 ms</td>
+<td>1.13 ms</td>
+<td>42.0 KB</td>
+<td>1.97 ms</td>
+<td><strong>4.1×</strong></td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>13.1 KB</strong></td>
+<td>1.00 ms</td>
+<td>1.38 ms</td>
+<td>54.0 KB</td>
+<td>2.69 ms</td>
+<td><strong>4.1×</strong></td>
+</tr>
+<tr>
+<td>16</td>
+<td><strong>24.7 KB</strong></td>
+<td>2.15 ms</td>
+<td>2.65 ms</td>
+<td>102.0 KB</td>
+<td>6.95 ms</td>
+<td><strong>4.1×</strong></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Raptor wins on both axes at every small ring:</strong>
+<strong>~4.1× smaller</strong> <em>and</em> <strong>~2.5× faster
+verify</strong> (the consensus hot path). Both schemes are linear, so
+the ratio holds across the range. (Corrects earlier estimates: the win
+is <strong>4.1×</strong>, not 5×; ~10 KB is <strong>ring-6</strong>, not
+ring-8.)</li>
+<li><strong>Security: NIST cat-1 (~128-bit),
+<em>calibrated</em></strong> (Falcon-512 = the NIST FN-DSA lineage) — vs
+the stand-in's ~128-bit <em>uncalibrated, biased-sampling,
+demo-grade</em> params. So Raptor's size win is <strong>not</strong>
+bought by lower security; it's the cleaner, calibrated assumption.</li>
+<li><strong>LINKABLE: confirmed</strong> — each sig embeds a
+one-time-signature public key as the linking tag (SHA-512 masks the
+signer's <code>h</code>); maps to a key-image/nullifier, same role as
+the stand-in's <code>SHAKE256(I)</code>.</li>
+<li><strong>Catches (load-bearing for integration):</strong> (1) the
+compact sizes above are <strong>paper/model</strong> — the reference
+binary emits a <strong>~4× bloated <code>int64</code> debug
+encoding</strong>; production must implement the compact packing (~14
+bits/coeff, a <code>TODO</code> in the repo). My 14-bit-packed model
+independently agrees within ~15%. (2) <strong>GPLv3</strong> license —
+compatibility with Conceal must be cleared. (3) <strong>C, not
+Rust</strong> → C-FFI integration, not the existing <code>ccx-pqc</code>
+Rust-FFI pattern (rewrite/bind or port). (4) Falcon's
+<strong>floating-point Gaussian sampler</strong> is a known
+constant-time / portability hazard. (5) Unaudited research code.</li>
+</ul>
+<p><strong>Verdict:</strong> Raptor beats the in-house stand-in on size,
+verify, assumption-cleanliness/calibration, and maturity — it is the
+<strong>production candidate to track</strong> for the small-ring
+plaintext path. The work is in the <em>integration</em> (compact
+packing, C/Rust + GPLv3, constant-time sampler, audit), not the
+cryptography. <em>(Raw notes on WSL
+<code>~/raptor-bench-notes.md</code>.)</em></p>
+<hr />
 <h2 id="summary--headline-measured-numbers">Summary — headline measured
 numbers</h2>
 <table>

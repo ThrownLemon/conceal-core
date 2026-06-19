@@ -355,6 +355,42 @@ discrepancy in the scheme. *(Raw notes: [`gao-bench-notes.md`](gao-bench-notes.m
 
 ---
 
+## I. Candidate scheme — Raptor (Falcon-512 linkable ring sig) vs the in-house stand-in — **[measured this session]**
+
+For the **small-ring plaintext** path (D1, after the ring-size fork was decided small), the **Raptor** reference
+([`github.com/zhenfeizhang/raptor`](https://github.com/zhenfeizhang/raptor) — **C**, Falcon-512 + NTRU/Falcon
+chameleon-hash, GPLv3) was **built + run** on the WSL host (release, core-pinned, 200 iters/point), head-to-head
+against the PoC's in-house lattice ring-sig stand-in (`ccx-pqc` K=L=6, N=256).
+
+| ring | **Raptor sig (compact)** | Raptor verify | Raptor sign | stand-in sig | stand-in verify | **size ratio** |
+|---|---|---|---|---|---|---|
+| 4 | **7.3 KB** | 0.53 ms | 0.86 ms | 30.0 KB | 1.13 ms | **4.1×** |
+| 6 | **10.2 KB** | 0.79 ms | 1.13 ms | 42.0 KB | 1.97 ms | **4.1×** |
+| 8 | **13.1 KB** | 1.00 ms | 1.38 ms | 54.0 KB | 2.69 ms | **4.1×** |
+| 16 | **24.7 KB** | 2.15 ms | 2.65 ms | 102.0 KB | 6.95 ms | **4.1×** |
+
+- **Raptor wins on both axes at every small ring:** **~4.1× smaller** *and* **~2.5× faster verify** (the
+  consensus hot path). Both schemes are linear, so the ratio holds across the range. (Corrects earlier
+  estimates: the win is **4.1×**, not 5×; ~10 KB is **ring-6**, not ring-8.)
+- **Security: NIST cat-1 (~128-bit), *calibrated*** (Falcon-512 = the NIST FN-DSA lineage) — vs the stand-in's
+  ~128-bit *uncalibrated, biased-sampling, demo-grade* params. So Raptor's size win is **not** bought by lower
+  security; it's the cleaner, calibrated assumption.
+- **LINKABLE: confirmed** — each sig embeds a one-time-signature public key as the linking tag (SHA-512 masks
+  the signer's `h`); maps to a key-image/nullifier, same role as the stand-in's `SHAKE256(I)`.
+- **Catches (load-bearing for integration):** (1) the compact sizes above are **paper/model** — the reference
+  binary emits a **~4× bloated `int64` debug encoding**; production must implement the compact packing
+  (~14 bits/coeff, a `TODO` in the repo). My 14-bit-packed model independently agrees within ~15%. (2) **GPLv3**
+  license — compatibility with Conceal must be cleared. (3) **C, not Rust** → C-FFI integration, not the
+  existing `ccx-pqc` Rust-FFI pattern (rewrite/bind or port). (4) Falcon's **floating-point Gaussian sampler**
+  is a known constant-time / portability hazard. (5) Unaudited research code.
+
+**Verdict:** Raptor beats the in-house stand-in on size, verify, assumption-cleanliness/calibration, and
+maturity — it is the **production candidate to track** for the small-ring plaintext path. The work is in the
+*integration* (compact packing, C/Rust + GPLv3, constant-time sampler, audit), not the cryptography. *(Raw notes
+on WSL `~/raptor-bench-notes.md`.)*
+
+---
+
 ## Summary — headline measured numbers
 
 | Metric | Classical | Post-quantum (v3) |

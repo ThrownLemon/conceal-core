@@ -25,10 +25,16 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 > scheme is a **small-ring lattice/NTRU linkable ring signature, plaintext amounts**. Leaderboard at Conceal's
 > ring size (confirm the exact KB against the real PDFs — eprint was blocked, see
 > [`pq-ringsig-verdict.md`](pq-ringsig-verdict.md)):
-> - **Raptor** (NTRU, ACNS 2019) — **leading.** ~8–10 KB at ring-6/8 (≈ **5× smaller** than the PoC's in-house
->   lattice stand-in at ~43 KB @ ring-6), **natively linkable**, **NTRU/Ring-SIS reduction** (NTRU is the
->   Falcon/FIPS-205-adjacent family — well-studied), **public Rust PoC** (`zhenfeizhang/raptor`). Linear size,
->   which is *fine* now that rings stay small. Catch: unaudited; ring-6 KB needs confirming (cited at 100-bit).
+> - **Raptor** (Falcon-512 / NTRU, ACNS 2019) — **leading, now MEASURED** (built + ran the C reference; see
+>   [`measured-numbers.md`](measured-numbers.md) §I). **10.2 KB @ ring-6 = 4.1× smaller** than the in-house
+>   stand-in (42 KB), and **~2.5× faster verify** (0.79 ms vs 1.97 ms — and verify is the consensus hot path).
+>   **NIST cat-1, *calibrated*** (Falcon-512 — the NIST FN-DSA lineage), vs the stand-in's *uncalibrated
+>   demo-grade* params — so the win is *not* bought by lowering security. **Confirmed LINKABLE** (OTS-tag →
+>   key-image/nullifier). Linear size, fine at small rings. **Real catches:** (1) the 10 KB is the paper-compact
+>   size — the reference binary emits a **~4× bloated encoding**; production must implement the compact packing
+>   (~14 bits/coeff, a TODO in the repo); (2) **GPLv3** — license compatibility with Conceal must be cleared;
+>   (3) it's **C, not Rust** → C-FFI integration, not the existing `ccx-pqc` Rust-FFI pattern; (4) Falcon's
+>   floating-point Gaussian sampler is a known constant-time/portability hazard; (5) unaudited research code.
 > - **Harden the in-house lattice stand-in** (the PoC's K=L=6 LSAG) — fallback. Already integrated + working
 >   end-to-end, but **demo-grade**: biased sampling, not constant-time, params not a calibrated 128-bit level,
 >   and ~43 KB @ ring-6 (≈5× Raptor). Would need a security-level recalibration + constant-time rewrite for
