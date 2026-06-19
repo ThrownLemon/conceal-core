@@ -236,15 +236,26 @@ strongest drop-in successor <em>if confidential amounts are
 required</em>. (Catch: no built-in auditability; absolute KB unconfirmed
 — eprint was blocked; Go ≠ C++11; unaudited.)</li>
 <li><strong>ELRS / STARK linkable ring sig (ESORICS 2024, eprint
-2024/553)</strong> — <code>~29 KB @ ring 1024</code>, transparent
-hash-based (most conservative PQ assumption), huge fast-verify anonymity
-sets, <strong>but no confidential amounts</strong>. This matters because
-<strong>Conceal has <em>plaintext</em> amounts today</strong> (no
-RingCT/Bulletproofs; confidential amounts were deferred to an optional
-L2). If amounts can stay plaintext, the problem reduces to <em>PQ
-linkable ring sig + PQ one-time key + PQ nullifier</em> — and ELRS is
-potentially a <strong>bigger, cheaper win than chasing
-confidential-amount RingCT at all</strong>.</li>
+2024/553)</strong> — <strong>measured this session</strong> (built + ran
+the reference impl): <strong>flat ~25–29 KB at <em>any</em> ring
+size</strong>, 32-byte keys, transparent hash-based. Vs Conceal's
+lattice ring-sig stand-in (~6.1 KB <em>per member</em>, linear) it
+<strong>wins on size at ring ≈ 5 and the gap explodes</strong> (≈14×
+smaller at ring-64, ≈225× at ring-1024). <strong>No confidential
+amounts</strong> — which fits, because <strong>Conceal has
+<em>plaintext</em> amounts today</strong> (confidential was deferred to
+an optional L2). If amounts stay plaintext, the privacy layer reduces to
+<em>PQ linkable ring sig + one-time key + nullifier</em>, and ELRS could
+be a <strong>bigger, cheaper win than confidential-amount RingCT at
+all</strong>. <strong>The gating catch:</strong> verify is 0.3 ms only
+<em>amortized across a shared ring</em>; a cold single verify is **~128
+ms** [paper] — and CryptoNote txs each pick their <em>own</em> ring, so
+cross-tx batching isn't free. <strong>The decisive next
+experiment</strong> is measuring un-batched verify under Conceal's
+per-tx ring model (→ if it can't amortize, ~128 ms/input is
+throughput-prohibitive; if it can, ELRS clearly wins). Also: hash-based
+PQ security is <em>conjectured</em>, not a SIS/LWE reduction. See <a
+href="measured-numbers.md"><code>measured-numbers.md</code></a> §G.</li>
 </ul>
 <p><strong>A prior question this forces (decide before locking
 D1):</strong> <em>(i) are confidential amounts required, or can they

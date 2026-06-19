@@ -275,6 +275,41 @@ unit-test level — `TestPqDeposits` — and the classical freeze e2e in `verify
 
 ---
 
+## G. Candidate scheme — ELRS / STARK linkable ring sig (ESORICS 2024) — **[measured this session]**
+
+For the **plaintext-amounts** privacy path (D1), the reference impl of ELRS (eprint 2024/553,
+[`github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature`](https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature),
+Rust/Winterfell-fork, experimental/unaudited) was **built + run on the WSL host** (x86_64, 128-bit params).
+It's an anonymity + linking-tag (nullifier) layer only — **no confidential amounts** — so it's compared against
+Conceal's PoC **lattice ring-sig stand-in** (the incumbent for that path), not MatRiCT-Au's full RingCT.
+
+| Ring | **ELRS sig** [measured] | ELRS verify (amortized) [measured] | ELRS verify (single) [paper] | Conceal lattice sig [const] | Conceal verify [live] |
+|---|---|---|---|---|---|
+| 8 | **~25 KB** | **0.28 ms** | 128 ms | 55.3 KB | ~1 ms |
+| 16 | ~26 KB | 0.28 ms | 128 ms | ~104 KB | ~1 ms |
+| 64 | ~29 KB | 0.30 ms | 128 ms | ~400 KB | ~1 ms |
+| 1024 | ~28 KB | 0.30 ms | 128 ms | ~6.3 MB | ~1 ms |
+
+- **Public key: 32 B** (measured) vs Conceal's lattice ring-sig pubkey **6144 B** (192×).
+- **Size is FLAT in ring size** — the STARK trace is fixed at 2¹⁰–2¹¹ steps regardless of ring (membership =
+  one Merkle path against the ring root, not iteration over members). Conceal's lattice sig is **~6.1 KB per
+  ring member, linear**. **Crossover where ELRS wins on size ≈ ring 5**; above ring ~8 the gap explodes
+  (ring-64 ≈ 14×, ring-1024 ≈ 225×). Huge anonymity sets are nearly free for ELRS.
+- **The gating caveat:** the 0.3 ms verify is **amortized** (offline work shared across signatures over the
+  *same* ring). A cold **single** verify is **~128 ms** [paper — the public binary only exposed the fast path,
+  so 128 ms is not re-measured here]. **CryptoNote txs each pick their own ring**, so cross-tx batching is not
+  free — if block validation can't amortize, every input costs ~128 ms (~100× Conceal's per-sig verify) = a
+  throughput problem. **Resolving un-batched verify under Conceal's per-tx ring model is the decisive
+  experiment before adopting ELRS.**
+- Other caveats: hash-based PQ security is *conjectured* (ethSTARK ROM + proximity-gap assumptions), not a
+  clean SIS/LWE reduction; transparent setup (a plus); reference impl is single-author, experimental, Rust.
+
+*Source caveat: eprint 2024/553's full per-ring table is paywalled (eprint blocks automated fetch); the flat
+sizes + 0.3 ms above are **measured from the built reference impl**, the 128 ms single-verify is the paper's
+figure. See [`pq-scheme-landscape.md`](pq-scheme-landscape.md).*
+
+---
+
 ## Summary — headline measured numbers
 
 | Metric | Classical | Post-quantum (v3) |

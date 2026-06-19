@@ -59,12 +59,18 @@ while A is integrated + audited; see [`matrict-integration-plan.md`](matrict-int
 >   helps Conceal's multi-input fusion/deposit txs), with **open Go reference code**. The strongest drop-in
 >   successor *if confidential amounts are required*. (Catch: no built-in auditability; absolute KB unconfirmed
 >   — eprint was blocked; Go ≠ C++11; unaudited.)
-> - **ELRS / STARK linkable ring sig (ESORICS 2024, eprint 2024/553)** — `~29 KB @ ring 1024`, transparent
->   hash-based (most conservative PQ assumption), huge fast-verify anonymity sets, **but no confidential
->   amounts**. This matters because **Conceal has *plaintext* amounts today** (no RingCT/Bulletproofs;
->   confidential amounts were deferred to an optional L2). If amounts can stay plaintext, the problem reduces
->   to *PQ linkable ring sig + PQ one-time key + PQ nullifier* — and ELRS is potentially a **bigger, cheaper
->   win than chasing confidential-amount RingCT at all**.
+> - **ELRS / STARK linkable ring sig (ESORICS 2024, eprint 2024/553)** — **measured this session** (built +
+>   ran the reference impl): **flat ~25–29 KB at *any* ring size**, 32-byte keys, transparent hash-based. Vs
+>   Conceal's lattice ring-sig stand-in (~6.1 KB *per member*, linear) it **wins on size at ring ≈ 5 and the
+>   gap explodes** (≈14× smaller at ring-64, ≈225× at ring-1024). **No confidential amounts** — which fits,
+>   because **Conceal has *plaintext* amounts today** (confidential was deferred to an optional L2). If amounts
+>   stay plaintext, the privacy layer reduces to *PQ linkable ring sig + one-time key + nullifier*, and ELRS
+>   could be a **bigger, cheaper win than confidential-amount RingCT at all**. **The gating catch:** verify is
+>   0.3 ms only *amortized across a shared ring*; a cold single verify is **~128 ms** [paper] — and CryptoNote
+>   txs each pick their *own* ring, so cross-tx batching isn't free. **The decisive next experiment** is
+>   measuring un-batched verify under Conceal's per-tx ring model (→ if it can't amortize, ~128 ms/input is
+>   throughput-prohibitive; if it can, ELRS clearly wins). Also: hash-based PQ security is *conjectured*, not a
+>   SIS/LWE reduction. See [`measured-numbers.md`](measured-numbers.md) §G.
 >
 > **A prior question this forces (decide before locking D1):** *(i) are confidential amounts required, or can
 > they stay plaintext?* and *(ii) is on-chain auditability in or out?* Those two answers select
