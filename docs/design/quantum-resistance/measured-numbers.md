@@ -251,6 +251,30 @@ experimental PQ scheme at demo-grade parameters.
 
 ---
 
+## F. Deposit sizes — Option 3 (PQ-only deposits after the fork) — **[live] + [FFI-live component]**
+
+Under [Option 3](deposit-term-policy-decision.md), classical deposit creation is frozen at `UPGRADE_HEIGHT_V9`
+and the only post-fork deposit is a **PQ ML-DSA-65 (FIPS 204)** deposit. The cost delta:
+
+| Deposit operation | Classical | PQ (ML-DSA-65) | Ratio | Source |
+|---|---|---|---|---|
+| **Create deposit tx** (1-in, 1 deposit out + change, mixin 0) | **217 B** | **≈ 2,137 B** | **~10×** | classical **[live]** — `classical_deposit_injector` printed `bytes=217` (amount 2 CCX, term 30, fee 1000); PQ = 217 + (1952 − 32) for the ML-DSA pubkey replacing the Ed25519 key **[FFI-live component]** |
+| **Deposit output key** (per signer) | 32 B (Ed25519) | **1,952 B** | ~61× | **[FFI-live]** `ccx_pq_multisig_pubkey_bytes` |
+| **Withdraw signature** (per signer) | 64 B (Ed25519) | **3,309 B** | ~52× | **[FFI-live]** `ccx_pq_sig_bytes` |
+
+**Key point:** the deposit path uses **standardized ML-DSA-65**, not the experimental lattice ring sig. So a
+PQ *deposit* is only **~10×** a classical deposit — versus a PQ *spend* at **~68×** (§E) — because deposits
+need no anonymity ring, just one FIPS-204 signature per key. "PQ-only deposits after the fork" is therefore
+one of the **cheaper** PQ surfaces, and rests on a NIST-standardized primitive rather than research-grade
+crypto. (The freeze enforcement itself — a `term != 0` output check gated on `height >= upgradeHeight(V9)` —
+has zero size or throughput cost.)
+
+*PQ figures are composed from FFI-live component sizes (the running `libccx_pqc.a`); a fully-live PQ-deposit
+tx was not captured because there is no PQ-deposit wallet command yet (PQ deposits are exercised at the
+unit-test level — `TestPqDeposits` — and the classical freeze e2e in `verify-deposit-freeze.sh`).*
+
+---
+
 ## Summary — headline measured numbers
 
 | Metric | Classical | Post-quantum (v3) |
@@ -258,6 +282,7 @@ experimental PQ scheme at demo-grade parameters.
 | Typical spend tx size | **542 B** (1-in/2-out, mixin 5) [live] | **36,953 B** (ring-4) [live, consensus-accepted] |
 | Tx size, other shapes | 505 B (1/1), 972 B (2/2) [live] | 24,663 B (ring-2), 61,533 B (ring-8) [live] |
 | Spend signature pubkey | 32 B [const] | 6144 B [FFI-live] |
+| **Deposit create tx** (Option 3) | **217 B** [live] | **≈ 2,137 B** (ML-DSA-65, ~10×) [live + FFI-live] |
 | Address length | 98 chars [live] | 1747 chars [live] |
 | Ring-sig verify (1 ring) | ~160 µs [live] | — |
 | Ring-sig verify (ring-4/6) | ~0.96 ms (ring-6 interp.) [live] | ~1.12 ms (ring-4) [cited] |

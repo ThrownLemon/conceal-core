@@ -82,14 +82,50 @@ No new constant. The freeze rides the existing `UPGRADE_HEIGHT_V9` / `BLOCK_MAJO
 
 - **Regression:** `UnitTests`, `CoreTests`, `DifficultyTests`, `HashTargetTests` — **100% pass** with the
   freeze compiled in (no behavioral change below V9; the 1007-gtest PQ-deposit suite still green).
-- **End-to-end (live 2-node testnet):** see [`verify-deposit-freeze.sh`](../../../pqc/verify-deposit-freeze.sh).
-  <!-- RESULTS PENDING: pre-V9 create height, V9 boundary, post-V9 withdraw, post-V9 reject + the daemon
-       "classical deposit creation is frozen" log line. Fill from the passing run. -->
+- **End-to-end (live 2-node isolated testnet, `TESTNET_UPGRADE_HEIGHT_V9 = 80`):**
+  [`verify-deposit-freeze.sh`](../../../pqc/verify-deposit-freeze.sh) — **PASS, 3 consecutive green runs** (and a
+  4th after the anti-stall hardening). The three Option-3 behaviors, all live:
+
+  | # | Behavior | Result | Proof |
+  |---|---|---|---|
+  | 1 | **Pre-V9** create classical deposit (`MultisignatureOutput`, term=30) | **ACCEPTED** | submitted height 15, mined by 17; `sendrawtransaction → status OK` |
+  | 2 | **Post-V9** withdraw of the pre-V9 deposit | **ACCEPTED** | `withdraw` at height 84 → confirmed, deposit status `Withdrawn` (the withdraw tx makes only `term==0` outputs, so the freeze does not catch it) |
+  | 3 | **Post-V9** create a *new* classical deposit | **REJECTED** | submitted at height 84 → `status Failed`, never confirmed |
+
+  Literal daemon proof of behavior #3:
+  ```
+  INFO [txpool] Transaction <dd5b20d4…070d> rejected: classical deposit creation is frozen
+  at/after height 80; use a PQ deposit
+  ```
+  Funding note: the demo builds the classical deposit tx with `pqc/tools/classical_deposit_injector` (a
+  harness tool, classical twin of `pq_injector`) because a **pre-existing** testnet coinbase/wallet
+  `keyIndex` quirk hides the miner's classical coinbase remainder from wallet scanners — see
+  [§Known issue](#known-issue-pre-existing-not-the-freeze). That quirk is orthogonal to the freeze.
 
 ## Cost (Option 3)
 
-The freeze itself is a predicate check — **zero size/throughput cost**. The real cost of Option 3 is that the
-only post-fork deposit is a **PQ (ML-DSA-65) deposit**, which is larger and slower to verify than the
-classical Ed25519 multisig it replaces.
-<!-- BENCHMARK PENDING: classical deposit tx size vs PQ deposit tx size (create + withdraw), and ML-DSA-65
-     verify vs Ed25519-multisig verify. Fill from the live benchmark; cross-link measured-numbers.md. -->
+The freeze itself is a predicate check — **zero size/throughput cost**. The cost of Option 3 is that the only
+post-fork deposit is a **PQ (ML-DSA-65) deposit**, larger than the classical Ed25519 multisig it replaces.
+Crucially, deposits use **standardized ML-DSA-65 (FIPS 204)** — *not* the experimental lattice ring sig — so
+the deposit cost is modest next to a PQ *spend*:
+
+| Deposit op | Classical | PQ (ML-DSA-65) | Ratio | Basis |
+|---|---|---|---|---|
+| Create deposit tx (1-in, 1 deposit out + change) | **217 B** | **≈ 2.1 KB** | ~10× | classical **[live]** (injector); PQ adds `1952 − 32 = 1920 B` for the ML-DSA pubkey **[FFI-live component]** |
+| Withdraw signature | 64 B (Ed25519) | **3309 B** (ML-DSA-65) | ~52× | **[FFI-live]** (`measured-numbers.md` §D) |
+
+For comparison a PQ *spend* (lattice ring sig) is ~25–61 KB (~68× a classical spend); a PQ *deposit* is only
+~10× a classical deposit, because deposits need no anonymity ring — just one standardized signature per key.
+So "PQ-only deposits after the fork" is one of the cheaper PQ surfaces. See
+[`measured-numbers.md`](measured-numbers.md) §F for the full deposit-size table.
+
+## Known issue (pre-existing, NOT the freeze)
+
+Surfaced while building the e2e demo (independently confirmed by code reading): the testnet coinbase
+(`Currency::constructMinerTx`, `m_testnet` branch) emits a PQ stealth output at output-index 0 plus a classical
+"remainder" `KeyOutput` to the miner at index 1, but both wallet scanners (`TransfersConsumer::findMyOutputs`,
+`CryptoNoteFormatUtils::lookup_acc_outs`) walk a `keyIndex` that does not advance over the leading PQ output —
+so the miner's classical coinbase remainder is **invisible to every wallet** (wallet shows `0.000000`, `outputs
+Count: 0`). The PoC therefore funds wallets only via the PQ path. This is a wallet/coinbase index bug, **not**
+related to the deposit freeze and not modified here — flagged for separate human review (it touches money-path
+output scanning). The demo works around it with the injector tool.
