@@ -243,6 +243,7 @@ the testnet backend until this lands behind the same slot.
 - Conceal wiki — chain specs/features/fees: <https://conceal.network/wiki/doku.php?id=about>
 - MatRiCT-Au reference (author code): `~/pqc-bench/repo-matrict` — Esgin/Steinfeld/Zhao, PKC 2022
 - Team integration scaffold: `~/ccx-pqc-impl` (branch `pqc/v2-impl`)
+- **MatRiCT-Au integration plan + adapter design:** [`matrict-integration-plan.md`](matrict-integration-plan.md)
 - Raw PoC measurements: [`measured-numbers.md`](measured-numbers.md)
 - Architecture / how-to-run: [`STATUS.md`](STATUS.md)
 - Ring-sig hardening + constant-time: [`ringsig-hardening.md`](ringsig-hardening.md)
