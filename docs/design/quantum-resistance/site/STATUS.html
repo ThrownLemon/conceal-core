@@ -167,17 +167,21 @@ spendable). 4 gates: <code>pushBlock</code> per-tx + coinbase,
 href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a></td>
 </tr>
 <tr>
-<td><strong>PQ deposit wallet</strong> <em>(merged; live e2e
-pending)</em></td>
+<td><strong>PQ deposit wallet</strong> <em>(merged; e2e
+VERIFIED)</em></td>
 <td><code>concealwallet</code>
 <code>pq_deposit</code>/<code>pq_withdraw</code> — create/withdraw an
 ML-DSA-65 (<code>PqMultisig*</code>) deposit. Builders +
 <code>get_pq_multisig_outputs</code> RPC + account-level ML-DSA key
 derivation. <strong>Unit-tested + GLM-reviewed (0 findings)</strong>;
-merged <code>17e4f0b</code>. <strong>Live e2e RED</strong> —
-<code>pq_deposit</code> funding-discovery bug (finds 0 spendable PQ
-outputs; <code>pq_transfer</code> on the same path works) —
-<strong>under debug</strong>. walletd RPC not yet done</td>
+merged <code>17e4f0b</code>. <strong>Live e2e GREEN</strong>
+(<code>8d4a50c</code>): create ACCEPTED + visible, mature, withdraw
+ACCEPTED (principal+interest), double-spend REJECTED,
+restore-from-mnemonic proven. The earlier "finds 0 outputs" was a
+<strong>harness bug</strong> (deposit cell indexed under the
+<em>deposited</em> amount, not the coinbase denomination; + JSON
+field-order parsing) — <code>PqDepositClient</code> was never the bug.
+walletd RPC still pending</td>
 <td><code>CryptoNoteCore/PqDepositBuilder.{h,cpp}</code>,
 <code>Rpc/PqDepositClient.{h,cpp}</code>,
 <code>Wallet/PqAccount.{h,cpp}</code>, <code>ConcealWallet.cpp</code>;
