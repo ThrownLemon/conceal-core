@@ -108,7 +108,7 @@ The big new surface — beyond the signature swap:
 
 | Phase | Work | Output / gate |
 |---|---|---|
-| **P0 — library-ize** *(in progress)* | Turn `repo-matrict` into a static lib + clean header; per-ring-size builds + dispatch; thread-safety (PRG/scratch); ARM/AES shim; packed serializer | `libmatrict` + `matrict.h`, correctness==1 preserved |
+| **P0 — library-ize** *(milestone 1 done — `~/matrict-lib` on WSL)* | Turn `repo-matrict` into a static lib + clean header; per-ring-size builds + dispatch; thread-safety (PRG/scratch); ARM/AES shim; packed serializer | `libmatrict_n{10,50,100}m1.a` + `matrict.h` + dispatcher built; correctness preserved (50/50 each, 4-thread PASS, SHAKE fallback PASS). **Remaining for P0:** packed serializer (still raw `sizeof`); full reentrancy (spend/verify scratch on interim coarse lock); aarch64 *run* (needs aarch64 `libXKCP.a`) |
 | **P1 — adapter** | Implement `pq_ringct.h` over the lib (keygen/serial/spend/verify, CRS, audit=NULL); unit-test spend→verify + serial==nullifier vs the C++ side | green adapter selftests behind the C ABI |
 | **P2 — value model** | v3 output commitments + blinds; wallet commitment bookkeeping; fee-as-committed-value; tx-prefix FS binding; validator calls `ccx_rct_verify` | a RingCT v3 tx builds + validates on a local testnet |
 | **P3 — caps/fusion** | Raise `MAX_TX_SIZE` + `PQ_MAX_RING_SIZE`; redesign `FUSION_TX` + denomination | fusion works at PQ sizes |
@@ -132,7 +132,11 @@ testnet backend through P0–P4 (the swappable slot lets both coexist).
 
 ## 7. Effort (honest)
 
-Multi-month. P0 (library-ize) = weeks; P2 (RingCT value model) = the largest single chunk; P5 (audit) =
+Multi-month. P0 (library-ize) — **milestone 1 landed** (`~/matrict-lib`: 3 namespaced static libs + `matrict.h` +
+size dispatcher, correctness preserved; original `repo-matrict` untouched; see its `README.md`). The plan's §1
+API mapping is now validated against the real lib (it exposes `sample_mat_g0/gr/gh/gbig`, `keygen`, `mint`,
+`serialgen`, `spend`, `verify`, optional `audit`). P0 remainder = packed serializer + full reentrancy (+ aarch64
+run). P2 (RingCT value model) = the largest single chunk; P5 (audit) =
 external + the schedule driver. The PoC already removed the *integration-plumbing* risk (tx format,
 serialization, double-spend set, stealth, wallet send/receive, deposits, messages, constant-time
 discipline, the swappable slot) — so this plan is "drop the engine into a proven chassis + go RingCT",
