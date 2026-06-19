@@ -652,7 +652,10 @@ pub extern "C" fn ccx_pq_ringsig_selftest() -> CcxPqSizes {
     let v = ccx_pq_verify(msg.as_ptr(), msg.len(), pk.as_ptr(), 1, PK, sig.as_ptr(), sl, nf.as_mut_ptr(), NF);
     let mut nf2 = [0u8; NF];
     ccx_pq_nullifier(sk.as_ptr(), SK, pk.as_ptr(), PK, nf2.as_mut_ptr(), NF);
-    let ok = (s == 0 && v == 0 && nf == nf2) as i32;
+    // Also exercise the cross-platform keygen-determinism tripwire here so it is NOT dormant (GLM):
+    // a build whose Falcon keygen drifts from the pinned KAT digest fails this selftest loudly. Wiring
+    // it into daemon startup as a hard abort is a further hardening step (raptor-integration-plan.md §3).
+    let ok = (s == 0 && v == 0 && nf == nf2 && raptor::keygen_kat_ok()) as i32;
     CcxPqSizes { pk: PK, sk: SK, ct_or_sig: sl, ss: NF, ok }
   })
 }
