@@ -92,6 +92,26 @@ namespace cn
     return false;
   }
 
+  // True if the transaction CREATES a classical (Ed25519) deposit output — a MultisignatureOutput
+  // with a non-zero term. Used to freeze classical deposit creation at/after UPGRADE_HEIGHT_V9
+  // (CIP-0001, Option 3 "PQ-only deposits after the fork"): on exactly the block PQ deposits open,
+  // classical deposit creation closes so PqMultisig becomes the only new deposit path. CREATION-side
+  // only — this never affects spending of already-existing classical deposits (the input/interest/
+  // lock validation paths are deliberately left untouched, or pre-fork locked funds would strand).
+  // A non-deposit multisig (term == 0) is unaffected.
+  static bool transactionContainsClassicalDeposit(const Transaction &tx)
+  {
+    for (const auto &out : tx.outputs)
+    {
+      if (out.target.type() == typeid(MultisignatureOutput) &&
+          boost::get<MultisignatureOutput>(out.target).term != 0)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // custom serialization to speedup cache loading
   bool serialize(std::vector<std::pair<Blockchain::TransactionIndex, uint16_t>> &value, common::StringView name, cn::ISerializer &s)
   {
@@ -3073,6 +3093,20 @@ namespace cn
       return false;
     }
 
+    // PQ-ONLY DEPOSIT FREEZE (CIP-0001 UPGRADE_HEIGHT_V9, Option 3) for the COINBASE: symmetric with
+    // the per-tx freeze below and with the PQ coinbase guard above. A genuine coinbase never carries
+    // a deposit (constructMinerTx emits only KeyOutput/PqKeyOutput), so this only rejects a malicious
+    // block that tries to mint a classical deposit cell at/after V9 to bypass the freeze. Never
+    // applied retroactively.
+    if (transactionContainsClassicalDeposit(blockData.baseTransaction) &&
+        static_cast<uint32_t>(m_blocks.size()) >= m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9))
+    {
+      logger(INFO, BRIGHT_WHITE) << "Block " << blockHash << " coinbase creates a classical deposit at/after height "
+                                 << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9) << "; classical deposit creation is frozen";
+      bvc.m_verification_failed = true;
+      return false;
+    }
+
     crypto::Hash minerTransactionHash = getObjectHash(blockData.baseTransaction);
 
     BlockEntry block;
@@ -3119,6 +3153,24 @@ namespace cn
         logger(INFO, BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id
                                    << " because PQ deposits are not active until height "
                                    << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9);
+      }
+
+      // PQ-ONLY DEPOSIT FREEZE (CIP-0001 UPGRADE_HEIGHT_V9, Option 3): the symmetric twin of the
+      // PQ-enable gate above. At or after the V9 activation height, reject CREATION of any new
+      // classical (Ed25519) deposit output (MultisignatureOutput with term != 0), so PqMultisig
+      // becomes the only new deposit path. The classical path closes on exactly the block the PQ
+      // path opens — the ">=" here mirrors the PQ-enable "<" above (do NOT change it to ">", which
+      // would shift activation by one block and desynchronize the two gates -> chain split).
+      // CREATION-side only: spending of already-existing classical deposits is unaffected
+      // (checkTransactionInputs / interest accrual / deposit-lock are deliberately left untouched,
+      // or pre-fork locked funds would strand). Never applied retroactively.
+      if (isTransactionValid && transactionContainsClassicalDeposit(transactions[i]) &&
+          block.height >= m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9))
+      {
+        isTransactionValid = false;
+        logger(INFO, BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id
+                                   << " because classical deposit creation is frozen at/after height "
+                                   << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9) << "; use a PQ deposit";
       }
 
 

@@ -35,6 +35,24 @@ using namespace logging;
 namespace cn
 {
 
+  // True if the transaction CREATES a classical (Ed25519) deposit output — a MultisignatureOutput
+  // with a non-zero term. Mempool twin of Blockchain.cpp::transactionContainsClassicalDeposit (keep
+  // the two in sync). Used to reject new classical deposit creation at/after UPGRADE_HEIGHT_V9
+  // (CIP-0001, Option 3 "PQ-only deposits after the fork"): mirrors the authoritative pushBlock
+  // consensus gate so a frozen deposit never enters the pool, gets relayed, or stalls mining.
+  static bool transactionContainsClassicalDeposit(const Transaction &tx)
+  {
+    for (const auto &out : tx.outputs)
+    {
+      if (out.target.type() == typeid(MultisignatureOutput) &&
+          boost::get<MultisignatureOutput>(out.target).term != 0)
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   //---------------------------------------------------------------------------------
   // BlockTemplate
   //---------------------------------------------------------------------------------
@@ -254,6 +272,22 @@ namespace cn
       tvc.m_should_be_relayed = false;
       tvc.m_added_to_pool = false;
       return true;
+    }
+
+    // PQ-ONLY DEPOSIT FREEZE (CIP-0001 UPGRADE_HEIGHT_V9, Option 3): reject a NEW classical (Ed25519)
+    // deposit creation at submission/relay once the chain is at/after the V9 activation height, so it
+    // never pollutes the pool, gets relayed, or stalls mining (it would be rejected at block-connection
+    // anyway — see Blockchain::pushBlock). Loose txs only (!keptByBlock): a tx returning to the pool
+    // from a popped block was valid when mined and must NOT be re-rejected. This is mempool POLICY that
+    // mirrors the authoritative pushBlock consensus gate; rejecting from the pool cannot fork the chain.
+    if (!keptByBlock && transactionContainsClassicalDeposit(tx) &&
+        height >= m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9))
+    {
+      logger(INFO, BRIGHT_WHITE) << "Transaction " << id
+                                 << " rejected: classical deposit creation is frozen at/after height "
+                                 << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9) << "; use a PQ deposit";
+      tvc.m_verification_failed = true;
+      return false;
     }
 
     // add to pool
