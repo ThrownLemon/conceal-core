@@ -25,19 +25,29 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 
 | Option | Privacy | Spend size | Verify | Storage/yr | Maturity | Notes |
 |---|---|---|---|---|---|---|
-| **A — MatRiCT-Au** (lattice RingCT, log-size) | **full ring + confidential amounts** | ~58 KB | ~45 ms | ~18 GB | research code, builds; **library-ized this session** (`~/matrict-lib`) | the privacy-preserving production target |
+| **A — MatRiCT-Au** (lattice RingCT, log-size) | **full ring + confidential amounts** | **~107 KB** *(58 KB only w/ compression — see note)* | ~45 ms | **~33–35 GB** | research code, builds; **library-ized this session** (`~/matrict-lib`) | the privacy-preserving production target |
 | B — keep the lattice **stand-in** | full ring, plaintext amounts | 25–61 KB (ring 2–8) | ~1 ms | ~13 GB | **experimental, unaudited, demo-grade** | the current PoC engine; **not mainnet-safe** |
 | C — **Falcon, no ring** (stealth only) | **no sender anonymity** | 6.4 KB | 0.2 ms | ~1.9 GB | NIST-standardized | smallest/fastest, but drops Conceal's core privacy |
 
 **Selected default (pending consensus): A (MatRiCT-Au), keep privacy.** It's the only option that preserves
-Conceal's ring + confidential-amount privacy on a (to-be-audited) lattice construction. Cost is real — a PQ
-spend is **~68×** a classical spend (542 B → ~37 KB measured for the stand-in; MatRiCT-Au ~58 KB team-measured)
-— but C forfeits the chain's reason to exist and B can't ship unaudited. The swappable backend
-(`pq_ring_sig.h` C-ABI) lets the stand-in (B) stay the **testnet** engine while A is integrated + audited; see
-[`matrict-integration-plan.md`](matrict-integration-plan.md).
+Conceal's ring + confidential-amount privacy on a (to-be-audited) lattice construction. But the cost is bigger
+than first recorded — see the proof-size note below — and C forfeits the chain's reason to exist while B can't
+ship unaudited. The swappable backend (`pq_ring_sig.h` C-ABI) lets the stand-in (B) stay the **testnet** engine
+while A is integrated + audited; see [`matrict-integration-plan.md`](matrict-integration-plan.md).
 
-**Depends on / unblocks:** the audit (**D7**), tx-size + fusion (**D3**). **Who confirms:** core team — this is
-the headline strategic call.
+> **Proof-size correction (measured this session).** The "58 KB" widely quoted for MatRiCT-Au is the **paper's
+> *compressed* proof**, NOT a measurement — the reference code ships **no proof serializer at all** and only
+> holds the proof as full in-memory arrays. Library-izing it + writing a canonical packed serializer this
+> session yields **~107 KB** (n10m1, ring-10/1-in — the same params the paper's 58 KB describes), and that is
+> the *floor* for the reference (every coefficient already at its formal norm bound; no packing slack left).
+> Reaching ~58 KB needs **Dilithium-style response compression** (send high bits + a hint, verifier
+> reconstructs the low bits) — a change to the **prover *and* verifier** (`spend.c`+`verify.c`),
+> **soundness-affecting**, inside the **audited** artifact: a real crypto sub-project, not a serialization
+> tweak. **Plan on ~107 KB / ~33–35 GB/yr** unless the team commits to building + auditing that compression
+> (then ~58 KB / ~18 GB/yr). So a PQ spend is **~68×→~200×** a classical spend depending on that decision.
+
+**Depends on / unblocks:** the audit (**D7**), tx-size + fusion (**D3**), and the proof-compression sub-decision
+above. **Who confirms:** core team — this is the headline strategic call.
 
 ---
 

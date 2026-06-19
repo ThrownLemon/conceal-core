@@ -153,9 +153,10 @@ href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
 <tr>
 <td><strong>A — MatRiCT-Au</strong> (lattice RingCT, log-size)</td>
 <td><strong>full ring + confidential amounts</strong></td>
-<td>~58 KB</td>
+<td><strong>~107 KB</strong> <em>(58 KB only w/ compression — see
+note)</em></td>
 <td>~45 ms</td>
-<td>~18 GB</td>
+<td><strong>~33–35 GB</strong></td>
 <td>research code, builds; <strong>library-ized this session</strong>
 (<code>~/matrict-lib</code>)</td>
 <td>the privacy-preserving production target</td>
@@ -183,17 +184,37 @@ href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
 <p><strong>Selected default (pending consensus): A (MatRiCT-Au), keep
 privacy.</strong> It's the only option that preserves Conceal's ring +
 confidential-amount privacy on a (to-be-audited) lattice construction.
-Cost is real — a PQ spend is <strong>~68×</strong> a classical spend
-(542 B → ~37 KB measured for the stand-in; MatRiCT-Au ~58 KB
-team-measured) — but C forfeits the chain's reason to exist and B can't
-ship unaudited. The swappable backend (<code>pq_ring_sig.h</code> C-ABI)
-lets the stand-in (B) stay the <strong>testnet</strong> engine while A
-is integrated + audited; see <a
+But the cost is bigger than first recorded — see the proof-size note
+below — and C forfeits the chain's reason to exist while B can't ship
+unaudited. The swappable backend (<code>pq_ring_sig.h</code> C-ABI) lets
+the stand-in (B) stay the <strong>testnet</strong> engine while A is
+integrated + audited; see <a
 href="matrict-integration-plan.md"><code>matrict-integration-plan.md</code></a>.</p>
+<blockquote>
+<p><strong>Proof-size correction (measured this session).</strong> The
+"58 KB" widely quoted for MatRiCT-Au is the <strong>paper's
+<em>compressed</em> proof</strong>, NOT a measurement — the reference
+code ships <strong>no proof serializer at all</strong> and only holds
+the proof as full in-memory arrays. Library-izing it + writing a
+canonical packed serializer this session yields <strong>~107 KB</strong>
+(n10m1, ring-10/1-in — the same params the paper's 58 KB describes), and
+that is the <em>floor</em> for the reference (every coefficient already
+at its formal norm bound; no packing slack left). Reaching ~58 KB needs
+<strong>Dilithium-style response compression</strong> (send high bits +
+a hint, verifier reconstructs the low bits) — a change to the
+<strong>prover <em>and</em> verifier</strong>
+(<code>spend.c</code>+<code>verify.c</code>),
+<strong>soundness-affecting</strong>, inside the
+<strong>audited</strong> artifact: a real crypto sub-project, not a
+serialization tweak. <strong>Plan on ~107 KB / ~33–35 GB/yr</strong>
+unless the team commits to building + auditing that compression (then
+~58 KB / ~18 GB/yr). So a PQ spend is **~68×→~200×** a classical spend
+depending on that decision.</p>
+</blockquote>
 <p><strong>Depends on / unblocks:</strong> the audit
-(<strong>D7</strong>), tx-size + fusion (<strong>D3</strong>).
-<strong>Who confirms:</strong> core team — this is the headline
-strategic call.</p>
+(<strong>D7</strong>), tx-size + fusion (<strong>D3</strong>), and the
+proof-compression sub-decision above. <strong>Who confirms:</strong>
+core team — this is the headline strategic call.</p>
 <hr />
 <h2
 id="d2--upgrade_height_v9-fork-timing--height--default-stay-on-the-sentinel--placeholder-pending-consensus">D2

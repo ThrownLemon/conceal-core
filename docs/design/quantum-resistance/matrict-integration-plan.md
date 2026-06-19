@@ -80,8 +80,10 @@ A `MatRiCTBackend` (Rust or C++ in `pqc/`) that owns what the reference benchmar
   (preferred) or a backend mutex (interim). [Milestone in §5.]
 - **Ring-size dispatch** — MatRiCT's ring size is compile-time; the wrapper selects the right compiled
   variant (`mrct_n10_* / n50_* / n100_*`) by `ring_size`. [§5.]
-- **Serialization** — pack mod-Q coefficients (~31 bits) / QBIG (~57 bits) to hit the ~58 KB target
-  (raw `sizeof` is ~274–370 KB). This is the wire format; it must be canonical + consensus-stable.
+- **Serialization** — pack mod-Q coefficients (~31 bits) / QBIG (~57 bits): done in P0-M2, hits **~107 KB**
+  (raw `sizeof` ~274–370 KB). This is the floor — **packing alone does NOT reach 58 KB**; that needs
+  prover+verifier *proof-compression* (a crypto change — see the P0 note + decision doc D1). This is the wire
+  format; it must be canonical + consensus-stable.
 - **Nullifier tracking** — none new: the daemon already owns `m_spent_pq_nullifiers`; serial → nullifier.
 
 ## 3. Consensus changes (the RingCT value model)

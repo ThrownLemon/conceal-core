@@ -196,8 +196,11 @@ compile-time; the wrapper selects the right compiled variant
 (<code>mrct_n10_* / n50_* / n100_*</code>) by <code>ring_size</code>.
 [§5.]</li>
 <li><strong>Serialization</strong> — pack mod-Q coefficients (~31 bits)
-/ QBIG (~57 bits) to hit the ~58 KB target (raw <code>sizeof</code> is
-~274–370 KB). This is the wire format; it must be canonical +
+/ QBIG (~57 bits): done in P0-M2, hits <strong>~107 KB</strong> (raw
+<code>sizeof</code> ~274–370 KB). This is the floor — <strong>packing
+alone does NOT reach 58 KB</strong>; that needs prover+verifier
+<em>proof-compression</em> (a crypto change — see the P0 note + decision
+doc D1). This is the wire format; it must be canonical +
 consensus-stable.</li>
 <li><strong>Nullifier tracking</strong> — none new: the daemon already
 owns <code>m_spent_pq_nullifiers</code>; serial → nullifier.</li>

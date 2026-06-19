@@ -206,9 +206,11 @@ at current ~1.16 tx/block, scales with usage.
 <tr>
 <td><strong>MatRiCT-Au ring (log, input-amortized)</strong></td>
 <td><strong>full untraceable</strong></td>
-<td style="text-align: right;"><strong>58 KB</strong></td>
+<td style="text-align: right;"><strong>~107 KB</strong> <em>(58 KB only
+w/ compression — §10.2)</em></td>
 <td style="text-align: right;"><strong>45 ms</strong></td>
-<td style="text-align: right;"><strong>18 GB</strong></td>
+<td style="text-align: right;"><strong>~33–35 GB</strong> <em>(18 GB at
+58 KB)</em></td>
 <td style="text-align: right;"><strong>1</strong></td>
 <td><strong>research code, builds</strong></td>
 </tr>
@@ -363,10 +365,13 @@ FIPS-validated.</li>
 <h2 id="7-cost-of-option-a-keep-privacy--accept-these">7. Cost of Option
 A (keep privacy) — accept these</h2>
 <ul>
-<li><strong>Size:</strong> tens of KB/tx (MatRiCT-Au ~58 KB avg [team])
-vs 1.2 KB today (~48×).</li>
-<li><strong>Storage:</strong> <strong>~18 GB/yr</strong> at today's
-demand [team] (vs 0.37 GB), scaling with usage.</li>
+<li><strong>Size:</strong> <strong>~107 KB/tx measured</strong> this
+session (MatRiCT-Au, ring-10/1-in) vs 1.2 KB today (~89×); the
+oft-quoted ~58 KB is the paper's <em>compressed</em> proof and needs
+unbuilt prover+verifier compression — see §10.2.</li>
+<li><strong>Storage:</strong> <strong>~33–35 GB/yr</strong> at today's
+demand at 107 KB (vs 0.37 GB); ~18 GB/yr only if 58 KB compression is
+built + audited.</li>
 <li><strong>Verify CPU:</strong> ~45 ms/tx [team] (~20× Ed25519-ring) —
 node validation + IBD cost.</li>
 <li><strong>Fees:</strong> size-coupled (0.001 ₡CCX min [published]); a
@@ -456,40 +461,60 @@ coin</strong> (pass <code>t0=t1=t2=NULL</code>).</li>
 <thead>
 <tr>
 <th></th>
-<th style="text-align: right;">team measured</th>
+<th style="text-align: right;">this session (measured)</th>
+<th style="text-align: right;">paper (compressed)</th>
 <th style="text-align: right;">raw reference <code>sizeof</code></th>
 </tr>
 </thead>
 <tbody>
 <tr>
 <td>Spend proof (ring-10, 1-in)</td>
-<td style="text-align: right;">(part of 58 KB avg)</td>
-<td style="text-align: right;"><strong>~274 KB</strong> [agent]</td>
+<td style="text-align: right;"><strong>~107 KB</strong> [packed, this
+session]</td>
+<td style="text-align: right;">~58 KB <em>(needs compression —
+unbuilt)</em></td>
+<td style="text-align: right;"><strong>~274 KB</strong> [raw]</td>
 </tr>
 <tr>
 <td>Account / pubkey</td>
+<td style="text-align: right;">—</td>
 <td style="text-align: right;">—</td>
 <td style="text-align: right;">18 KB / 9 KB</td>
 </tr>
 <tr>
 <td>Serial (nullifier)</td>
 <td style="text-align: right;">—</td>
+<td style="text-align: right;">—</td>
 <td style="text-align: right;">512 B / input</td>
 </tr>
 <tr>
 <td>Verify</td>
-<td style="text-align: right;">45 ms [team]</td>
+<td style="text-align: right;">—</td>
+<td style="text-align: right;">45 ms [paper]</td>
 <td style="text-align: right;">—</td>
 </tr>
 </tbody>
 </table>
-<p>The team's <strong>58 KB avg</strong> [team] is the authoritative
-decision number (packed wire format + input amortization). The reference
-struct is <strong>~274–370 KB raw</strong> because coefficients are full
-<code>uint64</code>; a real wire format packs mod-Q coeffs to ~31 bits
-(~½) and amortizes across inputs. <strong>Closing the raw→58 KB gap is
-itself integration work</strong> (a packed serializer) and should be
-re-confirmed against the bench harness.</p>
+<p><strong>CORRECTION (measured this session).</strong> The earlier "58
+KB avg" treated as authoritative is the <strong>paper's
+<em>compressed</em> proof, not a measurement</strong> — the reference
+ships <strong>no proof serializer</strong>; it only holds the proof as
+full in-memory arrays. Library-izing it + a canonical packed serializer
+gives <strong>~107 KB</strong> (n10m1, the same ring-10/1-in params the
+58 KB describes), and that is the <strong>floor for the
+reference</strong>: every coefficient is already at its formal norm
+bound, so there is <em>no packing slack left</em>. The ~274 KB raw →
+~107 KB packed is the serialization win; closing <strong>107 → 58 KB
+needs Dilithium-style response compression</strong> (high bits + hint;
+verifier reconstructs the low bits) — a change to <strong>prover
+<em>and</em> verifier</strong>
+(<code>spend.c</code>+<code>verify.c</code>),
+<strong>soundness-affecting</strong> and inside the
+<strong>audited</strong> artifact, i.e. a crypto sub-project, not
+serialization. <strong>Plan on ~107 KB / ~33–35 GB/yr</strong> as the
+realistic baseline; 58 KB / ~18 GB/yr is conditional on building +
+auditing that compression. (Verify ~45 ms is the paper's figure, not
+re-measured here.)</p>
 <h3 id="103-the-four-adapter-gaps-what-the-wrapper-must-bridge">10.3 The
 four adapter gaps (what the wrapper must bridge)</h3>
 <ol type="1">

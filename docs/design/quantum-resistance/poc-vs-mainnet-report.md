@@ -60,7 +60,7 @@ with usage. **[team]**
 |---|---|---:|---:|---:|---:|---|
 | Ed25519 ring (today) | full untraceable | 1.2 KB | 2.3 ms | 0.37 GB | 82 | shipped — ❌ not PQ-safe |
 | Raptor ring (linear) | full untraceable | 43 KB | 1.9 ms | 13 GB | 2 | research PoC, unaudited |
-| **MatRiCT-Au ring (log, input-amortized)** | **full untraceable** | **58 KB** | **45 ms** | **18 GB** | **1** | **research code, builds** |
+| **MatRiCT-Au ring (log, input-amortized)** | **full untraceable** | **~107 KB** *(58 KB only w/ compression — §10.2)* | **45 ms** | **~33–35 GB** *(18 GB at 58 KB)* | **1** | **research code, builds** |
 | Falafl ring (log) | full untraceable | 95 KB | 77 ms | 29 GB | 1 | research, fully measured |
 | Falcon — NO RING (Falcon+H(pk)) | stealth only | 6.4 KB | 0.2 ms | 1.9 GB | 15 | NIST-standard |
 | SPHINCS+ — NO RING | stealth only | 21 KB | 3.6 ms | 6.5 GB | 4 | NIST-standard, conservative |
@@ -130,8 +130,10 @@ messages) — not just generic CryptoNote.
 
 ## 7. Cost of Option A (keep privacy) — accept these
 
-- **Size:** tens of KB/tx (MatRiCT-Au ~58 KB avg [team]) vs 1.2 KB today (~48×).
-- **Storage:** **~18 GB/yr** at today's demand [team] (vs 0.37 GB), scaling with usage.
+- **Size:** **~107 KB/tx measured** this session (MatRiCT-Au, ring-10/1-in) vs 1.2 KB today (~89×); the
+  oft-quoted ~58 KB is the paper's *compressed* proof and needs unbuilt prover+verifier compression — see §10.2.
+- **Storage:** **~33–35 GB/yr** at today's demand at 107 KB (vs 0.37 GB); ~18 GB/yr only if 58 KB compression
+  is built + audited.
 - **Verify CPU:** ~45 ms/tx [team] (~20× Ed25519-ring) — node validation + IBD cost.
 - **Fees:** size-coupled (0.001 ₡CCX min [published]); a ~48× larger tx ⇒ ~48× absolute fee at equal
   fee-per-byte. Deposits (extra sig) are the priciest.
@@ -186,17 +188,23 @@ it.** From reading its actual API, here is the concrete delta.
 
 ### 10.2 Sizes & cost (note the packing gap)
 
-| | team measured | raw reference `sizeof` |
-|---|---:|---:|
-| Spend proof (ring-10, 1-in) | (part of 58 KB avg) | **~274 KB** [agent] |
-| Account / pubkey | — | 18 KB / 9 KB |
-| Serial (nullifier) | — | 512 B / input |
-| Verify | 45 ms [team] | — |
+| | this session (measured) | paper (compressed) | raw reference `sizeof` |
+|---|---:|---:|---:|
+| Spend proof (ring-10, 1-in) | **~107 KB** [packed, this session] | ~58 KB *(needs compression — unbuilt)* | **~274 KB** [raw] |
+| Account / pubkey | — | — | 18 KB / 9 KB |
+| Serial (nullifier) | — | — | 512 B / input |
+| Verify | — | 45 ms [paper] | — |
 
-The team's **58 KB avg** [team] is the authoritative decision number (packed wire format + input
-amortization). The reference struct is **~274–370 KB raw** because coefficients are full `uint64`; a real
-wire format packs mod-Q coeffs to ~31 bits (~½) and amortizes across inputs. **Closing the raw→58 KB gap
-is itself integration work** (a packed serializer) and should be re-confirmed against the bench harness.
+**CORRECTION (measured this session).** The earlier "58 KB avg" treated as authoritative is the **paper's
+*compressed* proof, not a measurement** — the reference ships **no proof serializer**; it only holds the proof
+as full in-memory arrays. Library-izing it + a canonical packed serializer gives **~107 KB** (n10m1, the same
+ring-10/1-in params the 58 KB describes), and that is the **floor for the reference**: every coefficient is
+already at its formal norm bound, so there is *no packing slack left*. The ~274 KB raw → ~107 KB packed is the
+serialization win; closing **107 → 58 KB needs Dilithium-style response compression** (high bits + hint;
+verifier reconstructs the low bits) — a change to **prover *and* verifier** (`spend.c`+`verify.c`),
+**soundness-affecting** and inside the **audited** artifact, i.e. a crypto sub-project, not serialization.
+**Plan on ~107 KB / ~33–35 GB/yr** as the realistic baseline; 58 KB / ~18 GB/yr is conditional on building +
+auditing that compression. (Verify ~45 ms is the paper's figure, not re-measured here.)
 
 ### 10.3 The four adapter gaps (what the wrapper must bridge)
 
