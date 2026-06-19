@@ -296,23 +296,24 @@ Conceal's PoC **lattice ring-sig stand-in** (the incumbent for that path), not M
   (membership = one Merkle path against the ring root, not iteration over members). Conceal's lattice sig is
   **~6.1 KB per ring member, linear**. **Crossover where ELRS wins on size ≈ ring 5**; above ring ~8 the gap
   explodes (ring-64 ≈ 14×, ring-1024 ≈ 225×). Huge anonymity sets are nearly free for ELRS.
-- **The "128 ms single-verify" concern was wrong — RESOLVED by experiment.** The reference CLI does exactly one
-  **cold, un-batched** verify per process (no amortization, no batching — confirmed in `main.rs` /
-  `sigrescue/mod.rs`), and that cold single verify is **0.3 ms, flat across ring 8→8192** (5 reps each, fresh
-  process per run). The prior "amortized 0.3 ms" and this cold single verify are the **same number** — there is
-  no separate slow path. **CryptoNote's distinct-ring-per-tx model therefore costs ELRS nothing.** The paper's
-  ~128 ms could not be reproduced (eprint table paywalled) and is *not* this STARK verify — likely a different
-  instantiation or a prove time.
-- **Throughput verdict: verify is *never* Conceal's bottleneck — size is — and ELRS wins both.** Verify-bound
-  ceiling (1 core, 120 s block): ELRS ~400k inputs/block vs lattice ~120k vs classical ring-6 ~125k — ELRS is
-  the *fastest*. The binding cap is size (`floor(100000 / tx_bytes)`): lattice ring-8 = 1 tx/block and collapses
-  as the ring grows; ELRS ~28 KB + ~6.2 KB overhead ≈ 35 KB stays ~constant at *any* ring size.
-- **Verdict: ELRS beats the lattice stand-in outright** for the plaintext-amounts path — faster verify (0.3 ms
-  cold vs ~1 ms), far smaller, and ring-size-flat where lattice is unusable above ring ~16.
-- Caveats: hash-based PQ security is *conjectured* (ethSTARK SoK / Rescue hash; the "128-bit" is conjectured,
-  proven security lower); transparent setup (a plus); reference impl single-author, experimental, Rust,
-  unaudited; 0.3 ms is at the binary's 0.1 ms print floor (true ~250–349 µs); tx-overhead under a real
-  Conceal output/nullifier binding (~6.2 KB) still to confirm.
+- **⚠ The verify number is CONTESTED — do not rely on it yet.** The ELRS experiment agent *measured* a cold
+  single verify of **0.3 ms** (fresh process per ring, reading `main.rs`/`sigrescue/mod.rs`), and concluded the
+  paper's 128 ms "is not this STARK verify." BUT the [focused sweep](pq-ringsig-verdict.md) independently
+  re-flagged (2 of 4 angles) that **0.3 ms is the *amortized* online cost** (FRI offline phase shared across
+  signatures over the *same* ring) and a **cold single verify is ~128 ms** — which, for CryptoNote's
+  distinct-ring-per-tx model, would *not* amortize. The measurement and the paper conflict and the conflict is
+  **unresolved** — it needs a careful re-measurement of whether the impl's verify path is truly cold-FRI or
+  amortized. **Until then, treat ELRS verify as somewhere between 0.3 ms and ~128 ms.**
+- **Size verdict still holds; the "beats outright" verdict does NOT.** ELRS's flat ~25–29 KB is a real win at
+  *large* rings (lattice goes linear → MBs). **But at Conceal's actual small rings (mixin 5–16), ELRS's flat
+  ~25 KB is *wasted flatness* — linear lattice schemes are physically SMALLER and rest on a CLEANER assumption:**
+  **Raptor** (NTRU) ~10 KB @ ring-8 / ~21 KB @ ring-16, natively linkable, NTRU/Ring-SIS *reduction*; *LAPQ-LRS*
+  (MLWE/MSIS, same family as ML-DSA) ~4.4 KB @ ring-8 *if its numbers hold*. ELRS only wins once rings grow past
+  ~16–32. So **ELRS does NOT beat the lattice option at small rings** — the choice hinges on the **max-ring-size
+  decision**, not the crypto. See [`pq-ringsig-verdict.md`](pq-ringsig-verdict.md) (confidence ~65%).
+- Caveats: ELRS security is *conjectured* (ethSTARK FRI/ROM — **no reduction to a hard problem**, unlike the
+  lattice schemes' Module-SIS/MLWE); experimental unaudited Rust; 0.3 ms (if real) is at the 0.1 ms print floor;
+  tx-overhead under a real Conceal output/nullifier binding (~6.2 KB) still unmeasured.
 
 *Sources: [reference impl built + benchmarked](https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature),
 [ESORICS 2024](https://link.springer.com/chapter/10.1007/978-3-031-70903-6_22). The flat sizes + cold 0.3 ms
@@ -350,7 +351,7 @@ amounts successor. **The claim did not survive contact with the code.**
 porting Gao's param-set + balance-proof into the MatRiCT-Au C code and measuring a full verifying spend — a
 multi-week research task, not a benchmark. **Note also:** MatRiCT-Au verify measured here is **~12 ms** (Ryzen
 5950X), vs the **45 ms** [paper, i7-8750H] cited elsewhere in these docs — a hardware/impl gap, not a
-discrepancy in the scheme. *(Raw notes: `docs/specs/quantum-resistance/gao-bench-notes.md`.)*
+discrepancy in the scheme. *(Raw notes: [`gao-bench-notes.md`](gao-bench-notes.md).)*
 
 ---
 

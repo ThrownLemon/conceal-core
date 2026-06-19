@@ -25,6 +25,8 @@ DOCS = [
     # group: Reports & measurements
     ("poc-vs-mainnet-report.md", "PoC vs mainnet report", "Reports & measurements"),
     ("pq-scheme-landscape.md", "PQ scheme landscape (research)", "Reports & measurements"),
+    ("pq-ringsig-verdict.md", "PQ ring-sig verdict (ELRS vs lattice)", "Reports & measurements"),
+    ("gao-bench-notes.md", "Gao RingCT benchmark (notes)", "Reports & measurements"),
     ("measured-numbers.md", "Measured numbers", "Reports & measurements"),
     ("STATUS.md", "Status & architecture", "Reports & measurements"),
     ("REMAINING-WORK.md", "Remaining work", "Reports & measurements"),

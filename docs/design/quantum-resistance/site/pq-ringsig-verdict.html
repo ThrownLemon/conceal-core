@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PQ ring-sig verdict (ELRS vs lattice) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class="active"><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <p><em>Focused web sweep (4 angles + synthesis) answering: is anything
+newer/better than ELRS as a PQ <strong>linkable</strong> ring signature
+for plaintext-amounts CryptoNote? <strong>Confidence ~65%</strong> —
+eprint PDFs were Cloudflare-blocked, so several KB figures are
+abstract/formula-derived (verify against the real tables before
+committing). Frames provisional defaults, not decisions.</em></p>
+<h1
+id="pq-linkable-ring-signature-verdict-for-conceal-plaintext-amounts-path">PQ
+Linkable Ring Signature Verdict for Conceal (Plaintext-Amounts
+Path)</h1>
+<p><strong>Question:</strong> Is ELRS (ESORICS 2024, eprint 2024/553)
+the right PQ linkable ring signature to proceed with, or is something
+newer/better available?</p>
+<p><strong>Short answer:</strong> Proceed with ELRS as the working
+target <strong>only if Conceal commits to growing rings beyond
+~32</strong> — otherwise ELRS is genuinely <em>oversized and
+over-engineered</em> for Conceal's actual operating point (mixin 5–16),
+where a linear lattice scheme is smaller <strong>and</strong> rests on a
+cleaner assumption. The decision hinges almost entirely on one committed
+parameter: <strong>maximum ring size.</strong></p>
+<hr />
+<h2 id="critical-correction-to-the-briefs-premise">Critical correction
+to the brief's premise</h2>
+<p>The research surfaced a factual error in the baseline you handed me,
+and it matters for the verdict:</p>
+<blockquote>
+<p><strong>ELRS's "0.3 ms cold single verify" is wrong.</strong> Per the
+authors, <strong>0.3 ms is the <em>amortized</em> online cost</strong>
+(the offline FRI phase is shared across many signatures verified against
+the <em>same</em> ring). A <strong>single <em>cold</em> verify is ~128
+ms.</strong> For a blockchain validating many <em>different</em> small
+rings, that amortization may not fully apply — which materially narrows
+ELRS's headline verify advantage. Cold, ELRS (~128 ms) is
+<em>slower</em> than Raptor / ChipmunkRing / DualRing-family
+single-signature verify (single-digit ms). This was independently
+flagged by two of the four research angles, so I treat it as
+high-confidence.</p>
+</blockquote>
+<p>This does not disqualify ELRS, but it removes "0.3 ms beats
+everything" as a clean argument. Whether Conceal gets the amortized
+number depends on whether validators verify many sigs against identical
+rings — which in CryptoNote, with per-transaction decoy selection, they
+generally do <strong>not</strong>.</p>
+<hr />
+<h2 id="1-the-honest-leaderboard-ranked-for-conceals-exact-need">1. The
+honest leaderboard (ranked for Conceal's exact need)</h2>
+<p>Ranked by fitness for <em>small-ring (5–16), plaintext-amounts,
+natively-linkable, money-critical</em>. KB figures are at the stated
+security level; mark where asymptotic/derived.</p>
+<p><strong>Tier A — real contenders for the small-ring path</strong></p>
+<ol type="1">
+<li><p><strong>Raptor</strong> (NTRU lattice, ACNS 2019) — <em>the
+proven incumbent-beater at small rings.</em></p>
+<ul>
+<li>Beats ELRS on: <strong>size@small-ring</strong> (~10 KB @ ring-8,
+~21 KB @ ring-16, <em>natively linkable</em>),
+<strong>assumption</strong> (NTRU/Ring-SIS reduction vs ELRS's hash/FRI
+conjecture), <strong>maturity</strong> (public Rust PoC
+<code>zhenfeizhang/raptor</code>, most-cited PQ linkable ring sig with
+code).</li>
+<li>Catch: <strong>linear</strong> — ~83 KB @ ring-64, **~1.3 MB @
+ring-1024** (catastrophic). ELRS overtakes on size at ring ~16–32.
+Benchmarked at 100-bit (not 128) in ELRS's own comparison table, so the
+10 KB is a slight under-count vs a 128-bit ELRS. NTRU is a real but
+more-structured assumption than Module-SIS.</li>
+</ul></li>
+<li><p><strong>ChipmunkRing</strong> (Ring-LWE, arXiv 2510.09617, 2025)
+— <em>the only thing close to shipping.</em></p>
+<ul>
+<li>Beats ELRS on: <strong>assumption</strong> (Ring-LWE reduction with
+EUF-CMA forking-lemma proof), <strong>cold verify</strong> (0.4–4.5 ms @
+ring 2–64 vs ELRS ~128 ms cold), <strong>maturity</strong> (open
+<strong>C</strong> in Cellframe DAP SDK with test vectors, live in a
+production chain — more inspectable than ELRS's Rust PoC). Native
+32-byte SHA3 nullifier — exactly Conceal's model.</li>
+<li>Catch: <strong>linear</strong> (~24 KB @ ring-8 <em>level with</em>
+ELRS, 279.7 KB @ ring-64, multi-MB @ 1024); only <strong>112-bit (NIST
+L1, below 128)</strong>; "Acorn Verification" is a <strong>bespoke,
+unproven-in-standard-model, single-author (vendor CEO)</strong> ZK
+protocol; its comparison tables use placeholder "&gt;100 KB" strawmen —
+a rigor red flag. <em>Watch/inspect, do not adopt as-is.</em></li>
+</ul></li>
+<li><p><strong>LAPQ-LRS</strong> (Module-SIS/MLWE + Dilithium
+aggregation, MDPI Entropy 2026) — <em>best on-paper size+assumption
+combo, slow &amp; unverified.</em></p>
+<ul>
+<li>Beats ELRS on: <strong>size@small-ring</strong> (~4.4 KB @ ring-8,
+~5.8 KB @ ring-16 per the 1.45·log₂n KB formula),
+<strong>size@large-ring</strong> (~14.5 KB @ 1024, log-size),
+<strong>assumption</strong> (MLWE/MSIS — same family as NIST ML-DSA/FIPS
+204), <strong>natively linkable + log-size</strong>.</li>
+<li>Catch: <strong>verify 30.7–109 ms</strong> (~100× ELRS amortized);
+<strong>Python prototype only</strong>, single lighter-venue (MDPI)
+paper, <strong>novel unvetted "aggregation-replaces-ZKP" anonymity
+argument</strong>; small-ring KB is <strong>formula/figure-derived, not
+a clean measured table</strong> (medium confidence).</li>
+</ul></li>
+</ol>
+<p><strong>Tier B — assumption-clean but loses on
+size/speed</strong></p>
+<ol start="4" type="1">
+<li><p><strong>MatRiCT+</strong> (Module-SIS/MLWE, IEEE S&amp;P 2022) —
+natively linkable (RingCT serial number = nullifier), <strong>C++
+implementation</strong> (most mature lattice option), real reduction,
+fast verify (2–8 ms). Catch: it's <strong>RingCT-coupled</strong> —
+bundles confidential-amount machinery Conceal does <em>not</em> want on
+the plaintext path; the standalone plaintext-amount
+linkable-membership-proof KB is <strong>not isolated in the
+paper</strong> (inferred smaller than ELRS at small rings, not
+measured).</p></li>
+<li><p><strong>SMILE</strong> (Module/Ring-SIS, CRYPTO 2021) — compact
+(~16 KB @ ring-32, ~18–22 KB @ large rings, often smaller than ELRS at
+large rings), real M-SIS reduction. Catch: <strong>linkability is NOT
+native</strong> — needs a key-image + well-formedness proof bolted on
+(real cryptographic work + its own security proof); verify slower than
+ELRS.</p></li>
+<li><p><strong>Falafl</strong> (MLWE/MSIS, ASIACRYPT 2020) — natively
+linkable, real lattice reduction. Catch: <strong>~50 KB flat @ ring-8,
+53–56 KB at large rings</strong> — <em>larger than ELRS at every ring
+size relevant to Conceal</em>. Pick only if a clean reduction is
+mandatory and size is acceptable. ELRS itself cites this as the prior
+art it improves on.</p></li>
+</ol>
+<p><strong>Tier C — same-assumption-family as ELRS
+(symmetric/conjectured), but worse</strong></p>
+<ol start="7" type="1">
+<li><p><strong>PegaRing</strong> (power-residue PRF, eprint 2025/1841,
+Nov 2025) — <em>the most interesting genuinely-new same-axis
+contender.</em> First practical symmetric-primitive ring sig with
+<strong>provable QROM security</strong> (strictly better security
+<em>modeling</em> than ELRS's heuristic FRI soundness); ~29–32 KB @
+ring-1024. Catch: verify <strong>6–31 ms</strong> (not flat, grows with
+ring); small-ring KB <strong>unpublished</strong> (medium/low
+confidence); newest, unvetted.</p></li>
+<li><p><strong>DualRing-PRF / DualRingL-PRF</strong>
+(Legendre/power-residue PRF, ACISP 2024) — competitive small-ring size,
+pure symmetric-key assumption. Catch: <strong>signing 26–88
+<em>seconds</em> @ ring-256</strong> (MPC-in-the-head — check
+<em>sign</em> time, not just verify), linkable variant 42 KB @ ring-16
+(larger than ELRS), Legendre PRF has active key-recovery cryptanalysis
+(May–Zweydinger). <strong>Superseded by PegaRing.</strong></p></li>
+</ol>
+<p><strong>Tier D — ruled out (do not chase)</strong></p>
+<ul>
+<li><strong>Calamari</strong> (CSIDH isogeny): smallest size (~5.5 KB @
+ring-8) but **~79 s signing**, slow verify, and <strong>CSIDH
+PQ-security contested post-SIDH-break (2022)</strong>.
+Disqualified.</li>
+<li><strong>LIP-based LRS</strong> (SPACE 2023) and
+<strong>LLRing</strong> (ESORICS 2024): a follow-up (<strong>eprint
+2025/1375</strong>) reported a <strong>linkable-anonymity /
+unlinkability break</strong> in this cluster. LLRing is also DL/pairing
+in its main instantiation = <strong>not PQ</strong>. <em>Caution flag,
+not candidates.</em></li>
+<li><strong>Gandalf / DualRing-LB</strong>: smallest small-ring sizes
+found (4.8 KB / 4.6 KB @ ring-8) but <strong>NOT linkable</strong> —
+Conceal needs a nullifier; bolting one on is non-trivial and
+unbenchmarked.</li>
+<li><strong>XMSS/WOTS+ hash LRS</strong> (Sensors 2025):
+<strong>stateful</strong> OTS = catastrophic key-reuse risk in a coin.
+Disqualifying.</li>
+</ul>
+<hr />
+<h2 id="2-the-one-genuine-trade-off-to-flag">2. The one genuine
+trade-off to flag</h2>
+<p><strong>ELRS's conjectured hash/STARK security vs a clean
+lattice-reduction alternative.</strong></p>
+<p>This is the real story, and it is unambiguous in one direction:</p>
+<ul>
+<li><strong>ELRS rests on a heuristic</strong> — ethSTARK = FRI
+proximity-gap conjectures + ROM. There is <strong>no reduction to a
+standard hard problem.</strong> Security is "we believe FRI is sound and
+the hash is collision-resistant."</li>
+<li><strong>The lattice alternatives reduce to Module-SIS/MLWE</strong>
+— <em>the exact assumptions NIST standardized in ML-DSA (FIPS 204).</em>
+That is a strictly cleaner, better-studied footing.</li>
+</ul>
+<p><strong>Is there a lattice linkable ring sig competitive enough to be
+worth the cleaner assumption?</strong> Yes, conditionally — and the
+answer differs by ring size:</p>
+<ul>
+<li><strong>Most credible, slow:</strong> <strong>LAPQ-LRS</strong>
+(MLWE/MSIS, natively linkable, ~4.4 KB @ ring-8 <em>and</em> ~14.5 KB @
+1024, log-size). On paper it beats ELRS on <strong>both</strong> size
+axes <strong>and</strong> assumption. The price is <strong>verify 30–109
+ms</strong> and that it is a <strong>Python prototype in a single
+lighter-venue paper with a novel unvetted anonymity argument.</strong>
+If its numbers survive independent scrutiny, it is the strongest
+"clean-assumption replacement." Today: medium confidence, not
+adoptable.</li>
+<li><strong>Most mature, RingCT-coupled:</strong>
+<strong>MatRiCT+</strong> (M-SIS/MLWE, C++, fast verify). The grown-up
+choice <em>if</em> you can extract just the plaintext
+linkable-membership proof — real engineering, but real code and a real
+reduction.</li>
+<li><strong>Small-ring + clean, but linear:</strong>
+<strong>Raptor</strong> (NTRU) — smaller than ELRS at ring ≤16 with a
+real reduction and a Rust PoC, dying only at large rings.</li>
+</ul>
+<p><strong>Net:</strong> Yes, a lattice linkable ring sig with a cleaner
+assumption <em>is</em> competitive — but <strong>none simultaneously
+matches ELRS on flat-large-ring-size AND sub-ms verify.</strong> The
+lattice tax is real: you trade ELRS's flat ~29 KB-at-any-ring for either
+(a) linear growth that's smaller only at small rings, or (b) log-size
+that's still 100× slower to verify.</p>
+<hr />
+<h2 id="3-ring-size-design-note">3. Ring-size design note</h2>
+<p>This is the crux for Conceal.</p>
+<ul>
+<li><strong>At Conceal's current rings (5–16): ELRS does NOT
+win.</strong> Its ~25 KB is a <strong>STARK-proof floor</strong>, not a
+small-ring optimum — it is essentially <em>wasted flatness</em>. A
+linear lattice scheme is physically smaller here: <strong>Raptor ~10 KB
+@ ring-8 / ~21 KB @ ring-16</strong>, both <em>below</em> ELRS's ~25 KB,
+<em>and</em> with a cleaner assumption. ChipmunkRing is roughly level.
+LAPQ-LRS (if trusted) is ~5× smaller. So at the <em>actual operating
+point</em>, a small-ring/linear scheme wins on size and assumption; ELRS
+wins only on (amortized) verify and transparency.</li>
+<li><strong>The crossover is ~ring 16–32</strong> for Raptor, lower for
+ChipmunkRing. Below that, linear wins; above it, ELRS's flatness takes
+over.</li>
+<li><strong>The answer flips hard if Conceal grows rings for stronger
+anonymity (≥64–1024).</strong> Every linear scheme (Raptor 1.3 MB,
+ChipmunkRing multi-MB, DualRing-PRF) becomes <strong>unusable</strong>.
+There, ELRS's flat ~29 KB is genuinely strong, and only <strong>log-size
+lattice schemes</strong> compete: SMILE (~18–22 KB, M-SIS, but not
+natively linkable), LAPQ-LRS (~14.5 KB, MLWE, but slow/unverified),
+Falafl (~30–56 KB, larger). ELRS is the safest <em>flat</em> option at
+large rings.</li>
+</ul>
+<p><strong>Design implication:</strong> This is a fork in the road that
+Conceal must decide <em>first</em>. "Small rings forever" → adopt a
+linear lattice linkable scheme (Raptor-family / the session's own
+LSAG-style PoC), smaller <em>and</em> cleaner-assumption than ELRS.
+"Rings may grow" → ELRS (or a log-size lattice scheme once one is
+audited). Picking ELRS <em>and</em> keeping rings at 8 is paying ELRS's
+floor for flatness you never use.</p>
+<hr />
+<h2 id="4-verdict--confidence">4. Verdict + confidence</h2>
+<p><strong>Verdict (conditional, two-branch):</strong></p>
+<ul>
+<li><strong>If Conceal commits to rings ≤ ~16 indefinitely:</strong>
+<em>Do not default to ELRS.</em> Evaluate <strong>Raptor</strong>
+(proven, native-linkable, Rust PoC, NTRU reduction, smaller at these
+sizes) as the primary, with the session's existing LSAG/Module-SIS PoC
+as the same-family in-house variant. ELRS is oversized and
+assumption-weaker here.</li>
+<li><strong>If Conceal wants the option to grow rings to
+64–1024:</strong> <em>ELRS is a defensible working target</em> — it is
+the only scheme that is flat-size <em>and</em> transparent <em>and</em>
+(amortized) fast at large rings. But proceed knowing its security is
+<strong>conjectured (no reduction)</strong> and <strong>evaluate
+LAPQ-LRS first</strong> as the cleaner-assumption log-size alternative
+before locking in.</li>
+</ul>
+<p><strong>In both branches, the honest recommendation before any
+adoption decision is:</strong> pull the actual size tables from the PDFs
+(ELRS 2024/553, Raptor, LAPQ-LRS, MatRiCT+) via browser/institutional
+access — the eprint PDFs were <strong>Cloudflare-blocked</strong> this
+sweep — and <strong>re-benchmark ELRS vs the top-2 challengers at
+Conceal's real ring sizes 4/8/16</strong>, measuring <strong>cold
+single-verify</strong> (not amortized) and <strong>sign time</strong>
+(not just verify).</p>
+<p><strong>Confidence: ~65% (moderate).</strong> I am confident in the
+<em>shape</em> of the answer (no scheme dominates ELRS on all of
+{small-ring size, native linkability, fast verify, clean reduction,
+maturity}; ELRS's flatness is wasted at small rings; the assumption
+trade is real and one-directional). I am <em>not</em> confident in
+several load-bearing numbers.</p>
+<p><strong>Residual unknowns a web sweep cannot rule out:</strong></p>
+<ul>
+<li><strong>Unpublished/very-recent work.</strong> RingSLIP (eprint
+2026/889, LIP/HAWK lattice) and PegaRing (2025/1841) are too new to have
+public small-ring KB or linkability confirmation; an unindexed 2026
+eprint could change the leaderboard.</li>
+<li><strong>The unverified ELRS tx-overhead.</strong> ~25–29 KB is the
+<em>signature</em>; the per-transaction on-chain overhead in a
+CryptoNote context (multiple inputs, integration with existing tx
+format) was <strong>not measured</strong> and could be materially
+larger.</li>
+<li><strong>The cold-vs-amortized verify gap.</strong> Whether Conceal
+realizes ~0.3 ms or ~128 ms depends on validator/ring-reuse behavior —
+unmeasured for Conceal's actual workload.</li>
+<li><strong>Every scheme here is research-grade and unaudited</strong>,
+including ELRS. There is <strong>no production-grade, audited PQ
+linkable ring signature library in existence.</strong> Switching to
+Raptor or ChipmunkRing gives <em>more inspectable</em> code but does
+<strong>not</strong> close the audit gap.</li>
+<li><strong>Several derived KB figures</strong> (LAPQ-LRS small-ring,
+MatRiCT+ standalone, DualRing-PRF per-ring, PegaRing small-ring) are
+formula/abstract-derived because the PDFs were CAPTCHA-blocked — they
+must be confirmed against the real tables before trusting.</li>
+</ul>
+<hr />
+<h2 id="5-ranked-summary-table">5. Ranked summary table</h2>
+<p>Sizes at 128-bit unless noted; <em>italic</em> =
+asymptotic/derived/single-datapoint, not a clean measured table.
+"Verify" = single cold verify where known.</p>
+<table>
+<thead>
+<tr>
+<th>Scheme</th>
+<th>Family</th>
+<th>Size @ ring-8</th>
+<th>Size @ ring-1024</th>
+<th>Verify (cold)</th>
+<th>Assumption</th>
+<th>Impl</th>
+<th>Beats ELRS?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ELRS</strong> <em>(baseline)</em></td>
+<td>hash-STARK</td>
+<td>~25 KB</td>
+<td>~29 KB (flat)</td>
+<td>~128 ms (0.3 ms amortized)</td>
+<td>Conjectured hash/FRI (no reduction)</td>
+<td>Exp. Rust, unaudited</td>
+<td>—</td>
+</tr>
+<tr>
+<td><strong>Raptor</strong></td>
+<td>NTRU lattice</td>
+<td>~10 KB</td>
+<td><em>~1.3 MB</em></td>
+<td>ms-range (fast)</td>
+<td>NTRU/Ring-SIS (reduction)</td>
+<td>Rust PoC</td>
+<td><strong>Yes @ small ring</strong> (size+assumption+maturity); no @
+large</td>
+</tr>
+<tr>
+<td><strong>ChipmunkRing</strong></td>
+<td>Ring-LWE</td>
+<td>~24 KB</td>
+<td><em>multi-MB</em></td>
+<td>0.4–4.5 ms</td>
+<td>Ring-LWE 112-bit + bespoke "Acorn" ZK</td>
+<td><strong>C in Cellframe (live)</strong></td>
+<td>Partly (assumption, cold-verify, impl); no on size@large,
+112-bit</td>
+</tr>
+<tr>
+<td><strong>LAPQ-LRS</strong></td>
+<td>MLWE/MSIS (Dilithium agg.)</td>
+<td><em>~4.4 KB</em></td>
+<td><em>~14.5 KB</em></td>
+<td>30.7 ms</td>
+<td><strong>MLWE/MSIS</strong> (clean, ML-DSA family)</td>
+<td>Python proto</td>
+<td><strong>On paper yes</strong> (size both axes + assumption); no on
+verify-speed/maturity</td>
+</tr>
+<tr>
+<td><strong>MatRiCT+</strong></td>
+<td>Module-SIS/MLWE</td>
+<td><em>inferred &lt; ELRS</em></td>
+<td><em>~3 KB pubkeys; tx-coupled</em></td>
+<td>2–8 ms</td>
+<td><strong>M-SIS/M-LWE</strong> (clean)</td>
+<td><strong>C++</strong> (most mature)</td>
+<td>Yes on assumption+verify; RingCT-coupled, standalone KB
+unmeasured</td>
+</tr>
+<tr>
+<td><strong>SMILE</strong></td>
+<td>Module/Ring-SIS</td>
+<td><em>~16 KB @ ring-32</em></td>
+<td>~18–22 KB</td>
+<td>slower than ELRS</td>
+<td><strong>M-SIS</strong> (clean)</td>
+<td>Paper proto</td>
+<td>Yes on assumption + size@large; <strong>not natively
+linkable</strong></td>
+</tr>
+<tr>
+<td><strong>PegaRing</strong></td>
+<td>power-residue PRF</td>
+<td><em>~8–15 KB (derived)</em></td>
+<td>~29–32 KB</td>
+<td>6–31 ms</td>
+<td>PRF, <strong>QROM-proven</strong> (better modeling, no
+reduction)</td>
+<td>Paper proto</td>
+<td>Yes on security-modeling; no on verify-speed; small-ring
+unconfirmed</td>
+</tr>
+<tr>
+<td><strong>Falafl</strong></td>
+<td>MLWE/MSIS</td>
+<td>~50 KB</td>
+<td>~53–56 KB</td>
+<td>moderate</td>
+<td><strong>MLWE/MSIS</strong> (clean)</td>
+<td>Paper proto</td>
+<td>Assumption only; <strong>larger everywhere</strong></td>
+</tr>
+<tr>
+<td><strong>DualRingL-PRF</strong></td>
+<td>Legendre/PR PRF</td>
+<td>42 KB @ ring-16</td>
+<td>64 KB</td>
+<td>sign 26–88 s</td>
+<td>Symmetric PRF (no reduction)</td>
+<td>Paper proto</td>
+<td>No (larger + seconds-slow)</td>
+</tr>
+<tr>
+<td><strong>Calamari</strong></td>
+<td>CSIDH isogeny</td>
+<td>~5.5 KB</td>
+<td>~3.5–8 KB</td>
+<td>seconds (slow)</td>
+<td>CSIDH (<strong>contested post-SIDH</strong>)</td>
+<td>Paper proto</td>
+<td>Size only; <strong>disqualified</strong> (speed+assumption)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>One-line bottom line:</strong> Nothing dominates ELRS on all
+axes; ELRS's flat-size virtue is <em>wasted</em> at Conceal's small
+rings, where Raptor (and, if its numbers hold, LAPQ-LRS) are smaller
+<em>and</em> cleaner-assumption. <strong>Decide max ring size
+first</strong> — that single choice, not the cryptography, determines
+whether ELRS is the right pick. Confidence ~65%; verify the size tables
+and cold-verify numbers against the real PDFs before committing.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

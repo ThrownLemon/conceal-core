@@ -69,6 +69,8 @@ main{margin-left:300px;padding:46px 6vw;}
 <div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
 <li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
 <li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
 <li class="active"><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
 <li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
 <li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
@@ -849,35 +851,40 @@ Conceal's lattice sig is <strong>~6.1 KB per ring member,
 linear</strong>. <strong>Crossover where ELRS wins on size ≈ ring
 5</strong>; above ring ~8 the gap explodes (ring-64 ≈ 14×, ring-1024 ≈
 225×). Huge anonymity sets are nearly free for ELRS.</li>
-<li><strong>The "128 ms single-verify" concern was wrong — RESOLVED by
-experiment.</strong> The reference CLI does exactly one <strong>cold,
-un-batched</strong> verify per process (no amortization, no batching —
-confirmed in <code>main.rs</code> / <code>sigrescue/mod.rs</code>), and
-that cold single verify is <strong>0.3 ms, flat across ring
-8→8192</strong> (5 reps each, fresh process per run). The prior
-"amortized 0.3 ms" and this cold single verify are the <strong>same
-number</strong> — there is no separate slow path. <strong>CryptoNote's
-distinct-ring-per-tx model therefore costs ELRS nothing.</strong> The
-paper's ~128 ms could not be reproduced (eprint table paywalled) and is
-<em>not</em> this STARK verify — likely a different instantiation or a
-prove time.</li>
-<li><strong>Throughput verdict: verify is <em>never</em> Conceal's
-bottleneck — size is — and ELRS wins both.</strong> Verify-bound ceiling
-(1 core, 120 s block): ELRS ~400k inputs/block vs lattice ~120k vs
-classical ring-6 ~125k — ELRS is the <em>fastest</em>. The binding cap
-is size (<code>floor(100000 / tx_bytes)</code>): lattice ring-8 = 1
-tx/block and collapses as the ring grows; ELRS ~28 KB + ~6.2 KB overhead
-≈ 35 KB stays ~constant at <em>any</em> ring size.</li>
-<li><strong>Verdict: ELRS beats the lattice stand-in outright</strong>
-for the plaintext-amounts path — faster verify (0.3 ms cold vs ~1 ms),
-far smaller, and ring-size-flat where lattice is unusable above ring
-~16.</li>
-<li>Caveats: hash-based PQ security is <em>conjectured</em> (ethSTARK
-SoK / Rescue hash; the "128-bit" is conjectured, proven security lower);
-transparent setup (a plus); reference impl single-author, experimental,
-Rust, unaudited; 0.3 ms is at the binary's 0.1 ms print floor (true
-~250–349 µs); tx-overhead under a real Conceal output/nullifier binding
-(~6.2 KB) still to confirm.</li>
+<li><strong>⚠ The verify number is CONTESTED — do not rely on it
+yet.</strong> The ELRS experiment agent <em>measured</em> a cold single
+verify of <strong>0.3 ms</strong> (fresh process per ring, reading
+<code>main.rs</code>/<code>sigrescue/mod.rs</code>), and concluded the
+paper's 128 ms "is not this STARK verify." BUT the <a
+href="pq-ringsig-verdict.md">focused sweep</a> independently re-flagged
+(2 of 4 angles) that <strong>0.3 ms is the <em>amortized</em> online
+cost</strong> (FRI offline phase shared across signatures over the
+<em>same</em> ring) and a <strong>cold single verify is ~128 ms</strong>
+— which, for CryptoNote's distinct-ring-per-tx model, would <em>not</em>
+amortize. The measurement and the paper conflict and the conflict is
+<strong>unresolved</strong> — it needs a careful re-measurement of
+whether the impl's verify path is truly cold-FRI or amortized.
+<strong>Until then, treat ELRS verify as somewhere between 0.3 ms and
+~128 ms.</strong></li>
+<li><strong>Size verdict still holds; the "beats outright" verdict does
+NOT.</strong> ELRS's flat ~25–29 KB is a real win at <em>large</em>
+rings (lattice goes linear → MBs). <strong>But at Conceal's actual small
+rings (mixin 5–16), ELRS's flat ~25 KB is <em>wasted flatness</em> —
+linear lattice schemes are physically SMALLER and rest on a CLEANER
+assumption:</strong> <strong>Raptor</strong> (NTRU) ~10 KB @ ring-8 /
+~21 KB @ ring-16, natively linkable, NTRU/Ring-SIS <em>reduction</em>;
+<em>LAPQ-LRS</em> (MLWE/MSIS, same family as ML-DSA) ~4.4 KB @ ring-8
+<em>if its numbers hold</em>. ELRS only wins once rings grow past
+~16–32. So <strong>ELRS does NOT beat the lattice option at small
+rings</strong> — the choice hinges on the <strong>max-ring-size
+decision</strong>, not the crypto. See <a
+href="pq-ringsig-verdict.md"><code>pq-ringsig-verdict.md</code></a>
+(confidence ~65%).</li>
+<li>Caveats: ELRS security is <em>conjectured</em> (ethSTARK FRI/ROM —
+<strong>no reduction to a hard problem</strong>, unlike the lattice
+schemes' Module-SIS/MLWE); experimental unaudited Rust; 0.3 ms (if real)
+is at the 0.1 ms print floor; tx-overhead under a real Conceal
+output/nullifier binding (~6.2 KB) still unmeasured.</li>
 </ul>
 <p><em>Sources: <a
 href="https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature">reference
@@ -968,8 +975,8 @@ measuring a full verifying spend — a multi-week research task, not a
 benchmark. <strong>Note also:</strong> MatRiCT-Au verify measured here
 is <strong>~12 ms</strong> (Ryzen 5950X), vs the <strong>45 ms</strong>
 [paper, i7-8750H] cited elsewhere in these docs — a hardware/impl gap,
-not a discrepancy in the scheme. <em>(Raw notes:
-<code>docs/specs/quantum-resistance/gao-bench-notes.md</code>.)</em></p>
+not a discrepancy in the scheme. <em>(Raw notes: <a
+href="gao-bench-notes.md"><code>gao-bench-notes.md</code></a>.)</em></p>
 <hr />
 <h2 id="summary--headline-measured-numbers">Summary — headline measured
 numbers</h2>

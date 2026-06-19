@@ -18,7 +18,7 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 
 ---
 
-## D1 — Production privacy scheme  ·  **default (updated): PQ ring signature, *plaintext amounts* — ELRS leading; pending consensus**
+## D1 — Production privacy scheme  ·  **default (updated): PQ ring signature, *plaintext amounts* — scheme gated on **max ring size** (ELRS vs lattice/Raptor); pending consensus**
 
 > **DIRECTION UPDATE (team input + this session's benchmarks).** Conceal keeps **plaintext amounts** — its
 > **verify-funds feature needs visible amounts** — so **confidential-amount RingCT (MatRiCT-Au) is the wrong
@@ -84,14 +84,20 @@ while A is integrated + audited; see [`matrict-integration-plan.md`](matrict-int
 >   gap explodes** (≈14× smaller at ring-64, ≈225× at ring-1024). **No confidential amounts** — which fits,
 >   because **Conceal has *plaintext* amounts today** (confidential was deferred to an optional L2). If amounts
 >   stay plaintext, the privacy layer reduces to *PQ linkable ring sig + one-time key + nullifier*, and ELRS
->   could be a **bigger, cheaper win than confidential-amount RingCT at all**. **The "128 ms verify" worry was
->   tested and DISSOLVED:** the cold, un-batched single verify is **0.3 ms, flat across ring 8→8192** (measured)
->   — Conceal's distinct-ring-per-tx model costs it nothing; the paper's 128 ms is not this STARK verify and
->   couldn't be reproduced. **Verify is never Conceal's bottleneck (size is), and ELRS wins both** — faster
->   verify (0.3 ms vs the stand-in's ~1 ms) *and* far smaller + ring-size-flat. **ELRS beats the lattice
->   stand-in outright for the plaintext path.** Remaining caveats: hash-based PQ security is *conjectured* (not
->   SIS/LWE); experimental unaudited Rust impl; tx-overhead under real output/nullifier binding still to
->   confirm. See [`measured-numbers.md`](measured-numbers.md) §G.
+>   could be a **bigger, cheaper win than confidential-amount RingCT at all**. **BUT the focused follow-up sweep
+>   (see [`pq-ringsig-verdict.md`](pq-ringsig-verdict.md), confidence ~65%) walked back "ELRS wins outright" —
+>   the answer hinges on max ring size, not the crypto:**
+>   - **At Conceal's *small* rings (mixin 5–16) — ELRS does NOT win.** Its flat ~25 KB is *wasted flatness*;
+>     **linear lattice schemes are SMALLER and have a CLEANER assumption** here: **Raptor** (NTRU, natively
+>     linkable, Rust PoC) ~10 KB @ ring-8 / ~21 KB @ ring-16; *LAPQ-LRS* (MLWE/MSIS, ML-DSA family) ~4.4 KB @
+>     ring-8 *if its numbers hold*. ELRS's security is *conjectured hash/FRI* (no reduction); the lattice
+>     schemes reduce to **Module-SIS/MLWE — the NIST ML-DSA assumptions**. Cleaner footing.
+>   - **Only if Conceal grows rings to ≥64–1024** does ELRS's flatness pay off (linear schemes hit MBs there).
+>   - **And the verify advantage is CONTESTED** — measured 0.3 ms vs the paper's ~128 ms (amortized-vs-cold);
+>     unresolved, needs re-measurement under Conceal's distinct-ring workload.
+>   - **So decide *max ring size* first.** "Small rings forever" → a lattice linkable scheme (Raptor /
+>     the in-house lattice stand-in), smaller + cleaner-assumption. "Rings may grow" → ELRS (or audit a log-size
+>     lattice scheme like LAPQ-LRS). Everything here is unaudited research either way.
 >
 > **A prior question this forces (decide before locking D1):** *(i) are confidential amounts required, or can
 > they stay plaintext?* and *(ii) is on-chain auditability in or out?* Those two answers select
@@ -246,7 +252,7 @@ feels, not that it is final.*
 
 | # | Decision | Selected default | Firmness | Gates mainnet? |
 |---|---|---|---|---|
-| D1 | Production privacy scheme | **PQ ring sig, *plaintext amounts* — ELRS leading** (MatRiCT-Au demoted: hides amounts → breaks verify-funds) | lean | yes (via audit) |
+| D1 | Production privacy scheme | **PQ ring sig, *plaintext amounts*** — scheme gated on **max ring size**: small (≤16) → lattice/**Raptor** (smaller + cleaner assumption); large → **ELRS**. MatRiCT-Au demoted (hides amounts → breaks verify-funds) | lean (~65%) | yes (via audit) |
 | D2 | V9 fork timing/height | stay on sentinel; set after D7 clears | placeholder | **is** the fork |
 | D3 | Tx-size / fusion / denominations | deferred, gated on D1 | placeholder | yes (for spends) |
 | D4 | Retire fixed testnet KEM | per-recipient everywhere on mainnet | firm | yes |

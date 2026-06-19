@@ -8,10 +8,11 @@
 >   MatRiCT-Au**; the paper has no absolute tables; under a shared param set the Go ref was *slightly larger*;
 >   the Go impl is partial (ring-sig only) and its MatRiCT baseline doesn't verify. **Not a demonstrated win
 >   over MatRiCT-Au.** The "#1 successor" ranking below is retracted.
-> - **ELRS — CONFIRMED + the verify worry DISSOLVED (measured).** Flat ~25–29 KB at any ring size, 32-byte keys,
->   and the cold un-batched single verify is **0.3 ms flat** (the feared ~128 ms is not this STARK verify).
->   Verify is never Conceal's bottleneck (size is) and ELRS wins both — **it beats the lattice stand-in outright
->   for the plaintext-amounts path.** §G.
+> - **ELRS — NOT the clear winner after the focused follow-up sweep** ([`pq-ringsig-verdict.md`](pq-ringsig-verdict.md),
+>   ~65% confidence). Flat ~25–29 KB is a real win at *large* rings, but **at Conceal's small rings (5–16) it's
+>   wasted flatness — linear lattice schemes (Raptor ~10 KB @ ring-8) are SMALLER and rest on a CLEANER
+>   (Module-SIS/NIST) assumption** vs ELRS's conjectured hash/FRI. And the **verify is contested** (0.3 ms
+>   measured vs 128 ms paper). **The choice hinges on max ring size, not the crypto.** §G + the verdict doc.
 > - **MatRiCT-Au measured:** 107.4 KB, ~12 ms verify, 63 ms prove (Ryzen 5950X) — remains the only full,
 >   verifying RingCT measured. Treat the per-scheme numbers below as *abstract-level hypotheses* unless §G/§H
 >   marks them measured.

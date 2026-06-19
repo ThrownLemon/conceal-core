@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RPC: get_pq_outputs — Conceal PQ docs</title>
+<title>Gao RingCT benchmark (notes) — Conceal PQ docs</title>
 <style>
 :root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
 *{box-sizing:border-box}
@@ -70,7 +70,7 @@ main{margin-left:300px;padding:46px 6vw;}
 <li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
 <li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
 <li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
-<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class="active"><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
 <li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
 <li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
 <li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
@@ -88,7 +88,7 @@ main{margin-left:300px;padding:46px 6vw;}
 <li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
 <li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
 <li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
-<li class="active"><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
 <li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
 <li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
 </ul></div>
@@ -102,131 +102,140 @@ main{margin-left:300px;padding:46px 6vw;}
 <main>
   <article class="content">
     
-    <h1 id="rpc-get_pq_outputs--pq-output-enumeration">RPC:
-<code>get_pq_outputs</code> — PQ output enumeration</h1>
-<p><strong>Status:</strong> testnet PoC (CIP-0001). Branch
-<code>pqc/get-pq-outputs-rpc</code> off
-<code>pqc/testnet-poc</code>.</p>
-<h2 id="purpose">Purpose</h2>
-<p>A read-only JSON-RPC method that enumerates the spendable
-post-quantum (<code>PqKeyOutput</code>) outputs the daemon has indexed
-for a given set of amounts, so a wallet can assemble a PQ ring (the ring
-members for a <code>PqKeyInput</code>).</p>
-<p>It is a faithful read-only projection of the in-memory
-<code>m_pqOutputs</code> index (<code>Blockchain</code>), the same index
-that <code>check_pq_tx_input</code> resolves ring members against.
-<strong>It changes no consensus, validation, builder, or serialization
-logic.</strong> It only walks an existing index and reports it.</p>
-<h2 id="transport">Transport</h2>
+    <h1
+id="gao-et-al-ringct-vs-matrict-au--measured-benchmark-wsl-host-10010090103">Gao
+et al. RingCT vs MatRiCT-Au — measured benchmark (WSL host
+100.100.90.103)</h1>
+<p>Read-only research + benchmark. NO conceal-core / matrict-lib /
+pqc-bench changes. Host: AMD Ryzen 9 5950X 16-core, Ubuntu 24.04 x86_64.
+RDTSC/effective clock = 3.494 GHz (calibrated against CLOCK_MONOTONIC;
+validated vs selftest wall-clock). Mac-side mirror of
+~/gao-bench-notes.md on the WSL host.</p>
+<h1
+id="-part-a--the-paper-gao-zhao-gu-et-al-fcpkc-2025">================================================================================
+PART A — THE PAPER (Gao, Zhao, Gu et al., FC/PKC 2025)</h1>
+<p>PDF: ~/gao-paper.pdf -&gt; ~/gao-paper.txt (33 pp). Eprint mirror
+blocked; PolyU copy OK.</p>
+<p><strong>CRITICAL: the paper has NO numeric tables.</strong> All
+comparisons are Figures 1-4 (matlab plots) reported in TEXT only as
+PERCENTAGES + qualitative statements. There are NO absolute KB / ms
+figures to extract. The "absolute KB" the task asked for do not exist in
+the paper text — only relative %.</p>
+<p>Paper hardware: Intel i7-8750H @ 2.20 GHz, 8 GB RAM. Impl: Golang +
+LaGo ring lib. Reference repo =
+github.com/GoldSaintEagle/RingCT_Implementation (the ~/gao-ringct
+clone).</p>
+<p>Paper params (ring-sig, "under MatRiCT"): (d,w,p)=(64,56,8),
+q=2^49-2^18+2^9+1, (n,m)=(29,60); qb=2^31-2^18+2^3+1, (nb,mb)=(18,38).
+MatRiCT+ variant: (d,w)=(256,56), q=167770241(~2^27), (n,kappa)=(4,4),
+qb=2^34-2^26-2^7+1, (nb,kb)=(5,5). 128-bit PQ security only when
+#outputs S&lt;=2.</p>
+<p>Quoted improvements (vs MatRiCT / vs MatRiCT+):</p>
 <ul>
-<li>JSON-RPC 2.0 method registered in <code>RpcServer</code>'s
-<code>jsonRpcHandlers</code> map.</li>
-<li>Registered method name (the string clients call):
-<strong><code>get_pq_outputs</code></strong>.</li>
-<li><code>allowBusyCore = false</code> (the index is only meaningful
-once the core is synced), matching the other output-enumeration
-handlers.</li>
+<li>Abstract: "up to 50% and 20% proof size, 30% and 20% proving time,
+20% and 20% verification time of MatRiCT and MatRiCT+,
+respectively."</li>
+<li>Ring-signature size (Fig 2, k=1, beta=N, N=2..10): ~50% smaller vs
+MatRiCT; ~15% smaller vs MatRiCT+. (This is THE "~50% smaller" claim. It
+is the ring-sig COMPONENT, not a full RingCT tx.)</li>
+<li>Balance-proof size (Fig 1, 64-bit amounts, S=1): 15% at M=1, &gt;50%
+other M vs MatRiCT(w/ range proof); ~20% vs MatRiCT+.</li>
+<li>Time (Fig 3, balance): ~30% prove / ~20% verify vs MatRiCT;
+~20%/~20% vs MatRiCT+.</li>
+<li>Ring-sig time (Fig 4, N=10/20/50): ~15% prove reduction at N=50;
+less at small N; "outperform in all settings" but margin small at
+N~10.</li>
+<li>WHY smaller: Gao removes the binary proof =&gt; runs under a SMALLER
+parameter set.</li>
 </ul>
-<h2 id="request">Request</h2>
-<pre class="json"><code>{ &quot;amounts&quot;: [&lt;uint64&gt;, ...] }</code></pre>
-<p><code>amounts</code> is the list of denominations to enumerate. For
-each amount the daemon returns every indexed PQ output (not a random
-subset), because the wallet needs the full candidate set to choose ring
-members and locate its own output's global index.</p>
-<h2 id="response">Response</h2>
-<pre class="json"><code>{
-  &quot;outs&quot;: [
-    {
-      &quot;amount&quot;: &lt;uint64&gt;,
-      &quot;outs&quot;: [
-        {
-          &quot;global_index&quot;: &lt;uint32&gt;,   // position in m_pqOutputs[amount]
-          &quot;key&quot;:      &quot;&lt;hex&gt;&quot;,        // PqKeyOutput.key  (PQ one-time public key)
-          &quot;kem&quot;:      &quot;&lt;hex&gt;&quot;,        // PqKeyOutput.kemCt (ML-KEM ciphertext)
-          &quot;tx_hash&quot;:  &quot;&lt;hex&gt;&quot;,        // hash of the containing transaction
-          &quot;height&quot;:   &lt;uint32&gt;,       // block height of that transaction
-          &quot;spendable&quot;: &lt;bool&gt;         // is_tx_spendtime_unlocked(unlockTime)
-        }
-      ]
-    }
-  ],
-  &quot;status&quot;: &quot;OK&quot;
-}</code></pre>
+<h1
+id="-part-b--go-reference-measured-ring-sig-gao-linearsum-vs-matrict-oneoutofmany">================================================================================
+PART B — GO REFERENCE, MEASURED (ring sig: Gao LinearSum vs MatRiCT
+OneOutOfMany)</h1>
+<p>~/gao-ringct, Go 1.22.2, GOPATH mode (GO111MODULE=off), LaGo vendored
+at ~/go/src/github.com/dedis/lago. README: "toy implementation ... do
+NOT use in production." No serializer in repo =&gt; proof size computed
+structurally: size = (#ring-elements) * d coeffs * ceil(bitlen(q)/8)
+bytes. Both LinearSumProof (Gao) and OneOutOfManyProof (MatRiCT) share
+setTestSettings: d=64, q=65537 (3 B/coeff), n=32, m=64 — i.e. IDENTICAL
+params for both, which the paper's whole thesis says should DIFFER. So
+the Go harness CANNOT reproduce the size gap (which comes from Gao's
+smaller param set). Element counts measured instead.</p>
+<p>** CORRECTNESS OF THE REFERENCE CODE (run on this host): **</p>
 <ul>
-<li><code>global_index</code> is the vector position inside
-<code>m_pqOutputs[amount]</code>; it is the absolute offset a
-<code>PqKeyInput.outputIndexes</code> (relative-encoded) ring member
-resolves to. This is the value the wallet uses to reference a ring
-member.</li>
-<li><code>key</code> / <code>kem</code> are hex of the raw
-<code>std::vector&lt;uint8_t&gt;</code> fields, via
-<code>common::toHex</code>.</li>
-<li><code>tx_hash</code> is hex of <code>crypto::Hash</code> via
-<code>common::podToHex</code>.</li>
-<li><code>spendable</code> reflects only the unlock-time gate; the
-caller still applies its own ring-selection policy. An amount with no
-indexed PQ outputs yields an empty <code>outs</code> list (not an
-error).</li>
+<li>Gao TestLinearSumProof ......... PASS (ring signature, "this
+work")</li>
+<li>MatRiCT TestOneOutOfManyProof ... FAIL (fails at very first case
+k=1,beta=2)</li>
+<li>MatRiCT TestBalanceProof ........ FAIL</li>
+<li>Gao TestLinearEquationArgument_plus FAIL (early-return / &gt;2-out
+unsupported) =&gt; Only Gao's ring signature verifies. The MatRiCT
+baseline DOES NOT verify in this published checkout (clean master,
+single commit, no local edits).</li>
 </ul>
-<h2 id="plumbing">Plumbing</h2>
-<p>Mirrors the existing <code>getOutByMSigGIndex</code> path, top to
-bottom:</p>
-<table>
-<thead>
-<tr>
-<th>Layer</th>
-<th>Symbol</th>
-</tr>
-</thead>
-<tbody>
-<tr>
-<td>Command def</td>
-<td><code>COMMAND_RPC_GET_PQ_OUTPUTS</code>
-(<code>src/Rpc/CoreRpcServerCommandsDefinitions.h</code>)</td>
-</tr>
-<tr>
-<td>Shared POD</td>
-<td><code>cn::PqOutputEntry</code>
-(<code>src/CryptoNoteCore/ICore.h</code>)</td>
-</tr>
-<tr>
-<td>Interface</td>
-<td><code>ICore::getPqOutputs(uint64_t, std::vector&lt;PqOutputEntry&gt;&amp;)</code></td>
-</tr>
-<tr>
-<td>Core</td>
-<td><code>core::getPqOutputs</code> →
-<code>m_blockchain.getPqOutputs</code></td>
-</tr>
-<tr>
-<td>Blockchain</td>
-<td><code>Blockchain::getPqOutputs</code> — locks
-<code>m_blockchain_lock</code>, walks <code>m_pqOutputs[amount]</code>,
-extracts each <code>PqKeyOutput</code> via
-<code>transactionByIndex(...).tx.outputs[outInTx].target</code></td>
-</tr>
-<tr>
-<td>RPC handler</td>
-<td><code>RpcServer::on_get_pq_outputs</code> — hex-encodes and fills
-the response</td>
-</tr>
-</tbody>
-</table>
-<p><code>PqOutputEntry</code> carries raw bytes
-(<code>std::vector&lt;uint8_t&gt;</code> key/kemCt,
-<code>crypto::Hash</code> txHash); hex encoding happens only at the RPC
-boundary, keeping the core interface byte-exact.</p>
-<h2 id="notes--limits">Notes / limits</h2>
+<p>Measured (custom zz_bench_n10_test.go, 20 reps, mean ms; size
+structural): scheme N valid proof_elems size(KB,noX) prove_ms verify_ms
+Gao-LinearSum 8 true 232 43.50 1168 718 Gao-LinearSum 10 true 234 43.88
+1204 724 Gao-LinearSum 16 true 240 45.00 1281 779 MatRiCT-OOOM 8 FALSE
+224 42.00 1180 723 MatRiCT-OOOM 10 FALSE 224 42.00 1210 721 MatRiCT-OOOM
+16 FALSE 224 42.00 1257 785</p>
+<p>Gao N10 prover memory: live HeapAlloc ~18 MB; process peak RSS ~95 MB
+(Go runtime+GC). NOTE: under identical params the element counts are
+~equal (Gao slightly LARGER), so the Go harness does NOT show the
+paper's 50% size win — that win lives entirely in the parameter-set
+choice, which this toy ties together. Times here (~0.7-1.3 s) are
+LaGo-on-Go and not comparable to the C MatRiCT-Au below.</p>
+<p>This is PARTIAL RingCT: it benchmarks the ring-signature
+(one-out-of-many / linear- sum) COMPONENT only. No confidential-amount
+commitments, no balance proof wired in, no linkability/nullifier
+end-to-end. Balance proof exists separately but FAILS.</p>
+<h1
+id="-part-c--matrict-au-in-repo-baseline-measured-matrict-lib-not-modified">================================================================================
+PART C — MatRiCT-Au IN-REPO BASELINE, MEASURED (~/matrict-lib, NOT
+modified)</h1>
+<p>n10m1 = ring size 10, 1 input. AMD Ryzen 9 5950X. Full
+keygen-&gt;CRS-&gt;spend-&gt;verify-&gt;audit.</p>
 <ul>
-<li>The index is the PoC in-memory, forward-only
-<code>m_pqOutputs</code> (no reorg rewind of the PQ index beyond what
-the surrounding PoC already does); this RPC inherits those PoC
-properties unchanged.</li>
-<li>Read-only and non-<code>const</code> only because it reuses
-<code>is_tx_spendtime_unlocked</code>, which is a non-<code>const</code>
-member; it performs no mutation.</li>
-<li>Unbounded by design for the PoC: it returns the full per-amount set.
-A production version would page or cap results.</li>
+<li>serialize_test_n10m1 30: PACKED proof+cn+s = 109,936 B (107.4 KB);
+RAW = 292.5 KB.</li>
+<li>selftest_n10m1 30: 30/30 correct, PASS. Cycles-&gt;ms @ 3.494 GHz:
+Verify : median 11.95 ms (11.82-12.32, very stable) mean 11.97 ms Spend
+: median 63.0 ms (15.5-418.9, rejection-sampling tail) mean 98.4 ms
+SamMat(CRS) ~4.1 ms, TdRowGen ~1.9 ms, Audit ~0.005 ms</li>
+<li>Peak prover RSS (whole selftest): 31,204 KB (~30.5 MB).</li>
+</ul>
+<h1
+id="-head-to-head-ring-size-10-this-wsl-host">================================================================================
+HEAD-TO-HEAD (ring size ~10, this WSL host)</h1>
+<pre><code>                     | Gao LinearSum (Go, N=10) | MatRiCT-Au n10m1 (C)</code></pre>
+<p>proof size | 43.9 KB (struct, no ser) | 107.4 KB packed / 292.5 KB
+raw verify | ~724 ms (LaGo/Go) | ~12.0 ms (C) prove | ~1204 ms (LaGo/Go)
+| ~63 ms median (C) prover mem | ~18 MB heap / ~95 MB RSS | ~30.5 MB RSS
+verifies? | YES | YES (30/30) scope | ring-sig component only | full
+RingCT (ring+amount+audit) language | Go (toy, unaudited) | C
+(MatRiCT-Au ref, unaudited)</p>
+<p>These are NOT comparable cross-impl (Go/LaGo vs hand-tuned C;
+different param sets; component vs full tx). The size numbers are
+different objects: Gao 43.9 KB is the ring-sig proof under q=65537/d=64
+toy params; MatRiCT-Au 107.4 KB is a full packed spend proof (ring sig +
+amount commitments + serialized). NOT apples-to-apples.</p>
+<p>CONFIRM/CORRECT the "~50% smaller / ~20% faster" claim:</p>
+<ul>
+<li>"~50% smaller": this is the PAPER's claim for the ring-signature
+COMPONENT vs the ORIGINAL MatRiCT (2019), measured in Gao's own Go impl
+under DIFFERENT param sets. It is NOT a measured 50% vs MatRiCT-Au, and
+NOT vs MatRiCT+ (only ~15-20% there). We could NOT reproduce a 50% size
+win on this host: the Go toy ties both schemes to one param set (=&gt;
+~equal sizes), and a Go-vs-C cross-impl size compare is
+meaningless.</li>
+<li>"~20% faster": paper = ~20% verify / 20-30% prove vs MatRiCT, ~20%
+vs MatRiCT+, in Gao's Go impl. Again relative within Go, not vs
+MatRiCT-Au C. NOT reproduced as an absolute speed win over MatRiCT-Au
+(the C verify is ~60x faster simply by language).</li>
+<li>MatRiCT-Au is the SUCCESSOR of MatRiCT/MatRiCT+ (the auditable
+2022/24 line); the paper compares against MatRiCT (2019) and MatRiCT+
+(2022), NOT MatRiCT-Au. So the 50%/20% figures do NOT describe a
+Gao-vs-MatRiCT-Au gap at all.</li>
 </ul>
 
   </article>
