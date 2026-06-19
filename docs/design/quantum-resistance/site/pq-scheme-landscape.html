@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PQ scheme landscape (research) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class="active"><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <p><em>Deep web-research scan (5 parallel angles + synthesis), generated
+this session. Newer PQ private/confidential-transaction schemes vs the
+MatRiCT-Au baseline. <strong>Source caveat:</strong> eprint.iacr.org
+blocks automated fetch, so most absolute KB/ms are from abstracts, not
+tables read — treat as hypotheses to confirm. Frames a provisional
+default, not a decision (see decisions-for-the-team.md).</em></p>
+<h1
+id="post-quantum-confidential-transaction-crypto-decision-grade-scan-for-conceal">Post-Quantum
+Confidential-Transaction Crypto: Decision-Grade Scan for Conceal</h1>
+<p><strong>Scope:</strong> Find a post-quantum (PQ) private-payment
+scheme that beats Conceal's provisional default —
+<strong>MatRiCT-Au</strong> (lattice linkable-ring RingCT; ~107 KB
+measured proof floor, ~45 ms verify, unaudited research code) — on
+size/verify/maturity while keeping the four things Conceal actually
+needs: <strong>sender anonymity (ring/set), confidential amounts, a
+double-spend nullifier, and a real implementation + credible audit
+path.</strong></p>
+<p><strong>Source-access caveat (applies to every absolute number
+below):</strong> all five research angles independently reported that
+<code>eprint.iacr.org</code> hard-blocks automated fetches (HTTP
+403/Cloudflare). The only primary PDFs read end-to-end were the
+PolyU-hosted Gao et al. copy (<a
+href="https://www4.comp.polyu.edu.hk/~shanggao/publications/Lattice-based_Zero-knowledge_Proofs_for_Blockchain_Confidential_Transactions.pdf">polyu.edu.hk
+PDF</a>), the USENIX BulletCT paper, and arXiv (ChipmunkRing, the SoK).
+<strong>Every other absolute KB/ms figure comes from abstracts and
+search summaries, not from tables the researchers read.</strong> Treat
+them as hypotheses to confirm against the PDF for Conceal's exact
+transaction shape (1-in / multi-in, ring size) before relying on them.
+The MatRiCT-Au baseline itself was <em>not</em> independently re-derived
+from <code>2022/142</code>; it is grounded in this repo's own prior
+library-ization measurements under
+<code>docs/design/quantum-resistance/</code>.</p>
+<hr />
+<h2
+id="candidate-by-candidate-deduplicated-across-angles">Candidate-by-candidate
+(deduplicated across angles)</h2>
+<h3 id="the-baseline--matrict-au-lattice-ringct">The baseline —
+MatRiCT-Au (lattice-RingCT)</h3>
+<p>What it is: MatRiCT+ core + accountable/auditable anonymity (a chosen
+authority can de-anonymize via verifiable partially-decryptable
+commitments). Ring one-out-of-many for sender anonymity, lattice
+commitments + balance proof for confidential amounts, serial number =
+nullifier. Size/verify: <strong>~107 KB packed floor</strong> (raw
+<code>sizeof</code> 274–370 KB); the cited ~58 KB needs an
+<strong>unbuilt</strong> commitment high-bit truncation that is a
+soundness-statement change <strong>and conflicts with
+auditability</strong>. **~45 ms verify**, ~33–35 GB prover memory
+(in-repo bench). Maturity: peer-reviewed (PKC 2022); research C,
+library-ized in-repo, <strong>unaudited</strong>. Source: <a
+href="https://eprint.iacr.org/2022/142">eprint 2022/142</a>
+(Esgin–Steinfeld–Zhao). This is the only existing scheme that bundles
+all four required properties out of the box. Everything else is judged
+against it.</p>
+<h3
+id="gao-et-al--lattice-based-zk-proofs-for-blockchain-confidential-transactions-the-standout">Gao
+et al. — "Lattice-based ZK Proofs for Blockchain Confidential
+Transactions" (the standout)</h3>
+<p>What it is: a <strong>full PQ RingCT in the exact MatRiCT
+model</strong> — ring + confidential 64-bit amounts + serial-number
+nullifier — that replaces MatRiCT's costly one-out-of-many binary proof
+with a cheaper <strong>logarithmic linear-sum proof</strong>, and
+removes the <strong>"corrector values"</strong> from the balance proof
+(the part that dominates MatRiCT's 64-bit range cost, &gt;90 KB).
+Size/verify: authors' headline <strong>~50% smaller proof than MatRiCT,
+~20% smaller than MatRiCT+</strong>; <strong>~20% faster verify</strong>
+(≈36 ms-class if MatRiCT-Au is ~45 ms), ~15–30% faster proving.
+<strong>No single absolute KB was extractable even from the PDF that was
+read</strong> — the comparison is reported as plots/percentages; the
+~50–90 KB extrapolation is <em>inference, not a quoted number.</em>
+Maturity: <strong>real open-source Golang reference impl</strong> (<a
+href="https://github.com/GoldSaintEagle/RingCT_Implementation">github.com/GoldSaintEagle/RingCT_Implementation</a>)
+on the LaGo polynomial-ring lib, benchmarked on i7-8750H; peer-reviewed
+(FC/PKC 2025, Springer). <strong>Unaudited.</strong> Techniques are
+explicitly "compilable with MatRiCT/MatRiCT+." vs MatRiCT-Au: strict
+efficiency win on the exact axes Conceal cares about, and the
+corrector-value removal specifically helps
+<strong>multi-input/multi-output</strong> txs = Conceal's fusion/deposit
+pattern. <strong>Catch: no built-in auditability</strong> (Au's
+distinguishing feature would have to be re-ported), it's still
+kilobyte-scale, and the absolute size is unconfirmed. Source: <a
+href="https://eprint.iacr.org/2021/1674">eprint 2021/1674</a> / <a
+href="https://link.springer.com/chapter/10.1007/978-3-031-91832-2_5">Springer</a>.</p>
+<h3 id="matrict-the-conservative-fallback">MatRiCT+ (the conservative
+fallback)</h3>
+<p>The faster/smaller core of the family without auditability:
+<strong>2–18× shorter proofs and 3–11× faster verify than
+MatRiCT</strong> (proof O(log M) in input accounts). MatRiCT-Au =
+MatRiCT+ + accountability. Most mature lattice-RingCT codebase;
+<strong>unaudited</strong>, not in a live coin. If auditability is
+dropped, MatRiCT+ (or Gao-on-MatRiCT+) is already smaller/faster than
+MatRiCT-Au. Source: <a href="https://eprint.iacr.org/2021/545">eprint
+2021/545</a> (IEEE S&amp;P 2022).</p>
+<h3
+id="efficient-linkable-ring-signatures-elrs-starkethstark--anonymity-layer-only">Efficient
+Linkable Ring Signatures (ELRS, STARK/ethSTARK) — anonymity layer
+only</h3>
+<p>What it is: a signature-of-knowledge linkable ring sig over a Merkle
+accumulator, compiled through ethSTARK. <strong>Transparent setup,
+hash-based (conservative PQ assumption), 32-byte public keys.</strong>
+<strong>No confidential amounts.</strong> Size/verify: reported
+<strong>~29 KB at ring 1024</strong>, smallest PQ linkable-ring-sig with
+non-slanderability for ring ≥ 32; <strong>~0.3 ms amortized verify at
+ring 8192</strong>, but <strong>~128 ms single-signature verify</strong>
+(only fast when many are batched). Maturity: research code; ethSTARK
+core is well-studied. Unaudited. vs MatRiCT-Au: beats the <em>ring
+component</em> on size and (amortized) verify with a more conservative
+assumption — but <strong>gives you anonymity + nullifier only</strong>,
+so confidential amounts need a separate PQ range/balance proof bolted
+on. <strong>Highly relevant precisely because the in-repo study confirms
+Conceal currently has plaintext amounts.</strong> Source: <a
+href="https://eprint.iacr.org/2024/553">eprint 2024/553</a> (ESORICS
+2024).</p>
+<h3 id="lether--account-based-paradigm-mismatch">Lether — account-based,
+paradigm mismatch</h3>
+<p>PQ private payments via event-oriented linkable ring sig +
+refreshable additively-homomorphic mmPKE; ~<strong>68 KB tx / ~51 KB ZK
+proof</strong>, verify "a fraction of a second" (no ms). Newest (CCS
+2026) and smallest-proof full PQ private-payment design — <strong>but
+account-based (Anonymous-Zether), not CryptoNote UTXO/ring.</strong> Its
+~51 KB is in the same band as MatRiCT-Au's floor, not dramatically
+smaller, and adopting it means re-architecting away from rings+stealth.
+Track as an idea source (mmPKE, refresh trick), not a drop-in. Source:
+<a href="https://eprint.iacr.org/2024/1615">eprint 2024/1615</a> / <a
+href="https://eprint.iacr.org/2026/076">2026/076</a>.</p>
+<h3 id="smile--foundational-set-membership-building-block">SMILE —
+foundational set-membership building block</h3>
+<p>Log-size lattice set-membership → ring sig (<strong>16 KB at 2⁵, 22
+KB at 2²⁵ members</strong>), shown to compose into a MatRiCT-style CT
+with ~4–10× smaller tx proofs than prior work. Predates MatRiCT-Au
+(CRYPTO 2021), so not "newer," but it's the lineage behind the LaZer
+toolkit and an excellent log-size membership engine for large anonymity
+sets. Needs amount + tag layers to become full RingCT; verify-ms not
+reported. Source: <a href="https://eprint.iacr.org/2021/564">eprint
+2021/564</a>.</p>
+<h3
+id="lazer--labrador--greyhound--latticefold--engines-not-schemes">LaZer
+/ LaBRADOR / Greyhound / LatticeFold+ — engines, not schemes</h3>
+<ul>
+<li><strong>LaZer</strong> (CCS 2024): the most production-hardened
+PQ-ZK codebase — C backends + Python interface, auto-builds proofs via
+succinct <strong>LaBRADOR</strong> or linear <strong>LNP22</strong>;
+ships ring-sig/credential demos. <strong>The natural substrate to
+<em>build</em> a next-gen RingCT</strong> (SMILE-style membership +
+Gao-style inner-product balance + nullifier). No ready confidential-tx
+number. Source: <a href="https://eprint.iacr.org/2024/1846">eprint
+2024/1846</a>.</li>
+<li><strong>LaBRADOR</strong> (CRYPTO 2023): transparent lattice
+zkSNARK, <strong>~58 KB for a 2²⁰-constraint R1CS</strong>, but verifier
+not succinct in base form; <strong>a full shielded-spend circuit
+(membership + range + nullifier) would likely exceed that and has never
+been built/benchmarked.</strong> <strong>Adoption hazard:</strong>
+zksecurity (Apr 2026) found multiple public LaBRADOR implementations
+<strong>broken — soundness collapsing to ~1 bit</strong> from bad
+modulus choices; official impl is <strong>C/AVX512-only</strong> (no ARM
+without a port). Sources: <a
+href="https://eprint.iacr.org/2022/1341">eprint 2022/1341</a>, <a
+href="https://blog.zksecurity.xyz/posts/greyhound/">zksecurity
+blog</a>.</li>
+<li><strong>Greyhound</strong> (CRYPTO 2024): fast lattice polynomial
+commitment, <strong>~53 KB eval proof at 2³⁰, sublinear O(√N)
+verify</strong> — attractive engine, same impl caveats, no
+confidential-tx instantiation. Source: <a
+href="https://eprint.iacr.org/2024/1293">eprint 2024/1293</a>.</li>
+<li><strong>LatticeFold+</strong> (CRYPTO 2025): folding/IVC for
+recursion/aggregation — relevant only for batching, <strong>not</strong>
+shrinking a single tx. Source: <a
+href="https://eprint.iacr.org/2025/247">eprint 2025/247</a>.</li>
+</ul>
+<h3
+id="abelian-pqringct--the-only-shipping-pq-confidential-coin-and-a-warning">Abelian
+(PQRingCT) — the only shipping PQ confidential coin (and a warning)</h3>
+<p>The <strong>only live mainnet PQ confidential-transaction
+coin</strong> (CryptoNote-lineage fork): lattice linkable ring sig +
+lattice commitments + ML-KEM-style stealth. <strong>But the construction
+is LINEAR</strong>, measured in-repo on the shipped Go libs at
+<strong>~130–150 KB per ring member → ~525 KB @ring2, ~2.6 MB
+@ring16</strong>, and <strong>~0.3–1.4 s verify per input</strong>.
+<strong>No public third-party audit.</strong> It is a deployability
+existence proof, <strong>strictly worse than MatRiCT-Au on every cost
+axis</strong> — not a scheme to beat it. Source: <a
+href="https://github.com/pqabelian">github.com/pqabelian</a>.</p>
+<h3 id="explicit-negatives-do-not-mistake-for-pq-candidates">Explicit
+negatives (do NOT mistake for PQ candidates)</h3>
+<ul>
+<li><strong>BulletCT</strong> (USENIX 2025): ~2–3 KB tx, transparent —
+but <strong>classical DLOG, NOT PQ.</strong> Useful only as the size
+target showing PQ proofs remain 1–2 orders larger. <a
+href="https://www.usenix.org/system/files/usenixsecurity25-wang-nan.pdf">usenix
+PDF</a>.</li>
+<li><strong>Monero FCMP++</strong>: full-chain anonymity set (~10⁸),
+production-track — <strong>elliptic-curve Curve Trees, NOT PQ</strong>
+(only symmetric forward-secrecy via Carrot); MRL says full PQ is a
+separate multi-year effort. <a
+href="https://www.getmonero.org/2024/04/27/fcmps.html">getmonero.org/2024/04/27</a>.</li>
+<li><strong>Zcash Project Tachyon</strong>: PQ is <strong>roadmap
+only</strong> (target ~2027, lattice commitments + likely STARK to
+replace Halo2); nothing built. <a
+href="https://www.coindesk.com/tech/2026/05/08/zcash-to-roll-out-quantum-recoverable-wallets-within-a-month-go-quantum-proof-by-2027">coindesk
+coverage</a>.</li>
+<li><strong>LLRing, Omniring, RingCT 3.0</strong>: log-size linkable
+rings but <strong>discrete-log/pairing → Shor-breakable.</strong> <a
+href="https://eprint.iacr.org/2024/421">eprint 2024/421</a>.</li>
+<li><strong>Anonymity-only PQ ring sigs</strong> (RingSLIP ~46 KB@4096
+but on the younger Lattice-Isomorphism assumption; SPRING ~17 KB@2²⁰;
+DualRing-PRF symmetric-key; Gandalf ~1.2 KB but linear/small-ring;
+<strong>ChipmunkRing 20.5–280 KB linear, single-author
+non-peer-reviewed</strong>): all lack confidential amounts and most lack
+a verify-ms; lower priority than ELRS for the membership half.</li>
+<li><strong>LACT+</strong>: optimizes tx I/O count, <strong>not</strong>
+sender-anonymity-set size — wrong axis for CryptoNote untraceability. <a
+href="https://www.mdpi.com/2410-387X/7/2/24">MDPI 2023</a>.</li>
+</ul>
+<hr />
+<h2 id="1-top-candidates-worth-deeper-evaluation-ranked">1. Top
+candidates worth deeper evaluation (ranked)</h2>
+<ol type="1">
+<li><strong>Gao et al. (eprint 2021/1674)</strong> — <em>the</em>
+concrete MatRiCT-Au successor. <strong>Reason:</strong> same RingCT
+model (ring + confidential amounts + nullifier), measured (not
+asymptotic) ~50%/~20% smaller and ~20% faster vs MatRiCT/MatRiCT+,
+corrector-value-free balance proof that specifically helps Conceal's
+multi-input fusion/deposit txs, <strong>and real Golang code</strong>.
+<strong>Catch:</strong> no built-in auditability (must re-port Au's
+layer); absolute KB unconfirmed even from the PDF; Go reference impl ≠
+C++11/consensus-grade; unaudited.</li>
+<li><strong>ELRS / STARK linkable ring sig (eprint 2024/553)</strong> —
+best for the <strong>anonymity+nullifier half</strong> <em>if amounts
+stay plaintext</em> (Conceal's actual current state).
+<strong>Reason:</strong> ~29 KB @ring 1024, 32-byte keys, transparent
+hash-based (the most conservative PQ assumption here), huge fast-verify
+anonymity sets. <strong>Catch:</strong> no confidential amounts; **~128
+ms single-verify** (needs batching to amortize); the membership-only
+path is a 1-piece build only if Conceal commits to never hiding
+amounts.</li>
+<li><strong>MatRiCT+ (eprint 2021/545)</strong> —
+<strong>lowest-risk</strong> PQ RingCT if auditability is dropped.
+<strong>Reason:</strong> smaller/faster than MatRiCT-Au, same lineage as
+the in-repo library, most mature lattice-RingCT code.
+<strong>Catch:</strong> still ~tens of KB, unaudited, no
+accountability.</li>
+<li><strong>Build-your-own on LaZer</strong> (SMILE-style membership +
+Gao-style balance proof + nullifier) — <strong>highest ceiling.</strong>
+<strong>Reason:</strong> the only path that could plausibly collapse
+size below the ~50 KB band using succinct LaBRADOR/Greyhound.
+<strong>Catch:</strong> unsolved research+engineering (no one has
+shipped a confidential <em>ring</em> tx on these engines), the LaBRADOR
+soundness-bug class, and AVX512-only code needing a port.
+Months-to-years, not a port.</li>
+</ol>
+<p><em>Not recommended as next steps:</em> Lether (paradigm change to
+accounts), Abelian (strictly worse), all anonymity-only sigs lacking
+amounts.</p>
+<h2 id="2-honest-maturity-reality-check">2. Honest maturity reality
+check</h2>
+<ul>
+<li><strong>Production / shipping in a coin:</strong> only
+<strong>Abelian</strong> ships a PQ confidential tx on mainnet — and
+it's linear, MB-scale, sub-second-to-second verify, <strong>no public
+audit</strong>. Monero (FCMP++) and Zcash (Tachyon) are <strong>NOT
+PQ</strong> for the privacy layer today (EC-based / roadmap).</li>
+<li><strong>Paper-with-real-code (unaudited):</strong> Gao et al. (Go),
+MatRiCT family (research C), LaZer/LaBRADOR/Greyhound (C/AVX512), SMILE,
+ELRS, LLRing (DL, non-PQ).</li>
+<li><strong>Paper-only / thin:</strong> Lether, SPRING, RingSLIP,
+DualRing-PRF; <strong>ChipmunkRing is single-author and
+non-peer-reviewed</strong> — treat with caution.</li>
+<li><strong>The blunt truth:</strong> <strong>no audited PQ
+confidential-anonymous-payment scheme exists.</strong> NIST finalized
+only the <em>building blocks</em> in Aug 2024 (FIPS 203/204/205); there
+is <strong>no NIST/IETF standard for PQ ring signatures, set-membership,
+or confidential transactions.</strong> That is the structural reason
+every candidate is unaudited. <strong>An "audit path" means
+commissioning one — not adopting a pre-vetted scheme.</strong> This gate
+is identical for MatRiCT-Au and every alternative, so it does
+<strong>not</strong> differentiate the choice.</li>
+</ul>
+<h2
+id="3-paradigm-view--stay-lattice-ring-ringct-or-pivot-to-a-succinct-shielded-pool">3.
+Paradigm view — stay lattice-ring-RingCT, or pivot to a succinct
+shielded pool?</h2>
+<p>The evidence points to <strong>staying in the lattice ring-RingCT
+(MatRiCT) family for the near term</strong>, with the succinct-argument
+engines as a <em>research track</em>, not a current adoption:</p>
+<ul>
+<li><strong>Lattice ring-RingCT (MatRiCT/Gao):</strong> ✅ direct
+CryptoNote fit (ring + stealth + nullifier already map), ✅ standardized
+Module-SIS/LWE assumptions (same family as NIST FIPS 203/204), ✅ real
+code, ✅ no trusted setup. ❌ stuck in the <strong>~50–100 KB
+band</strong> — no verified scheme breaks an order of magnitude below
+it. The 2024–2025 literature delivers <strong>2–18×
+multiplicative</strong> gains that all land in the same tens-of-KB
+regime, <em>not</em> a collapse.</li>
+<li><strong>PQ STARK/SNARK shielded pool (LaBRADOR/Greyhound circuit, or
+STARK):</strong> higher size <em>ceiling</em> (succinct engines exist at
+~53–58 KB for generic R1CS, sublinear verify) but ❌ <strong>no complete
+confidential-anonymous-payment scheme has been built and
+benchmarked</strong> on them — wiring membership + range + nullifier
+into a circuit is the unsolved gap; ❌ STARK PQ-security is
+<strong>conjectured</strong> (ROM/collision-resistance, no reduction to
+a hard problem) and production STARK shielded pools (Starknet STRK20)
+lean on Falcon for spend-auth and are L2/Cairo-bound; ❌ documented
+<strong>LaBRADOR soundness-collapse bugs</strong> and AVX512-only code;
+❌ a paradigm change away from CryptoNote rings.</li>
+</ul>
+<p><strong>Net:</strong> the better <em>long</em> bet may be a succinct
+lattice engine, but it is not adoptable today. The right posture is
+<strong>lattice ring-RingCT now, LaZer-based succinct RingCT as a
+tracked R&amp;D bet.</strong></p>
+<h2 id="4-recommendation-for-conceal">4. Recommendation for Conceal</h2>
+<p><strong>Keep MatRiCT-Au as the provisional default for now, but make
+the cheapest possible move to confirm Gao et al. as the successor — and
+decide the auditability and confidential-amounts questions first,
+because they change the answer.</strong></p>
+<ul>
+<li><strong>If confidential amounts are required</strong> → Gao-et-al.
+techniques (ideally layered on MatRiCT+) are the <strong>most concrete
+win available today</strong>: ~half the size, faster verify, real Go
+code, and the corrector-value removal directly helps Conceal's
+fusion/deposit pattern. Re-port Au's auditability only if a regulator
+demands it.</li>
+<li><strong>If amounts can stay plaintext</strong> (the in-repo study
+confirms Conceal has <em>no</em> RingCT/Pedersen/Bulletproofs today, and
+confidential amounts were already deferred to an optional L2) → the
+problem <strong>reduces to a PQ linkable ring sig + PQ one-time key + PQ
+nullifier</strong>, and <strong>ELRS/STARK (2024/553)</strong> becomes
+very attractive: biggest anonymity sets, fast amortized verify,
+conservative hash-based assumption, no heavy range proofs. This is
+potentially a <em>bigger</em> win than chasing Gao, and it sidesteps the
+band entirely.</li>
+</ul>
+<p><strong>Cheapest next step to de-risk (do this before any integration
+commitment):</strong></p>
+<ol type="1">
+<li><strong>Read the actual tables.</strong> Open the Gao et al. PDF
+from the PolyU host (it's reachable; eprint is the blocked mirror) and
+<strong>extract the exact proof size + verify ms for Conceal's
+transaction shape</strong> (1-in vs multi-in, target ring size). This is
+the single highest-value, lowest-cost action — it converts the
+load-bearing "~50% / ~50–90 KB" <em>inference</em> into a number, and
+the whole ranking hinges on it.</li>
+<li><strong>Build + benchmark the Gao Go reference impl</strong> (<a
+href="https://github.com/GoldSaintEagle/RingCT_Implementation">GoldSaintEagle/RingCT_Implementation</a>)
+on the WSL host at Conceal's ring size, head-to-head against the
+already-library-ized MatRiCT-Au, on identical hardware. Measure size,
+verify, prover memory.</li>
+<li><strong>Resolve the requirements fork explicitly</strong> with the
+team: <em>is auditability in or out, and are amounts confidential or
+plaintext?</em> That decision selects Gao-vs-ELRS-vs-keep-MatRiCT-Au
+more than any benchmark will.</li>
+</ol>
+<p>Do <strong>not</strong> commit to building on LaZer/LaBRADOR yet
+(research-grade gap + soundness-bug class + AVX512/ARM port), and do
+<strong>not</strong> adopt Abelian (strictly worse) or pivot to Lether
+(account-based re-architecture). Whatever is chosen remains
+<strong>audit-gated</strong> — that cost is unavoidable and equal across
+all options.</p>
+<h2 id="5-summary-table">5. Summary table</h2>
+<table>
+<thead>
+<tr>
+<th>Scheme</th>
+<th>Type</th>
+<th>Proof size</th>
+<th>Verify</th>
+<th>Implementation</th>
+<th>Audit</th>
+<th>Verdict</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>MatRiCT-Au</strong> <em>(baseline)</em></td>
+<td>lattice ring-RingCT + auditability</td>
+<td>~107 KB floor (58 KB unbuilt)</td>
+<td>~45 ms</td>
+<td>research C, in-repo lib</td>
+<td>none</td>
+<td>Incumbent; full feature set, heavy</td>
+</tr>
+<tr>
+<td><strong>Gao et al.</strong></td>
+<td>lattice ring-RingCT</td>
+<td>~50% &lt; MatRiCT (abs. unconfirmed)</td>
+<td>~20% faster (~36 ms-class)</td>
+<td><strong>Golang, open</strong></td>
+<td>none</td>
+<td><strong>Top successor — evaluate next</strong></td>
+</tr>
+<tr>
+<td>MatRiCT+</td>
+<td>lattice ring-RingCT</td>
+<td>2–18× &lt; MatRiCT</td>
+<td>3–11× faster</td>
+<td>research C</td>
+<td>none</td>
+<td>Conservative fallback (no auditability)</td>
+</tr>
+<tr>
+<td><strong>ELRS (STARK)</strong></td>
+<td>linkable ring sig (no amounts)</td>
+<td>~29 KB @ring 1024</td>
+<td>0.3 ms amortized / 128 ms single</td>
+<td>research</td>
+<td>none</td>
+<td><strong>Strong if amounts stay plaintext</strong></td>
+</tr>
+<tr>
+<td>SMILE</td>
+<td>lattice set-membership</td>
+<td>16–22 KB ring sig</td>
+<td>not reported</td>
+<td>research</td>
+<td>none</td>
+<td>Good membership building block</td>
+</tr>
+<tr>
+<td>LaZer / LaBRADOR / Greyhound</td>
+<td>succinct lattice engines</td>
+<td>~53–58 KB (generic R1CS)</td>
+<td>sublinear (no tx ms)</td>
+<td>C/AVX512 lib</td>
+<td>none + soundness bugs</td>
+<td>R&amp;D substrate, not a scheme</td>
+</tr>
+<tr>
+<td>Lether</td>
+<td>account-based PQ payments</td>
+<td>~51 KB proof</td>
+<td>sub-second (no ms)</td>
+<td>research</td>
+<td>none</td>
+<td>Paradigm mismatch (accounts)</td>
+</tr>
+<tr>
+<td>Abelian (PQRingCT)</td>
+<td>lattice ring-RingCT (linear)</td>
+<td>525 KB@2 → 2.6 MB@16</td>
+<td>0.3–1.4 s/input</td>
+<td><strong>mainnet</strong> Go</td>
+<td>none</td>
+<td>Only shipping PQ coin; strictly worse</td>
+</tr>
+<tr>
+<td>BulletCT</td>
+<td>DLOG ring-RingCT</td>
+<td>2–3 KB</td>
+<td>sub-second</td>
+<td>lib</td>
+<td>none</td>
+<td><strong>NOT PQ</strong> — size target only</td>
+</tr>
+<tr>
+<td>Monero FCMP++</td>
+<td>EC full-chain membership</td>
+<td>O(log n)</td>
+<td>optimized</td>
+<td>mainnet</td>
+<td>community</td>
+<td><strong>NOT PQ</strong> — reference only</td>
+</tr>
+<tr>
+<td>LLRing / Omniring</td>
+<td>DLOG/pairing linkable ring</td>
+<td>log-size</td>
+<td>log</td>
+<td>lib</td>
+<td>none</td>
+<td><strong>NOT PQ</strong> — Shor-breakable</td>
+</tr>
+</tbody>
+</table>
+<p><strong>One-line bottom line:</strong> No audited PQ confidential-tx
+scheme exists anywhere; within that reality, <strong>Gao et al.
+(2021/1674)</strong> is the strongest drop-in to beat MatRiCT-Au if
+amounts must be hidden, <strong>ELRS/STARK (2024/553)</strong> is the
+strongest path if Conceal keeps plaintext amounts, and the cheapest
+de-risking step is to read Gao's real size/verify tables from the PolyU
+PDF and benchmark its open Go code against the in-repo MatRiCT-Au —
+before deciding anything.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

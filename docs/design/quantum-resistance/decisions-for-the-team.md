@@ -52,8 +52,32 @@ while A is integrated + audited; see [`matrict-integration-plan.md`](matrict-int
 > (re-implement the paper's truncated construction + re-prove + audit), not a quick add. A PQ spend is **~89×**
 > a classical spend at 107 KB.
 
-**Depends on / unblocks:** the audit (**D7**), tx-size + fusion (**D3**), and the proof-compression sub-decision
-above. **Who confirms:** core team — this is the headline strategic call.
+> **Newer candidates (research scan this session — see [`pq-scheme-landscape.md`](pq-scheme-landscape.md)).**
+> MatRiCT-Au is PKC 2022; the field moved. The scan surfaced two that change this decision:
+> - **Gao et al. (FC/PKC 2025, eprint 2021/1674)** — the same lattice RingCT model (ring + confidential
+>   amounts + nullifier) but **~50% smaller / ~20% faster** than MatRiCT, *corrector-value-free* (directly
+>   helps Conceal's multi-input fusion/deposit txs), with **open Go reference code**. The strongest drop-in
+>   successor *if confidential amounts are required*. (Catch: no built-in auditability; absolute KB unconfirmed
+>   — eprint was blocked; Go ≠ C++11; unaudited.)
+> - **ELRS / STARK linkable ring sig (ESORICS 2024, eprint 2024/553)** — `~29 KB @ ring 1024`, transparent
+>   hash-based (most conservative PQ assumption), huge fast-verify anonymity sets, **but no confidential
+>   amounts**. This matters because **Conceal has *plaintext* amounts today** (no RingCT/Bulletproofs;
+>   confidential amounts were deferred to an optional L2). If amounts can stay plaintext, the problem reduces
+>   to *PQ linkable ring sig + PQ one-time key + PQ nullifier* — and ELRS is potentially a **bigger, cheaper
+>   win than chasing confidential-amount RingCT at all**.
+>
+> **A prior question this forces (decide before locking D1):** *(i) are confidential amounts required, or can
+> they stay plaintext?* and *(ii) is on-chain auditability in or out?* Those two answers select
+> Gao-vs-ELRS-vs-MatRiCT-Au more than any benchmark. **Reality check:** *no* PQ confidential-anon-payment
+> scheme is audited or standardized anywhere (NIST finalized only the FIPS 203/204/205 building blocks) — that
+> gate is identical for every option, so it doesn't differentiate. **Cheapest de-risking step:** read Gao's
+> real size/verify tables (PolyU PDF, reachable) + build/benchmark its Go reference vs the in-repo MatRiCT-Au
+> at Conceal's ring size — before committing.
+
+**Depends on / unblocks:** the audit (**D7**), tx-size + fusion (**D3**), the proof-compression sub-decision,
+and the confidential-amounts/auditability fork above. **Who confirms:** core team — this is the headline
+strategic call. **Revised default:** keep MatRiCT-Au provisional, but **evaluate Gao et al. (confidential) /
+ELRS (plaintext) next** rather than treating MatRiCT-Au as settled.
 
 ---
 

@@ -68,6 +68,7 @@ main{margin-left:300px;padding:46px 6vw;}
 </ul></div>
 <div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
 <li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
 <li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
 <li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
 <li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
@@ -220,10 +221,51 @@ also collides with the accountability layer. <strong>Plan on ~107 KB /
 paper's truncated construction + re-prove + audit), not a quick add. A
 PQ spend is **~89×** a classical spend at 107 KB.</p>
 </blockquote>
+<blockquote>
+<p><strong>Newer candidates (research scan this session — see <a
+href="pq-scheme-landscape.md"><code>pq-scheme-landscape.md</code></a>).</strong>
+MatRiCT-Au is PKC 2022; the field moved. The scan surfaced two that
+change this decision:</p>
+<ul>
+<li><strong>Gao et al. (FC/PKC 2025, eprint 2021/1674)</strong> — the
+same lattice RingCT model (ring + confidential amounts + nullifier) but
+<strong>~50% smaller / ~20% faster</strong> than MatRiCT,
+<em>corrector-value-free</em> (directly helps Conceal's multi-input
+fusion/deposit txs), with <strong>open Go reference code</strong>. The
+strongest drop-in successor <em>if confidential amounts are
+required</em>. (Catch: no built-in auditability; absolute KB unconfirmed
+— eprint was blocked; Go ≠ C++11; unaudited.)</li>
+<li><strong>ELRS / STARK linkable ring sig (ESORICS 2024, eprint
+2024/553)</strong> — <code>~29 KB @ ring 1024</code>, transparent
+hash-based (most conservative PQ assumption), huge fast-verify anonymity
+sets, <strong>but no confidential amounts</strong>. This matters because
+<strong>Conceal has <em>plaintext</em> amounts today</strong> (no
+RingCT/Bulletproofs; confidential amounts were deferred to an optional
+L2). If amounts can stay plaintext, the problem reduces to <em>PQ
+linkable ring sig + PQ one-time key + PQ nullifier</em> — and ELRS is
+potentially a <strong>bigger, cheaper win than chasing
+confidential-amount RingCT at all</strong>.</li>
+</ul>
+<p><strong>A prior question this forces (decide before locking
+D1):</strong> <em>(i) are confidential amounts required, or can they
+stay plaintext?</em> and <em>(ii) is on-chain auditability in or
+out?</em> Those two answers select Gao-vs-ELRS-vs-MatRiCT-Au more than
+any benchmark. <strong>Reality check:</strong> <em>no</em> PQ
+confidential-anon-payment scheme is audited or standardized anywhere
+(NIST finalized only the FIPS 203/204/205 building blocks) — that gate
+is identical for every option, so it doesn't differentiate.
+<strong>Cheapest de-risking step:</strong> read Gao's real size/verify
+tables (PolyU PDF, reachable) + build/benchmark its Go reference vs the
+in-repo MatRiCT-Au at Conceal's ring size — before committing.</p>
+</blockquote>
 <p><strong>Depends on / unblocks:</strong> the audit
-(<strong>D7</strong>), tx-size + fusion (<strong>D3</strong>), and the
-proof-compression sub-decision above. <strong>Who confirms:</strong>
-core team — this is the headline strategic call.</p>
+(<strong>D7</strong>), tx-size + fusion (<strong>D3</strong>), the
+proof-compression sub-decision, and the
+confidential-amounts/auditability fork above. <strong>Who
+confirms:</strong> core team — this is the headline strategic call.
+<strong>Revised default:</strong> keep MatRiCT-Au provisional, but
+<strong>evaluate Gao et al. (confidential) / ELRS (plaintext)
+next</strong> rather than treating MatRiCT-Au as settled.</p>
 <hr />
 <h2
 id="d2--upgrade_height_v9-fork-timing--height--default-stay-on-the-sentinel--placeholder-pending-consensus">D2
