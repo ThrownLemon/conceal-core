@@ -183,6 +183,7 @@ namespace cn
 	const uint8_t PQ_ADDRESS_VERSION = 2;            /* PqAccountPublicAddress.pqVersion */
 	const uint32_t PQ_KEM_SCHEME_ID = 0xC0DE0203;    /* ML-KEM-768 message/stealth KEM scheme id (agility pin) */
 	const uint32_t PQ_RING_SCHEME_ID = 0xC0DE0004;   /* lattice linkable-ring-sig scheme id == ccx_pq_scheme_id() (K=L=6) */
+	const uint32_t PQ_DSA_SCHEME_ID = 0xC0DE0204;    /* ML-DSA-65 (FIPS 204) PQ deposit multisig scheme id (agility pin) */
 
 	const uint8_t TRANSACTION_VERSION_1 = 1;
 	const uint8_t TRANSACTION_VERSION_2 = 2;
