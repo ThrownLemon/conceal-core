@@ -98,9 +98,11 @@ No new constant. The freeze rides the existing `UPGRADE_HEIGHT_V9` / `BLOCK_MAJO
   at/after height 80; use a PQ deposit
   ```
   Funding note: the demo builds the classical deposit tx with `pqc/tools/classical_deposit_injector` (a
-  harness tool, classical twin of `pq_injector`) because a **pre-existing** testnet coinbase/wallet
-  `keyIndex` quirk hides the miner's classical coinbase remainder from wallet scanners — see
-  [§Known issue](#known-issue-pre-existing-not-the-freeze). That quirk is orthogonal to the freeze.
+  harness tool, classical twin of `pq_injector`). It was originally needed because a wallet scanner
+  output-index bug hid the miner's classical coinbase — that bug is now **fixed** (see
+  [§Scanner output-index bug](#scanner-output-index-bug-surfaced-here-now-fixed--commit-dc5ef31)), so the
+  coinbase is wallet-visible; the injector is retained in the harness for deterministic, timing-controlled
+  deposit construction. Orthogonal to the freeze either way.
 
 ## Cost (Option 3)
 
@@ -119,13 +121,25 @@ For comparison a PQ *spend* (lattice ring sig) is ~25–61 KB (~68× a classical
 So "PQ-only deposits after the fork" is one of the cheaper PQ surfaces. See
 [`measured-numbers.md`](measured-numbers.md) §F for the full deposit-size table.
 
-## Known issue (pre-existing, NOT the freeze)
+## Scanner output-index bug (surfaced here, now FIXED — commit `dc5ef31`)
 
-Surfaced while building the e2e demo (independently confirmed by code reading): the testnet coinbase
-(`Currency::constructMinerTx`, `m_testnet` branch) emits a PQ stealth output at output-index 0 plus a classical
-"remainder" `KeyOutput` to the miner at index 1, but both wallet scanners (`TransfersConsumer::findMyOutputs`,
-`CryptoNoteFormatUtils::lookup_acc_outs`) walk a `keyIndex` that does not advance over the leading PQ output —
-so the miner's classical coinbase remainder is **invisible to every wallet** (wallet shows `0.000000`, `outputs
-Count: 0`). The PoC therefore funds wallets only via the PQ path. This is a wallet/coinbase index bug, **not**
-related to the deposit freeze and not modified here — flagged for separate human review (it touches money-path
-output scanning). The demo works around it with the injector tool.
+Surfaced while building the e2e demo (independently confirmed by an adversarial code review): the testnet
+coinbase (`Currency::constructMinerTx`, `m_testnet` branch) emits a PQ stealth output at output-index 0 plus a
+classical "remainder" `KeyOutput` to the miner at index 1. The three wallet output scanners
+(`TransfersConsumer::findMyOutputs`, `CryptoNoteFormatUtils::lookup_acc_outs`, `TransactionUtils`) derived
+`KeyOutput` one-time keys at a `keyIndex` counter that advanced only for Key/Multisig outputs — so it skipped
+the leading PQ output and underived the remainder at index 0 instead of its true output position 1, making the
+miner's classical coinbase **invisible to every wallet**.
+
+**Root cause:** construction (`TransactionImpl::addOutput` and the coinbase) always derives at the **output
+position**; the scanners used a key-slot counter that only equals the position when no non-Key output precedes.
+**Mainnet was unaffected** — the PQ coinbase output is testnet-only (mainnet emits only `KeyOutput`s, indices
+aligned) — but it was a latent landmine for any future non-Key-leading layout.
+
+**Fix (the proper, mainnet-grade one):** all three scanners now underive `KeyOutput`s at their **output
+position**, matching construction and the already-correct Multisignature branch. **Provably non-regressing** —
+any output recognized by the old scan had `keyIndex == position`, so the new scan recognizes the same set plus
+the previously-missed PQ-preceded outputs. Wallet-side only, not consensus. Regression test
+`TestFormatUtils.lookup_acc_outs.finds_testnet_pq_coinbase_remainder` (fails before the fix); UnitTests/
+CoreTests 100% + live e2e green. The injector tool remains in the demo harness, but the miner's classical
+coinbase is now wallet-visible.
