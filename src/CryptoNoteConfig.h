@@ -133,6 +133,12 @@ namespace cn
 
 		const uint32_t TESTNET_DEPOSIT_MIN_TERM_V3 = 30;		/* testnet deposits 1 month -> 1 hour */
 		const uint32_t TESTNET_DEPOSIT_MAX_TERM_V3 = 12 * 30;	/* testnet deposits 1 year -> 12 hour */
+		/* Testnet-only minimum deposit amount (CIP-0001 PoC). Mainnet keeps DEPOSIT_MIN_AMOUNT = 1 CCX;
+		   on testnet a PQ deposit is funded from one PQ coinbase output (PQ_TESTNET_COINBASE_AMOUNT =
+		   0.1 CCX), which is below the 1-CCX mainnet floor, so the PQ-deposit PoC path is untestable
+		   without a testnet-scoped floor. This is a TESTNET consensus parameter (like the term overrides
+		   above) — it never changes what mainnet accepts. */
+		const uint64_t TESTNET_DEPOSIT_MIN_AMOUNT = 10000;	/* 0.01 CCX — below one PQ coinbase output */
 		const uint32_t TESTNET_DEPOSIT_HEIGHT_V3 = 60;		
 		const uint32_t TESTNET_DEPOSIT_HEIGHT_V4 = 300000;
 		const uint32_t TESTNET_BLOCK_WITH_MISSING_INTEREST = 0; /* testnet is not impacted */

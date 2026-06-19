@@ -659,6 +659,9 @@ namespace cn
         depositMaxTerm(parameters::TESTNET_DEPOSIT_MAX_TERM_V3);
         depositMinTermV3(parameters::TESTNET_DEPOSIT_MIN_TERM_V3);
         depositMaxTermV3(parameters::TESTNET_DEPOSIT_MAX_TERM_V3);
+        // Testnet-only deposit floor so a PQ deposit funded by one PQ coinbase output (0.1 CCX) clears
+        // the minimum. Mainnet keeps DEPOSIT_MIN_AMOUNT (1 CCX) — this branch only runs for testnet.
+        depositMinAmount(parameters::TESTNET_DEPOSIT_MIN_AMOUNT);
 
         depositHeightV3(parameters::TESTNET_DEPOSIT_HEIGHT_V3);
         depositHeightV4(parameters::TESTNET_DEPOSIT_HEIGHT_V4);
