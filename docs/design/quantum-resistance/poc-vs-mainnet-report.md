@@ -59,7 +59,7 @@ with usage. **[team]**
 | Scheme | Privacy | Avg tx | Verify/tx | Chain /yr | txs/block | Maturity |
 |---|---|---:|---:|---:|---:|---|
 | Ed25519 ring (today) | full untraceable | 1.2 KB | 2.3 ms | 0.37 GB | 82 | shipped — ❌ not PQ-safe |
-| Raptor ring (linear) | full untraceable | 43 KB | 1.9 ms | 13 GB | 2 | research PoC, unaudited |
+| Raptor ring (linear) | full untraceable | ~24 KB *(measured 10.2 KB/sig @ ring-6 × 2.39 in)* | 1.9 ms | ~7 GB | ~4 | C reference, measured; clean-room reimpl planned |
 | **MatRiCT-Au ring (log, input-amortized)** | **full untraceable** | **~107 KB** *(58 KB only w/ compression — §10.2)* | **45 ms** | **~33–35 GB** *(18 GB at 58 KB)* | **1** | **research code, builds** |
 | Falafl ring (log) | full untraceable | 95 KB | 77 ms | 29 GB | 1 | research, fully measured |
 | Falcon — NO RING (Falcon+H(pk)) | stealth only | 6.4 KB | 0.2 ms | 1.9 GB | 15 | NIST-standard |

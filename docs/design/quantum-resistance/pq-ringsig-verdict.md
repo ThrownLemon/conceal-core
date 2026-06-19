@@ -126,7 +126,7 @@ Sizes at 128-bit unless noted; *italic* = asymptotic/derived/single-datapoint, n
 | Scheme | Family | Size @ ring-8 | Size @ ring-1024 | Verify (cold) | Assumption | Impl | Beats ELRS? |
 |---|---|---|---|---|---|---|---|
 | **ELRS** *(baseline)* | hash-STARK | ~25 KB | ~29 KB (flat) | ~128 ms (0.3 ms amortized) | Conjectured hash/FRI (no reduction) | Exp. Rust, unaudited | — |
-| **Raptor** | NTRU lattice | ~10 KB | *~1.3 MB* | ms-range (fast) | NTRU/Ring-SIS (reduction) | Rust PoC | **Yes @ small ring** (size+assumption+maturity); no @ large |
+| **Raptor** | NTRU lattice | **13.1 KB (meas.)** | *~1.3 MB* | **0.79 ms @ ring-6 (meas.)** | NTRU/Ring-SIS (reduction) | **C ref** (clean-room MIT planned) | **Yes @ small ring** (size+assumption+maturity); no @ large |
 | **ChipmunkRing** | Ring-LWE | ~24 KB | *multi-MB* | 0.4–4.5 ms | Ring-LWE 112-bit + bespoke "Acorn" ZK | **C in Cellframe (live)** | Partly (assumption, cold-verify, impl); no on size@large, 112-bit |
 | **LAPQ-LRS** | MLWE/MSIS (Dilithium agg.) | *~4.4 KB* | *~14.5 KB* | 30.7 ms | **MLWE/MSIS** (clean, ML-DSA family) | Python proto | **On paper yes** (size both axes + assumption); no on verify-speed/maturity |
 | **MatRiCT+** | Module-SIS/MLWE | *inferred < ELRS* | *~3 KB pubkeys; tx-coupled* | 2–8 ms | **M-SIS/M-LWE** (clean) | **C++** (most mature) | Yes on assumption+verify; RingCT-coupled, standalone KB unmeasured |
