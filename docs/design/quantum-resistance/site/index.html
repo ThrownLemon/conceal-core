@@ -102,26 +102,37 @@ main{margin-left:300px;padding:46px 6vw;}
     <h1 id="post-quantum-migration--decisions-for-the-team">Post-quantum
 migration — decisions for the team</h1>
 <p><em>A single dashboard of the open strategic choices for Conceal's
-post-quantum (CIP-0001) work. Each decision links to the detailed doc
-that backs it. Status legend: <strong>OPEN</strong> (team must choose) ·
-<strong>PROVISIONAL</strong> (a lean exists, needs ratification) ·
-<strong>DECIDED</strong> (this session). Numbers are live/measured where
-marked — see <a
+post-quantum (CIP-0001) work. Each links to the detailed doc that backs
+it. Numbers are live/measured where marked — see <a
 href="measured-numbers.md"><code>measured-numbers.md</code></a>.</em></p>
+<blockquote>
+<p><strong>Nothing here is decided.</strong> Each item below has a
+<strong>selected default</strong> — a working assumption chosen
+<em>only</em> so the PoC could keep moving — and every default
+<strong>awaits team consensus</strong> and is
+<strong>reversible</strong>. Where the PoC already <em>implements</em> a
+default (e.g. the deposit freeze), that is an engineering convenience to
+unblock testing, <strong>not</strong> a ratified choice; the team can
+still change it. The "firmness" tag says how settled a default feels,
+not that it is final: <strong>firm</strong> (clear best option, low
+controversy) · <strong>lean</strong> (a real trade-off to weigh) ·
+<strong>placeholder</strong> (chosen just to unblock; expect
+debate).</p>
+</blockquote>
 <blockquote>
 <p><strong>One framing for all of these:</strong> the PoC has removed
 the <em>integration</em> risk (tx format, serialization, double-spend
 set, stealth, wallet send/receive, deposits, messages, the swappable
 backend slot). What remains is <strong>policy + the production crypto +
-an audit</strong>. Treat every "OPEN" below as a thing to settle
+an audit</strong>. Every default below should be confirmed or changed
 <em>before</em> <code>UPGRADE_HEIGHT_V9</code> is lowered to a real
 height — they converge on that one fork.</p>
 </blockquote>
 <hr />
 <h2
-id="d1--production-privacy-scheme--provisional-lean-keep-privacy--matrict-au">D1
-— Production privacy scheme · <strong>PROVISIONAL (lean: keep privacy /
-MatRiCT-Au)</strong></h2>
+id="d1--production-privacy-scheme--default-matrict-au-keep-privacy--lean-pending-consensus">D1
+— Production privacy scheme · <strong>default: MatRiCT-Au (keep privacy)
+— lean, pending consensus</strong></h2>
 <p><strong>The choice.</strong> What signs a <em>spend</em> on mainnet.
 Three families, measured/cited in <a
 href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
@@ -169,30 +180,33 @@ href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
 </tr>
 </tbody>
 </table>
-<p><strong>Recommendation: A (MatRiCT-Au), keep privacy.</strong> It's
-the only option that preserves Conceal's ring + confidential-amount
-privacy on a (to-be-audited) lattice construction. Cost is real — a PQ
-spend is <strong>~68×</strong> a classical spend (542 B → ~37 KB
-measured for the stand-in; MatRiCT-Au ~58 KB team-measured) — but C
-forfeits the chain's reason to exist and B can't ship unaudited. The
-swappable backend (<code>pq_ring_sig.h</code> C-ABI) lets the stand-in
-(B) stay the <strong>testnet</strong> engine while A is integrated +
-audited; see <a
+<p><strong>Selected default (pending consensus): A (MatRiCT-Au), keep
+privacy.</strong> It's the only option that preserves Conceal's ring +
+confidential-amount privacy on a (to-be-audited) lattice construction.
+Cost is real — a PQ spend is <strong>~68×</strong> a classical spend
+(542 B → ~37 KB measured for the stand-in; MatRiCT-Au ~58 KB
+team-measured) — but C forfeits the chain's reason to exist and B can't
+ship unaudited. The swappable backend (<code>pq_ring_sig.h</code> C-ABI)
+lets the stand-in (B) stay the <strong>testnet</strong> engine while A
+is integrated + audited; see <a
 href="matrict-integration-plan.md"><code>matrict-integration-plan.md</code></a>.</p>
 <p><strong>Depends on / unblocks:</strong> the audit
 (<strong>D7</strong>), tx-size + fusion (<strong>D3</strong>).
-<strong>Who decides:</strong> core team — this is the headline strategic
-call.</p>
+<strong>Who confirms:</strong> core team — this is the headline
+strategic call.</p>
 <hr />
-<h2 id="d2--upgrade_height_v9-fork-timing--height--open">D2 —
-<code>UPGRADE_HEIGHT_V9</code> fork timing &amp; height ·
-<strong>OPEN</strong></h2>
+<h2
+id="d2--upgrade_height_v9-fork-timing--height--default-stay-on-the-sentinel--placeholder-pending-consensus">D2
+— <code>UPGRADE_HEIGHT_V9</code> fork timing &amp; height ·
+<strong>default: stay on the sentinel — placeholder, pending
+consensus</strong></h2>
 <p><strong>The choice.</strong> V9 is the single block on which PQ
 deposits <strong>open</strong> and (under Option 3, <strong>D5</strong>)
 classical deposit creation <strong>freezes</strong> — an atomic swap.
 Mainnet <code>UPGRADE_HEIGHT_V9 = 5000000</code> is a far-future,
-audit-gated <strong>sentinel</strong>; testnet is <code>80</code>.
-Lowering it to a real height <em>is</em> the fork.</p>
+audit-gated <strong>sentinel</strong> (the current default — i.e. PQ
+never activates on mainnet yet); testnet is <code>80</code>. Lowering it
+to a real height <em>is</em> the fork.</p>
 <ul>
 <li><strong>No voting safety net.</strong> Unlike the upgrade-voting
 path (<code>UPGRADE_VOTING_THRESHOLD = 90%</code>), a hardcoded height
@@ -204,18 +218,19 @@ split</strong>. Set it with checkpoint-grade coordination.</li>
 chain-level CoreTests passing, and a working PQ deposit wallet
 path.</li>
 </ul>
-<p><strong>Recommendation:</strong> keep the sentinel until D7's gates
-clear; then set V9 to a specific height announced with the same
-discipline as a checkpoint, activating PQ deposits + the Option-3 freeze
-together. <strong>Who decides:</strong> core team + node operators
-(coordination). Backs: <a
+<p><strong>Selected default (pending consensus):</strong> keep the
+sentinel until D7's gates clear; then the team sets V9 to a specific
+height, announced with the same discipline as a checkpoint, activating
+PQ deposits + the Option-3 freeze together. <strong>Who
+confirms:</strong> core team + node operators (coordination). Backs: <a
 href="deposit-term-policy-decision.md"><code>deposit-term-policy-decision.md</code></a>
 §"Hard dependency sequencing", <a
 href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a>.</p>
 <hr />
-<h2 id="d3--tx-size-limit-fusion-redesign--denominations--open">D3 —
-Tx-size limit, fusion redesign &amp; denominations ·
-<strong>OPEN</strong></h2>
+<h2
+id="d3--tx-size-limit-fusion-redesign--denominations--default-deferred-behind-d1--pending-consensus">D3
+— Tx-size limit, fusion redesign &amp; denominations · <strong>default:
+deferred behind D1 — pending consensus</strong></h2>
 <p><strong>The choice.</strong> PQ txs are tens of KB; the current
 limits don't fit them.</p>
 <ul>
@@ -232,46 +247,54 @@ spends but only ~2 PQ ring-4 spends — fee/throughput model shifts (see
 <a href="measured-numbers.md"><code>measured-numbers.md</code></a>
 §E).</li>
 </ul>
-<p><strong>Recommendation:</strong> treat as a bundle gated on
-<strong>D1</strong> (the scheme sets the sizes); design the fusion +
-denomination scheme before any mainnet PQ spend. <strong>Who
-decides:</strong> core team (consensus sizing). <strong>Note:</strong>
+<p><strong>Selected default (pending consensus):</strong> treat as a
+bundle gated on <strong>D1</strong> (the scheme sets the sizes); design
+the fusion + denomination scheme before any mainnet PQ spend. Nothing is
+set yet — placeholder pending the D1 confirmation. <strong>Who
+confirms:</strong> core team (consensus sizing). <strong>Note:</strong>
 the Option-3 <em>deposit</em> path is cheaper (ML-DSA-65, ~2.1 KB, ~10×)
 and less affected than the <em>spend</em> path.</p>
 <hr />
 <h2
-id="d4--retire-the-fixed-testnet-kem-option-b-for-per-recipient-keys--open-mostly-done">D4
+id="d4--retire-the-fixed-testnet-kem-option-b-for-per-recipient-keys--default-retire-on-mainnet--firm-pending-consensus">D4
 — Retire the fixed testnet KEM ("Option B") for per-recipient keys ·
-<strong>OPEN (mostly done)</strong></h2>
+<strong>default: retire on mainnet — firm, pending
+consensus</strong></h2>
 <p><strong>The choice.</strong> The PoC's coinbase/stealth path uses a
 <strong>fixed</strong> <code>PQ_TESTNET_KEM</code> so any wallet can
 scan testnet PQ coinbase. Mainnet must use
 <strong>per-recipient</strong> ML-KEM keys (real unlinkability). The
 wallet↔︎wallet PQ send path <strong>already</strong> does per-recipient
 encapsulation; coinbase/stealth must follow on mainnet.</p>
-<p><strong>Recommendation:</strong> confirm per-recipient keys
-everywhere for mainnet; the fixed KEM is a testnet-only convenience and
-must not ship. Low controversy — mostly an implementation cleanup.
-<strong>Who decides:</strong> core team (confirm). Backs: <a
+<p><strong>Selected default (pending consensus):</strong> per-recipient
+keys everywhere for mainnet; the fixed KEM is a testnet-only convenience
+and must not ship. Low controversy — mostly an implementation cleanup,
+but still the team's to confirm. <strong>Who confirms:</strong> core
+team. Backs: <a
 href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
 §"ecosystem changes".</p>
 <hr />
 <h2
-id="d5--classical-deposit-term-policy--decided--option-3-this-session">D5
-— Classical deposit-term policy · <strong>DECIDED — Option 3 (this
-session)</strong></h2>
+id="d5--classical-deposit-term-policy--default-option-3-built-into-the-poc--pending-ratification">D5
+— Classical deposit-term policy · <strong>default: Option 3 (built into
+the PoC) — pending ratification</strong></h2>
 <p>PQ-only deposits after the fork: classical deposit <em>creation</em>
-is frozen at V9; existing deposits stay withdrawable.
-<strong>Implemented + verified e2e</strong> (<a
-href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a>,
-<a
-href="deposit-term-policy-decision.md"><code>deposit-term-policy-decision.md</code></a>).
-Listed here for completeness — its only open piece is the activation
-timing, which is <strong>D2</strong>.</p>
+is frozen at V9; existing deposits stay withdrawable. This is the
+default the PoC was <strong>built and verified against</strong> this
+session (<a
+href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a>) —
+chosen to unblock end-to-end testing, <strong>not</strong> ratified. The
+team can still switch to a softer policy (e.g. <strong>Option
+2</strong>, cap classical terms instead of freezing) — the full option
+set + trade-offs are in <a
+href="deposit-term-policy-decision.md"><code>deposit-term-policy-decision.md</code></a>.
+Its activation timing is <strong>D2</strong>.</p>
 <hr />
-<h2 id="d6--pq-deposit-key-privacy-account-key-vs-per-deposit--open">D6
-— PQ deposit key privacy: account-key vs per-deposit ·
-<strong>OPEN</strong></h2>
+<h2
+id="d6--pq-deposit-key-privacy-account-key-vs-per-deposit--default-account-key-testnet--per-deposit-mainnet--pending-consensus">D6
+— PQ deposit key privacy: account-key vs per-deposit · <strong>default:
+account-key (testnet) / per-deposit (mainnet) — pending
+consensus</strong></h2>
 <p><strong>The choice.</strong> ML-DSA has no stealth-derivation
 analogue, so a PQ deposit must name a fixed public key.</p>
 <table>
@@ -299,16 +322,18 @@ key</td>
 </tr>
 </tbody>
 </table>
-<p><strong>Recommendation:</strong> D6a is acceptable for the
-<strong>testnet PoC</strong> (flag the linkability); adopt <strong>D6b
-for mainnet</strong> to preserve deposit privacy. <strong>Who
-decides:</strong> core team. Backs: <a
+<p><strong>Selected default (pending consensus):</strong> D6a for the
+<strong>testnet PoC</strong> (flag the linkability), <strong>D6b for
+mainnet</strong> to preserve deposit privacy. Reversible; team to
+confirm. <strong>Who confirms:</strong> core team. Backs: <a
 href="pq-deposit-wallet-blueprint.md"><code>pq-deposit-wallet-blueprint.md</code></a>
 §3.</p>
 <hr />
-<h2 id="d7--audit-scope--sequencing-the-hard-mainnet-gate--open">D7 —
-Audit scope &amp; sequencing (the hard mainnet gate) ·
-<strong>OPEN</strong></h2>
+<h2
+id="d7--audit-scope--sequencing-the-hard-mainnet-gate--default-external-audit-gates-mainnet--firm-pending-consensus">D7
+— Audit scope &amp; sequencing (the hard mainnet gate) ·
+<strong>default: external audit gates mainnet — firm, pending
+consensus</strong></h2>
 <p><strong>The choice.</strong> What must be professionally audited, and
 in what order, before mainnet. The non-negotiable gate. Scope at
 minimum:</p>
@@ -324,33 +349,39 @@ code;</li>
 this session is wallet-side, but the whole scan surface should be in
 scope).</li>
 </ul>
-<p><strong>Recommendation:</strong> the external audit is
-<strong>the</strong> mainnet gate — nothing PQ activates on mainnet
-before it. Sequence it after the MatRiCT-Au integration stabilizes (so
-the audited artifact is the shipping one), but commission the auditor
-selection early (lead time). <strong>Who decides:</strong> core team +
-funding. Backs: <a
+<p><strong>Selected default (pending consensus):</strong> the external
+audit is <strong>the</strong> mainnet gate — nothing PQ activates on
+mainnet before it. Sequence it after the MatRiCT-Au integration
+stabilizes (so the audited artifact is the shipping one), but commission
+auditor selection early (lead time). <strong>Who confirms:</strong> core
+team + funding. Backs: <a
 href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
 §6, <a href="STATUS.md"><code>STATUS.md</code></a> "Deferred /
 gates".</p>
 <hr />
-<h2 id="d8--pq-dependency-maturity--open">D8 — PQ dependency maturity ·
-<strong>OPEN</strong></h2>
+<h2
+id="d8--pq-dependency-maturity--default-require-fips-validated10-crates--pending-consensus">D8
+— PQ dependency maturity · <strong>default: require FIPS-validated/1.0
+crates — pending consensus</strong></h2>
 <p><strong>The choice.</strong> The Rust PQ primitives (ML-KEM/ML-DSA
 via RustCrypto) are pre-1.0. Gate mainnet on <strong>FIPS-validated /
-1.0</strong> crates? <strong>Recommendation:</strong> yes — require
-FIPS-validated (or equivalently audited) PQ crate versions before
-mainnet activation; track upstream. Low-effort to state, real to honor.
-<strong>Who decides:</strong> core team.</p>
+1.0</strong> crates? <strong>Selected default (pending
+consensus):</strong> yes — require FIPS-validated (or equivalently
+audited) PQ crate versions before mainnet activation; track upstream.
+Low-effort to state, real to honor. <strong>Who confirms:</strong> core
+team.</p>
 <hr />
 <h2 id="at-a-glance">At-a-glance</h2>
+<p><em>All defaults are provisional and reversible — they await team
+consensus; "firmness" = how settled the default feels, not that it is
+final.</em></p>
 <table>
 <thead>
 <tr>
 <th>#</th>
 <th>Decision</th>
-<th>Status</th>
-<th>Recommendation</th>
+<th>Selected default</th>
+<th>Firmness</th>
 <th>Gates mainnet?</th>
 </tr>
 </thead>
@@ -358,65 +389,65 @@ mainnet activation; track upstream. Low-effort to state, real to honor.
 <tr>
 <td>D1</td>
 <td>Production privacy scheme</td>
-<td>PROVISIONAL</td>
 <td><strong>A — MatRiCT-Au (keep privacy)</strong></td>
+<td>lean</td>
 <td>yes (via audit)</td>
 </tr>
 <tr>
 <td>D2</td>
 <td>V9 fork timing/height</td>
-<td>OPEN</td>
-<td>set after D7 clears; checkpoint-grade coordination</td>
+<td>stay on sentinel; set after D7 clears</td>
+<td>placeholder</td>
 <td><strong>is</strong> the fork</td>
 </tr>
 <tr>
 <td>D3</td>
 <td>Tx-size / fusion / denominations</td>
-<td>OPEN</td>
-<td>bundle, gated on D1</td>
+<td>deferred, gated on D1</td>
+<td>placeholder</td>
 <td>yes (for spends)</td>
 </tr>
 <tr>
 <td>D4</td>
 <td>Retire fixed testnet KEM</td>
-<td>OPEN (mostly done)</td>
 <td>per-recipient everywhere on mainnet</td>
+<td>firm</td>
 <td>yes</td>
 </tr>
 <tr>
 <td>D5</td>
 <td>Deposit-term policy</td>
-<td><strong>DECIDED (Option 3)</strong></td>
-<td>—</td>
+<td>Option 3 (built into PoC)</td>
+<td>lean — not ratified</td>
 <td>timing = D2</td>
 </tr>
 <tr>
 <td>D6</td>
 <td>PQ deposit key privacy</td>
-<td>OPEN</td>
 <td>D6a testnet, <strong>D6b mainnet</strong></td>
+<td>lean</td>
 <td>no (privacy)</td>
 </tr>
 <tr>
 <td>D7</td>
 <td>Audit scope &amp; sequencing</td>
-<td>OPEN</td>
 <td>external audit = the gate</td>
+<td>firm</td>
 <td><strong>the</strong> gate</td>
 </tr>
 <tr>
 <td>D8</td>
 <td>PQ dependency maturity</td>
-<td>OPEN</td>
 <td>require FIPS-validated/1.0 crates</td>
+<td>firm</td>
 <td>yes</td>
 </tr>
 </tbody>
 </table>
 <p><strong>The critical path:</strong> D1 (scheme) → integrate + D3
 (sizing) → <strong>D7 (audit)</strong> → D2 (set V9 height) →
-coordinated fork. D4/D6/D8 ride alongside. D5 is done and waits only on
-D2.</p>
+coordinated fork. D4/D6/D8 ride alongside. D5's default is built but
+unratified; it waits only on D2 for timing.</p>
 
   </article>
 </main>
