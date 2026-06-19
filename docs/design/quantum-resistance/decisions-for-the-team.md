@@ -32,9 +32,15 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 >   demo-grade* params — so the win is *not* bought by lowering security. **Confirmed LINKABLE** (OTS-tag →
 >   key-image/nullifier). Linear size, fine at small rings. **Real catches:** (1) the 10 KB is the paper-compact
 >   size — the reference binary emits a **~4× bloated encoding**; production must implement the compact packing
->   (~14 bits/coeff, a TODO in the repo); (2) **GPLv3** — license compatibility with Conceal must be cleared;
->   (3) it's **C, not Rust** → C-FFI integration, not the existing `ccx-pqc` Rust-FFI pattern; (4) Falcon's
->   floating-point Gaussian sampler is a known constant-time/portability hazard; (5) unaudited research code.
+>   (~14 bits/coeff, a TODO in the repo); (2) **LICENSE — RESOLVED into a path:** upstream Raptor is **GPL +
+>   patent-asserted**, so it **cannot be copied** into MIT Conceal — but the *construction* is a published
+>   algorithm (eprint 2018/857) and **Falcon is NIST FIPS 206 (FN-DSA), patent-free/royalty-free**, so the
+>   shippable route is a **clean-room reimplementation over permissive (PQClean, public-domain) Falcon** — MIT-
+>   clean, no GPL. ⏳ *Isolated clean-room spike in progress* (Rust island, behind the existing `ccx_pq_*` ABI,
+>   NOT wired into consensus) to validate linkability + measure the real compact size before any swap;
+>   (3) Raptor needs Falcon's **low-level trapdoor preimage sampler**, not just stock FN-DSA sign/verify;
+>   (4) Falcon's **floating-point Gaussian sampler** is a constant-time **and consensus-determinism** hazard (FP
+>   rounding can differ across platforms → block-validation split); (5) unaudited research code.
 > - **Harden the in-house lattice stand-in** (the PoC's K=L=6 LSAG) — fallback. Already integrated + working
 >   end-to-end, but **demo-grade**: biased sampling, not constant-time, params not a calibrated 128-bit level,
 >   and ~43 KB @ ring-6 (≈5× Raptor). Would need a security-level recalibration + constant-time rewrite for
