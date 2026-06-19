@@ -33,6 +33,9 @@ V9=80                          # TESTNET_UPGRADE_HEIGHT_V9 — PQ deposits activ
 DEP_MONTHS=1                   # term = months * TESTNET_DEPOSIT_MIN_TERM_V3 (30) = 30 blocks
 DEP_TERM=30
 DEP_AMOUNT="0.05"             # 0.05 CCX (>= TESTNET_DEPOSIT_MIN_AMOUNT 0.01; fits one 0.1-CCX PQ coinbase output)
+DEP_AMOUNT_ATOMIC=50000       # 0.05 CCX in atomic units (6 decimals). The deposit CELL is indexed under the
+                              # DEPOSITED amount, NOT the funding coinbase denomination — so cell lookups must
+                              # query this amount, not PQ_TESTNET_COINBASE_AMOUNT (100000).
 DEP_FEE=1000
 RING=4
 MINE_BUF=6                     # mine this many blocks past V9 before the first deposit
@@ -80,16 +83,27 @@ wait_height() { # <target> <max_seconds>
   return 1
 }
 
-# Count PQ deposit cells the daemon reports for the PQ coinbase amount (0.1 CCX = 100000 atomic).
+# Count PQ deposit cells the daemon reports for the DEPOSITED amount ($DEP_AMOUNT). A deposit cell is
+# indexed in m_pqMultisigOutputs under the amount that was DEPOSITED (PqDepositBuilder sets
+# depositOut.amount = req.amount), NOT under the funding coinbase denomination — so we query
+# $DEP_AMOUNT_ATOMIC here, not 100000.
 pq_msig_count() {
-  jrpc '{"jsonrpc":"2.0","id":"0","method":"get_pq_multisig_outputs","params":{"amounts":[100000]}}' \
+  jrpc "{\"jsonrpc\":\"2.0\",\"id\":\"0\",\"method\":\"get_pq_multisig_outputs\",\"params\":{\"amounts\":[$DEP_AMOUNT_ATOMIC]}}" \
     | grep -oE '"output_index":[0-9]+' | wc -l | tr -d ' '
 }
-# Lowest unused deposit cell output_index the daemon reports (or empty). Parses the flat entry list.
+# Lowest unused deposit cell output_index the daemon reports (or empty). Parses the JSON structurally
+# (python3) instead of by regex: the daemon's KV serializer emits object fields in ALPHABETICAL order
+# (height, is_used, keys, output_index, ...), so a positional "output_index..keys..is_used" regex never
+# matches. Walk every cell and return the lowest output_index whose is_used == false.
 pq_first_unused_index() {
-  jrpc '{"jsonrpc":"2.0","id":"0","method":"get_pq_multisig_outputs","params":{"amounts":[100000]}}' \
-    | grep -oE '"output_index":[0-9]+,"keys"[^}]*"is_used":(true|false)' \
-    | grep '"is_used":false' | head -1 | grep -oE '"output_index":[0-9]+' | grep -oE '[0-9]+'
+  jrpc "{\"jsonrpc\":\"2.0\",\"id\":\"0\",\"method\":\"get_pq_multisig_outputs\",\"params\":{\"amounts\":[$DEP_AMOUNT_ATOMIC]}}" \
+    | python3 -c 'import sys,json
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+idx=[e["output_index"] for ofa in d.get("result",{}).get("outs",[]) for e in ofa.get("outs",[]) if not e.get("is_used", True)]
+print(min(idx) if idx else "")'
 }
 
 open_wallet() { # opens the wallet kept-open via FIFO, resets/syncs
@@ -140,7 +154,10 @@ setsid "$CONCEALD" --testnet --data-dir "$N2" --no-console --hide-my-port --p2p-
 
 TARGET=$((V9 + MINE_BUF))
 echo ">> wait for chain to reach height $TARGET (past V9=$V9 so PQ deposits are active + coinbase PQ outputs exist)"
-wait_height "$TARGET" 600 || fail "chain did not reach height $TARGET in time"
+# Generous timeout: the isolated minimum-difficulty testnet has high block-time variance (the PoW
+# interval distribution has a long tail with no competing hashrate), so DIFFICULTY_TARGET-based 600s
+# budgets can fall short on a bad run. 1200s absorbs the variance.
+wait_height "$TARGET" 1200 || fail "chain did not reach height $TARGET in time"
 echo "   height=$(height)"
 
 open_wallet
@@ -180,7 +197,9 @@ echo "==================== BEHAVIOR #2: mature the PQ deposit (mine term blocks)
 HNOW=$(height)
 MATURE_TARGET=$((HNOW + DEP_TERM + 2))
 echo ">> mine to height >= $MATURE_TARGET (createdHeight ~ $HNOW + term $DEP_TERM)"
-wait_height "$MATURE_TARGET" 600 || fail "chain did not reach maturity height $MATURE_TARGET"
+# Generous timeout (see the initial wait above): minimum-difficulty testnet block-time variance can push
+# a DEP_TERM-block maturity past a 600s budget; 1200s absorbs it.
+wait_height "$MATURE_TARGET" 1200 || fail "chain did not reach maturity height $MATURE_TARGET"
 echo "   BEHAVIOR #2 PASS: chain at height $(height) (>= deposit unlock)."
 
 # ===================================================================================================
@@ -188,8 +207,11 @@ echo "   BEHAVIOR #2 PASS: chain at height $(height) (>= deposit unlock)."
 # ===================================================================================================
 echo
 echo "================ BEHAVIOR #3: withdraw the matured PQ deposit (expect ACCEPTED) ================"
-echo ">> [wallet] pq_withdraw $IDX1"
-printf 'pq_withdraw %s\n' "$IDX1" >&9
+echo ">> [wallet] pq_withdraw $IDX1 $DEP_AMOUNT"
+# Pass the DEPOSITED amount explicitly: the cell lives in m_pqMultisigOutputs[$DEP_AMOUNT_ATOMIC], and
+# output_index is per-amount, so the wallet must resolve the cell under the deposit denomination (its
+# default of PQ_TESTNET_COINBASE_AMOUNT=0.1 only matches a 0.1-CCX deposit).
+printf 'pq_withdraw %s %s\n' "$IDX1" "$DEP_AMOUNT" >&9
 wait_for "$WOUT" 'PQ withdraw relayed: [0-9a-f]{64}' 60 \
   || fail "behavior #3: pq_withdraw was not relayed. Transcript tail:
 $(tail -25 "$WOUT")"
@@ -198,12 +220,26 @@ WD1_LINE=$(grep -E 'PQ withdraw relayed' "$WOUT" | tail -1)
 echo "   pq_withdraw relayed: $WD1_TXH"
 echo "   $WD1_LINE"
 
+# Structural is_used probe for a specific output_index (field-order-independent — see
+# pq_first_unused_index). Prints "true"/"false"/"" (empty = cell not found / parse error).
+pq_cell_is_used() { # <output_index>
+  jrpc "{\"jsonrpc\":\"2.0\",\"id\":\"0\",\"method\":\"get_pq_multisig_outputs\",\"params\":{\"amounts\":[$DEP_AMOUNT_ATOMIC]}}" \
+    | python3 -c 'import sys,json
+want=int(sys.argv[1])
+try:
+    d=json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for ofa in d.get("result",{}).get("outs",[]):
+    for e in ofa.get("outs",[]):
+        if e.get("output_index")==want:
+            print("true" if e.get("is_used") else "false"); sys.exit(0)' "$1"
+}
+
 echo ">> wait for the withdraw to CONFIRM (pool drains, cell becomes is_used)"
 WD1_OK=0
 for _ in $(seq 1 60); do
-  USED=$(jrpc '{"jsonrpc":"2.0","id":"0","method":"get_pq_multisig_outputs","params":{"amounts":[100000]}}' \
-         | grep -oE "\"output_index\":$IDX1,\"keys\"[^}]*\"is_used\":(true|false)" | grep -oE '"is_used":(true|false)' | tail -1)
-  if [ "$USED" = '"is_used":true' ]; then WD1_OK=1; break; fi
+  if [ "$(pq_cell_is_used "$IDX1")" = "true" ]; then WD1_OK=1; break; fi
   sleep 3
 done
 [ "$WD1_OK" = 1 ] || fail "behavior #3: withdraw never confirmed (cell $IDX1 never became is_used). Daemon log tail:
@@ -215,8 +251,8 @@ echo "   BEHAVIOR #3 PASS: PQ withdraw ACCEPTED + confirmed (cell $IDX1 is_used=
 # ===================================================================================================
 echo
 echo "================ BEHAVIOR #4: second withdraw of the same cell (expect REJECTED) ================"
-echo ">> [wallet] pq_withdraw $IDX1  (the cell is already used)"
-printf 'pq_withdraw %s\n' "$IDX1" >&9
+echo ">> [wallet] pq_withdraw $IDX1 $DEP_AMOUNT  (the cell is already used)"
+printf 'pq_withdraw %s %s\n' "$IDX1" "$DEP_AMOUNT" >&9
 # Either the wallet refuses (cell is_used) OR the relay is rejected — both are a valid REJECT.
 WD2_REJECTED=0
 for _ in $(seq 1 20); do
@@ -251,15 +287,29 @@ if [ -s "$MNEMONIC_FILE" ]; then
   close_wallet
   rm -f "$WAL.wallet" "$WAL.address" 2>/dev/null || true
   MNEMONIC=$(cat "$MNEMONIC_FILE")
-  printf 'exit\n' | "$WALLET" --testnet --restore-deterministic-wallet \
-    --generate-new-wallet "$WAL" --password x --mnemonic-seed "$MNEMONIC" >/tmp/ccx-pqd-restore.out 2>&1 || true
-  grep -qiE 'restore|generated|seed' /tmp/ccx-pqd-restore.out || true
+  # Restore via the wallet's INTERACTIVE menu. This build's concealwallet has no
+  # --restore-deterministic-wallet/--mnemonic-seed CLI flags; the only mnemonic path is the start-up
+  # menu shown when NO --wallet-file/--generate-new-wallet arg is given:
+  #   "[M]nemonic seed import" -> "Wallet file name:" -> "Mnemonics Phrase (25 words):"
+  # With --password supplied, the interactive password prompt is skipped (pwd_container takes the arg),
+  # so the full restore is: M, wallet-file-name, mnemonic, then exit. This writes "$WAL.wallet".
+  printf 'M\n%s.wallet\n%s\nexit\n' "$WAL" "$MNEMONIC" \
+    | "$WALLET" --testnet --daemon-host 127.0.0.1 --daemon-port "$RPC1" --password x \
+      >/tmp/ccx-pqd-restore.out 2>&1 || true
+  # Confirm the restore produced a usable wallet file (the restored address line is printed on success).
+  for _ in $(seq 1 20); do [ -s "$WAL.wallet" ] && break; sleep 1; done
+  [ -s "$WAL.wallet" ] || fail "behavior #5: mnemonic restore did not create $WAL.wallet. Restore tail:
+$(tail -15 /tmp/ccx-pqd-restore.out)"
 
   # ... wait until the second deposit matures, then withdraw it from the RESTORED wallet.
-  HNOW=$(height); wait_height $((HNOW + DEP_TERM + 2)) 600 || fail "behavior #5: chain did not mature the 2nd deposit"
+  # Generous timeout: on the isolated minimum-difficulty testnet, block times have a high variance
+  # (no competing hashrate, so the PoW interval distribution has a long tail — 40-60s gaps are normal),
+  # and this second maturity starts only AFTER the restore step. 600s could fall a few blocks short of
+  # DEP_TERM; 1200s absorbs the variance so the deposit reliably matures before the wallet withdraws.
+  HNOW=$(height); wait_height $((HNOW + DEP_TERM + 2)) 1200 || fail "behavior #5: chain did not mature the 2nd deposit"
   open_wallet
-  echo ">> [restored wallet] pq_withdraw $IDX2"
-  printf 'pq_withdraw %s\n' "$IDX2" >&9
+  echo ">> [restored wallet] pq_withdraw $IDX2 $DEP_AMOUNT"
+  printf 'pq_withdraw %s %s\n' "$IDX2" "$DEP_AMOUNT" >&9
   wait_for "$WOUT" 'PQ withdraw relayed: [0-9a-f]{64}' 60 \
     || fail "behavior #5: restored wallet could not withdraw the deposit (restore broke the DSA key!). Transcript tail:
 $(tail -25 "$WOUT")"

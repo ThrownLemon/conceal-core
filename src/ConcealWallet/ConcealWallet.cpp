@@ -2404,7 +2404,12 @@ bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
   }
 
   uint32_t outputIndex = 0;
-  uint64_t amount = cn::PQ_TESTNET_COINBASE_AMOUNT; // default funding/deposit denomination bucket
+  // A deposit cell is indexed in m_pqMultisigOutputs under the amount that was DEPOSITED (the builder
+  // sets depositOut.amount = req.amount), which is NOT the funding coinbase denomination. output_index
+  // is per-amount, so the cell can only be resolved under its own deposit amount. We default to
+  // PQ_TESTNET_COINBASE_AMOUNT only as a convenience for the common 0.1-CCX deposit; for any other
+  // deposit the caller MUST pass the deposited amount as the optional second argument.
+  uint64_t amount = cn::PQ_TESTNET_COINBASE_AMOUNT; // default cell denomination (0.1 CCX); override via [amount]
   try
   {
     outputIndex = boost::lexical_cast<uint32_t>(args[0]);
