@@ -18,10 +18,23 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 
 ---
 
-## D1 — Production privacy scheme  ·  **default: MatRiCT-Au (keep privacy) — lean, pending consensus**
+## D1 — Production privacy scheme  ·  **default (updated): PQ ring signature, *plaintext amounts* — ELRS leading; pending consensus**
 
-**The choice.** What signs a *spend* on mainnet. Three families, measured/cited in
-[`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md) §3:
+> **DIRECTION UPDATE (team input + this session's benchmarks).** Conceal keeps **plaintext amounts** — its
+> **verify-funds feature needs visible amounts** — so **confidential-amount RingCT (MatRiCT-Au) is the wrong
+> target**: it *hides* amounts (breaking verify-funds) and costs ~107 KB for a feature Conceal does not want.
+> The real PQ job is narrower: make the **ring signature** (untraceability) + **stealth one-time keys**
+> (unlinkability, already ML-KEM in the PoC) + **nullifier** post-quantum, **amounts stay plaintext**. That is
+> a **PQ linkable ring signature**, not RingCT. So the decision flips from "which RingCT" to "**which PQ ring
+> sig**", and the candidates are: the PoC **lattice stand-in** (incumbent, ~6.1 KB/member linear, unaudited),
+> **ELRS** (measured flat ~25–29 KB, the size win — gated on the single-verify experiment, §G), and other PQ
+> ring sigs from the scan (SPRING, RingSLIP, …). **MatRiCT-Au is demoted** to "only if Conceal ever wants
+> confidential amounts — which conflicts with verify-funds." This is a *much cheaper, smaller* PQ path than the
+> RingCT route the doc previously defaulted to.
+
+**The choice (original framing — what signs a *spend* on mainnet).** Three families, measured/cited in
+[`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md) §3 — note A (MatRiCT-Au) is now demoted by the update
+above because it hides amounts:
 
 | Option | Privacy | Spend size | Verify | Storage/yr | Maturity | Notes |
 |---|---|---|---|---|---|---|
@@ -201,6 +214,29 @@ honor. **Who confirms:** core team.
 
 ---
 
+## D9 — Repo organization for the PQ work  ·  **default: `pq-conceal` R&D fork in the org — pending setup**
+
+**The choice.** Where the PQ work lives. **Hard constraint:** the consensus/wallet changes are *inline edits to
+the conceal-core daemon* (`Blockchain.cpp`, `Currency`, `TransactionPool`, …), not a separable library — so
+"all PQ in one repo" can only be a **full fork of conceal-core**, and PQ's *destination* is conceal-core itself
+(height-gated upstream PRs), not a permanent separate coin.
+
+| Option | What | Pro | Con |
+|---|---|---|---|
+| A | stay a personal fork branch (today) | zero setup | not an org home |
+| **B (selected)** | **`pq-conceal` = full fork in the ConcealNetwork org** | one official R&D home; team CI + a PQ testnet build; everything together | a divergent daemon copy → periodic rebases on upstream; eventual merge-back effort |
+| C | `pq-conceal` = only the *separable* parts (Rust `ccx-pqc` + MatRiCT lib + docs/site); consensus stays a conceal-core branch | clean, independently-auditable crypto libs | more repos; an extraction refactor |
+
+**Selected default (team: yes to a repo):** **B for the active R&D phase** — give the work an org home as
+`pq-conceal` (fork of conceal-core), understood as a **staging fork** that upstreams to conceal-core piecemeal
+and needs periodic rebasing. **Then, as the crypto stabilizes, split out `ccx-pqc` + the MatRiCT lib as
+standalone versioned/auditable libraries** (the part of C worth doing — the auditor will want the crypto as a
+clean artifact anyway). The **docs + interactive site** move over immediately as the browsable PQ knowledge
+base. **Action owner:** core team creates/transfers the org repo (not done by the assistant). **Who confirms:**
+core team.
+
+---
+
 ## At-a-glance
 
 *All defaults are provisional and reversible — they await team consensus; "firmness" = how settled the default
@@ -208,7 +244,7 @@ feels, not that it is final.*
 
 | # | Decision | Selected default | Firmness | Gates mainnet? |
 |---|---|---|---|---|
-| D1 | Production privacy scheme | **A — MatRiCT-Au (keep privacy)** | lean | yes (via audit) |
+| D1 | Production privacy scheme | **PQ ring sig, *plaintext amounts* — ELRS leading** (MatRiCT-Au demoted: hides amounts → breaks verify-funds) | lean | yes (via audit) |
 | D2 | V9 fork timing/height | stay on sentinel; set after D7 clears | placeholder | **is** the fork |
 | D3 | Tx-size / fusion / denominations | deferred, gated on D1 | placeholder | yes (for spends) |
 | D4 | Retire fixed testnet KEM | per-recipient everywhere on mainnet | firm | yes |
@@ -216,6 +252,7 @@ feels, not that it is final.*
 | D6 | PQ deposit key privacy | D6a testnet, **D6b mainnet** | lean | no (privacy) |
 | D7 | Audit scope & sequencing | external audit = the gate | firm | **the** gate |
 | D8 | PQ dependency maturity | require FIPS-validated/1.0 crates | firm | yes |
+| D9 | Repo organization | **`pq-conceal` R&D fork in the org** (then split out crypto libs) | lean — team said yes | no |
 
 **The critical path:** D1 (scheme) → integrate + D3 (sizing) → **D7 (audit)** → D2 (set V9 height) → coordinated
 fork. D4/D6/D8 ride alongside. D5's default is built but unratified; it waits only on D2 for timing.

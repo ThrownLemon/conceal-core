@@ -131,13 +131,37 @@ height — they converge on that one fork.</p>
 </blockquote>
 <hr />
 <h2
-id="d1--production-privacy-scheme--default-matrict-au-keep-privacy--lean-pending-consensus">D1
-— Production privacy scheme · <strong>default: MatRiCT-Au (keep privacy)
-— lean, pending consensus</strong></h2>
-<p><strong>The choice.</strong> What signs a <em>spend</em> on mainnet.
-Three families, measured/cited in <a
+id="d1--production-privacy-scheme--default-updated-pq-ring-signature-plaintext-amounts--elrs-leading-pending-consensus">D1
+— Production privacy scheme · <strong>default (updated): PQ ring
+signature, <em>plaintext amounts</em> — ELRS leading; pending
+consensus</strong></h2>
+<blockquote>
+<p><strong>DIRECTION UPDATE (team input + this session's
+benchmarks).</strong> Conceal keeps <strong>plaintext amounts</strong> —
+its <strong>verify-funds feature needs visible amounts</strong> — so
+<strong>confidential-amount RingCT (MatRiCT-Au) is the wrong
+target</strong>: it <em>hides</em> amounts (breaking verify-funds) and
+costs ~107 KB for a feature Conceal does not want. The real PQ job is
+narrower: make the <strong>ring signature</strong> (untraceability) +
+<strong>stealth one-time keys</strong> (unlinkability, already ML-KEM in
+the PoC) + <strong>nullifier</strong> post-quantum, <strong>amounts stay
+plaintext</strong>. That is a <strong>PQ linkable ring
+signature</strong>, not RingCT. So the decision flips from "which
+RingCT" to "<strong>which PQ ring sig</strong>", and the candidates are:
+the PoC <strong>lattice stand-in</strong> (incumbent, ~6.1 KB/member
+linear, unaudited), <strong>ELRS</strong> (measured flat ~25–29 KB, the
+size win — gated on the single-verify experiment, §G), and other PQ ring
+sigs from the scan (SPRING, RingSLIP, …). <strong>MatRiCT-Au is
+demoted</strong> to "only if Conceal ever wants confidential amounts —
+which conflicts with verify-funds." This is a <em>much cheaper,
+smaller</em> PQ path than the RingCT route the doc previously defaulted
+to.</p>
+</blockquote>
+<p><strong>The choice (original framing — what signs a <em>spend</em> on
+mainnet).</strong> Three families, measured/cited in <a
 href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
-§3:</p>
+§3 — note A (MatRiCT-Au) is now demoted by the update above because it
+hides amounts:</p>
 <table>
 <thead>
 <tr>
@@ -469,6 +493,66 @@ audited) PQ crate versions before mainnet activation; track upstream.
 Low-effort to state, real to honor. <strong>Who confirms:</strong> core
 team.</p>
 <hr />
+<h2
+id="d9--repo-organization-for-the-pq-work--default-pq-conceal-rd-fork-in-the-org--pending-setup">D9
+— Repo organization for the PQ work · <strong>default:
+<code>pq-conceal</code> R&amp;D fork in the org — pending
+setup</strong></h2>
+<p><strong>The choice.</strong> Where the PQ work lives. <strong>Hard
+constraint:</strong> the consensus/wallet changes are <em>inline edits
+to the conceal-core daemon</em> (<code>Blockchain.cpp</code>,
+<code>Currency</code>, <code>TransactionPool</code>, …), not a separable
+library — so "all PQ in one repo" can only be a <strong>full fork of
+conceal-core</strong>, and PQ's <em>destination</em> is conceal-core
+itself (height-gated upstream PRs), not a permanent separate coin.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>What</th>
+<th>Pro</th>
+<th>Con</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>stay a personal fork branch (today)</td>
+<td>zero setup</td>
+<td>not an org home</td>
+</tr>
+<tr>
+<td><strong>B (selected)</strong></td>
+<td><strong><code>pq-conceal</code> = full fork in the ConcealNetwork
+org</strong></td>
+<td>one official R&amp;D home; team CI + a PQ testnet build; everything
+together</td>
+<td>a divergent daemon copy → periodic rebases on upstream; eventual
+merge-back effort</td>
+</tr>
+<tr>
+<td>C</td>
+<td><code>pq-conceal</code> = only the <em>separable</em> parts (Rust
+<code>ccx-pqc</code> + MatRiCT lib + docs/site); consensus stays a
+conceal-core branch</td>
+<td>clean, independently-auditable crypto libs</td>
+<td>more repos; an extraction refactor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Selected default (team: yes to a repo):</strong> <strong>B
+for the active R&amp;D phase</strong> — give the work an org home as
+<code>pq-conceal</code> (fork of conceal-core), understood as a
+<strong>staging fork</strong> that upstreams to conceal-core piecemeal
+and needs periodic rebasing. <strong>Then, as the crypto stabilizes,
+split out <code>ccx-pqc</code> + the MatRiCT lib as standalone
+versioned/auditable libraries</strong> (the part of C worth doing — the
+auditor will want the crypto as a clean artifact anyway). The
+<strong>docs + interactive site</strong> move over immediately as the
+browsable PQ knowledge base. <strong>Action owner:</strong> core team
+creates/transfers the org repo (not done by the assistant). <strong>Who
+confirms:</strong> core team.</p>
+<hr />
 <h2 id="at-a-glance">At-a-glance</h2>
 <p><em>All defaults are provisional and reversible — they await team
 consensus; "firmness" = how settled the default feels, not that it is
@@ -487,7 +571,9 @@ final.</em></p>
 <tr>
 <td>D1</td>
 <td>Production privacy scheme</td>
-<td><strong>A — MatRiCT-Au (keep privacy)</strong></td>
+<td><strong>PQ ring sig, <em>plaintext amounts</em> — ELRS
+leading</strong> (MatRiCT-Au demoted: hides amounts → breaks
+verify-funds)</td>
 <td>lean</td>
 <td>yes (via audit)</td>
 </tr>
@@ -539,6 +625,14 @@ final.</em></p>
 <td>require FIPS-validated/1.0 crates</td>
 <td>firm</td>
 <td>yes</td>
+</tr>
+<tr>
+<td>D9</td>
+<td>Repo organization</td>
+<td><strong><code>pq-conceal</code> R&amp;D fork in the org</strong>
+(then split out crypto libs)</td>
+<td>lean — team said yes</td>
+<td>no</td>
 </tr>
 </tbody>
 </table>
