@@ -188,7 +188,7 @@ namespace cn
 	const size_t  PQ_KEM_PUBLIC_KEY_SIZE = 1184;
 	const uint8_t PQ_ADDRESS_VERSION = 2;            /* PqAccountPublicAddress.pqVersion */
 	const uint32_t PQ_KEM_SCHEME_ID = 0xC0DE0203;    /* ML-KEM-768 message/stealth KEM scheme id (agility pin) */
-	const uint32_t PQ_RING_SCHEME_ID = 0xC0DE0004;   /* lattice linkable-ring-sig scheme id == ccx_pq_scheme_id() (K=L=6) */
+	const uint32_t PQ_RING_SCHEME_ID = 0x52415054;   /* "RAPT" — Raptor linkable-ring-sig scheme id == ccx_pq_scheme_id() */
 	const uint32_t PQ_DSA_SCHEME_ID = 0xC0DE0204;    /* ML-DSA-65 (FIPS 204) PQ deposit multisig scheme id (agility pin) */
 
 	const uint8_t TRANSACTION_VERSION_1 = 1;
@@ -197,10 +197,10 @@ namespace cn
 	const size_t  PQ_NULLIFIER_SIZE = 32;       /* ccx-pq nullifier length (bytes); bounds m_spent_pq_nullifiers keys */
 	const size_t  PQ_MIN_RING_SIZE = 2;         /* min distinct ring members for a PQ input (anonymity floor) */
 	const size_t  PQ_MAX_RING_SIZE = 8;         /* max ring members for a PQ input. Bounds verify-cost CPU-DoS
-	                                               AND keeps a PQ input inside the tx-size limit: sig grows
-	                                               linearly (sig_bytes = 6176 + n*6144), so a 1-in/1-out ring-8
-	                                               PQ tx ~62 KB fits CRYPTONOTE_MAX_TX_SIZE_LIMIT (~99.4 KB) with
-	                                               headroom for extra outputs/inputs; ring-16 (~111 KB) would not.
+	                                               AND keeps a PQ input inside the tx-size limit. With Raptor the
+	                                               sig is VARIABLE (Golomb-compressed), ~12 KB measured @ ring-8
+	                                               (vs the old stand-in's ~62 KB), so a ring-8 PQ tx fits
+	                                               CRYPTONOTE_MAX_TX_SIZE_LIMIT (~99.4 KB) with ample headroom.
 	                                               Consensus: nodes reject PQ inputs with ring > this. */
 	const size_t  PQ_MULTISIG_MAX_KEYS = 16;    /* max n keys / m sigs in a PQ multisig (deposit) output/input;
 	                                               bounds the attacker-controlled length-prefixed arrays at the

@@ -25,7 +25,11 @@ use pqcrypto_traits::kem::{PublicKey as KP, SecretKey as KS, Ciphertext as KC, S
 use pqcrypto_traits::sign::{PublicKey as SP, SecretKey as SS, SignedMessage as SM, DetachedSignature as SD};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
-mod ringsig; // EXPERIMENTAL lattice linkable ring signature (anonymous + soundly linkable)
+mod ringsig; // LEGACY demo stand-in — RETAINED (compiled) only for its adversarial selftests (A/B); the
+             // production ccx_pq_* ring-sig core now dispatches to `raptor` below.
+mod raptor;      // clean-room Raptor linkable ring sig (eprint 2018/857) over PQClean Falcon-512
+mod falcon_ffi;  // FFI to the vendored Falcon C (rfalcon_*) + modq/comp codec helpers
+mod raptor_abi;  // Raptor compact packing + size/canonicity helpers (the codec for ccx_pq_sign/verify)
 mod detkeygen; // Deterministic FIPS-203/204 keygen from a seed (mnemonic-restorable PQ wallet keys)
 mod walletcrypto; // Wallet-file at-rest KDF (Argon2id) + AEAD (XChaCha20-Poly1305) — client-side only
 
@@ -39,14 +43,15 @@ fn ffi_guard<T, F: FnOnce() -> T>(on_panic: T, body: F) -> T {
     catch_unwind(AssertUnwindSafe(body)).unwrap_or(on_panic)
 }
 
-const PK: usize = ringsig::PK_BYTES; // lattice public key (t) bytes
-const SK: usize = 32;                // 32-byte seed (the short secret s is re-derived from it)
-const NF: usize = 32;                // link tag (nullifier) = SHAKE256 of the lattice tag I
-// SCHEME_ID is the wire-format version signal. Bumped 0x...0003 -> 0x...0004 with the K=L=4->6 param
-// change, which altered the pk/sig byte sizes: an old client now rejects the new format cleanly at the
-// version check instead of mis-parsing a wrong-sized buffer. The testnet PoC is experimental and
-// resettable, so a clean scheme bump is the right gate here (vs a height-gated hard fork on mainnet).
-const SCHEME_ID: u32 = 0xC0DE_0004;  // lattice linkable-ring-signature backend (anonymous), K=L=6
+const PK: usize = raptor_abi::PUBKEY_BYTES;    // 896 — modq(a0), canonical 14-bit packing
+const SK: usize = raptor_abi::SECKEY_BYTES;    // 48  — deterministic seed (wallet-restorable)
+const NF: usize = raptor_abi::NULLIFIER_BYTES; // 32  — SHAKE256(aots)
+// SCHEME_ID = "RAPT". The ring-sig backend swapped from the demo lattice stand-in (0xC0DE0004) to the
+// clean-room Raptor scheme; the byte sizes changed (pk 6144->896, fixed-size sig -> variable Golomb-
+// compressed sig), so an old client now rejects the new format cleanly at the scheme check instead of
+// mis-parsing. Testnet is resettable, so a clean scheme bump is the right gate here (vs a height-gated
+// hard fork on mainnet). MUST equal CryptoNoteConfig.h PQ_RING_SCHEME_ID exactly.
+const SCHEME_ID: u32 = raptor_abi::SCHEME_ID;
 // Upper bound on ring_count at the C ABI (FIX 2): a superset of the consensus PQ_MAX_RING_SIZE (16)
 // so it never rejects a consensus-valid ring, while preventing `ring_count * member_stride` from
 // overflowing usize and producing a tiny slice → OOB read in split_ring.
@@ -57,19 +62,14 @@ fn shake(parts: &[&[u8]], out: &mut [u8]) {
     for p in parts { Update::update(&mut x, p); }
     x.finalize_xof().read(out);
 }
-fn seed32(seed: &[u8]) -> [u8; 32] {
-    let mut m = [0u8; 32];
-    shake(&[b"ccx-lring-seed", seed], &mut m);
-    m
-}
-// 32-byte nullifier = SHAKE256(serialized lattice tag I). Same input on sign (ccx_pq_nullifier) and
-// verify (recovered tag), so the daemon's double-spend set is consistent.
-fn nf_from_tag(tag_bytes: &[u8]) -> [u8; NF] {
-    let mut nf = [0u8; NF];
-    shake(&[b"ccx-pq-nf", tag_bytes], &mut nf);
-    nf
-}
-fn ring_sig_size(n: usize) -> usize { ringsig::sig_bytes(n) }
+// Upper bound on the Raptor compact sig for a ring of n (the size is variable — Golomb-compressed).
+// Used for the two-call size query and as the verify DoS guard.
+fn ring_sig_size(n: usize) -> usize { raptor_abi::sig_upper_bound(n) }
+
+// Re-derive the Raptor one-time secret from a stored sk seed. The C++ spend path stores the 48-byte sk
+// that ccx_pq_keygen exported and passes it back here, so keygen/sign/nullifier all route through
+// raptor::keygen on the SAME bytes -> the pk minted at keygen equals the secret used to sign.
+fn raptor_secret(sk_seed: &[u8]) -> raptor::RaptorSecretKey { raptor::keygen(sk_seed).1 }
 
 #[no_mangle] pub extern "C" fn ccx_pq_scheme_id() -> u32 { SCHEME_ID }
 #[no_mangle] pub extern "C" fn ccx_pq_pubkey_bytes() -> usize { PK }
@@ -87,7 +87,7 @@ pub extern "C" fn ccx_pq_pubkey_is_canonical(pk: *const u8, pk_len: usize) -> i3
   ffi_guard(0, || {
     if pk.is_null() { return 0; }
     let pkb = unsafe { std::slice::from_raw_parts(pk, pk_len) };
-    ringsig::pubkey_is_canonical(pkb) as i32
+    raptor_abi::pubkey_is_canonical(pkb) as i32
   })
 }
 
@@ -99,12 +99,16 @@ pub extern "C" fn ccx_pq_keygen(seed: *const u8, seed_len: usize,
     if pk_out.is_null() || sk_out.is_null() { return -1; }
     if pk_cap < PK || sk_cap < SK { return -2; }
     let seed = if seed.is_null() { &[][..] } else { unsafe { std::slice::from_raw_parts(seed, seed_len) } };
-    let master = seed32(seed);
-    let (pk, _s, _t) = ringsig::keygen(&master);
-    if pk.len() != PK { return -7; }
+    // Normalize any-length wallet/stealth seed to the fixed 48-byte sk seed via Falcon's SHAKE so the
+    // exported sk is fixed-size and re-feedable; sign/nullifier call raptor::keygen on THIS sk and land
+    // on the same key (the C++ spend path stores + passes it back — see PqSpendBuilder).
+    let sk_seed = falcon_ffi::shake256(seed, SK);
+    let (pk, _sk) = raptor::keygen(&sk_seed);
+    let pk_enc = match falcon_ffi::modq_encode(&pk.a0) { Some(e) => e, None => return -7 };
+    if pk_enc.len() != PK { return -7; }
     unsafe {
-        std::ptr::copy_nonoverlapping(master.as_ptr(), sk_out, SK); // sk == the 32-byte seed
-        std::ptr::copy_nonoverlapping(pk.as_ptr(), pk_out, PK);
+        std::ptr::copy_nonoverlapping(sk_seed.as_ptr(), sk_out, SK); // sk = the 48-byte deterministic seed
+        std::ptr::copy_nonoverlapping(pk_enc.as_ptr(), pk_out, PK);
     }
     0
   })
@@ -118,18 +122,22 @@ pub extern "C" fn ccx_pq_nullifier(sk: *const u8, sk_len: usize,
     if sk.is_null() || nf_out.is_null() { return -1; }
     if nf_cap < NF || sk_len < SK { return -2; }
     let skb = unsafe { std::slice::from_raw_parts(sk, SK) };
-    let mut master = [0u8; 32]; master.copy_from_slice(&skb[..SK]);
-    let (_pk, s, _t) = ringsig::keygen(&master);
-    let nf = nf_from_tag(&ringsig::tag_bytes_of(&s)); // tag I = A2*s, bound to the secret
+    let secret = raptor_secret(skb);
+    let nf = raptor::nullifier(&secret); // SHAKE256(aots), bound to the secret
     unsafe { std::ptr::copy_nonoverlapping(nf.as_ptr(), nf_out, NF); }
     0
   })
 }
 
-fn split_ring(ringb: &[u8], ring_count: usize, stride: usize) -> Vec<Vec<u8>> {
-    let mut pks = Vec::with_capacity(ring_count);
-    for i in 0..ring_count { let off = i * stride; pks.push(ringb[off..off + PK].to_vec()); }
-    pks
+// Decode each on-chain member key (modq-encoded a0, PK bytes) into a ring poly. Returns None if any
+// member is malformed (non-canonical / wrong size) so sign/verify reject rather than proceed.
+fn decode_ring(ringb: &[u8], ring_count: usize, stride: usize) -> Option<Vec<[u16; falcon_ffi::N]>> {
+    let mut polys = Vec::with_capacity(ring_count);
+    for i in 0..ring_count {
+        let off = i * stride;
+        polys.push(falcon_ffi::modq_decode(&ringb[off..off + PK])?);
+    }
+    Some(polys)
 }
 
 #[no_mangle]
@@ -141,28 +149,33 @@ pub extern "C" fn ccx_pq_sign(msg: *const u8, msg_len: usize,
     if sig_len.is_null() { return -1; }
     // Bound ring_count BEFORE ring_sig_size (which multiplies by it) to avoid usize overflow.
     if ring_count == 0 || ring_count > MAX_RING_COUNT { return -4; }
-    let need = ring_sig_size(ring_count);
-    if sig_out.is_null() { unsafe { *sig_len = need; } return 0; }          // two-call size query
-    if unsafe { *sig_len } < need { unsafe { *sig_len = need; } return -2; }
+    let upper = ring_sig_size(ring_count);
+    if sig_out.is_null() { unsafe { *sig_len = upper; } return 0; } // two-call size query -> upper bound
+    let cap = unsafe { *sig_len };
     if msg.is_null() || ring.is_null() || sk.is_null() { return -1; }
     if sk_len < SK || member_stride < PK || signer_index >= ring_count { return -1; }
-    // checked_mul: a wrapped ring_count*member_stride would build a tiny slice → OOB read in split_ring.
+    // checked_mul: a wrapped ring_count*member_stride would build a tiny slice → OOB read in decode_ring.
     let ring_bytes = match ring_count.checked_mul(member_stride) { Some(b) => b, None => return -4 };
     let msg = unsafe { std::slice::from_raw_parts(msg, msg_len) };
     let skb = unsafe { std::slice::from_raw_parts(sk, SK) };
-    let mut master = [0u8; 32]; master.copy_from_slice(&skb[..SK]);
     let ringb = unsafe { std::slice::from_raw_parts(ring, ring_bytes) };
-    let pks = split_ring(ringb, ring_count, member_stride);
-    match ringsig::sign(msg, &pks, signer_index, &master) {
-        Some(sig) => {
-            if sig.len() != need { return -7; }
-            let out = unsafe { std::slice::from_raw_parts_mut(sig_out, need) };
-            out.copy_from_slice(&sig);
-            unsafe { *sig_len = need; }
-            0
-        }
-        None => -6, // signing aborted too many times (rejection sampling)
-    }
+    let ring_polys = match decode_ring(ringb, ring_count, member_stride) { Some(p) => p, None => return -1 };
+    let secret = raptor_secret(skb);
+    // Deterministic per-spend signing randomness for the PoC, bound to sk so verification reproduces.
+    // PROD GATE: replace with an audited per-spend KDF over (wallet seed, spend context) —
+    // see raptor-integration-plan.md §5.
+    let mut sign_seed = Vec::from(&b"ccx-raptor-sign"[..]);
+    sign_seed.extend_from_slice(skb);
+    let sig = match raptor::sign(msg, &ring_polys, &secret, signer_index, &sign_seed) {
+        Ok(s) => s,
+        Err(_) => return -6, // signing aborted (rejection sampling / bad inputs)
+    };
+    let packed = match raptor_abi::pack(&sig) { Some(p) => p, None => return -7 };
+    if cap < packed.len() { unsafe { *sig_len = packed.len(); } return -2; } // caller buffer too small
+    let out = unsafe { std::slice::from_raw_parts_mut(sig_out, packed.len()) };
+    out.copy_from_slice(&packed);
+    unsafe { *sig_len = packed.len(); }
+    0
   })
 }
 
@@ -175,24 +188,26 @@ pub extern "C" fn ccx_pq_verify(msg: *const u8, msg_len: usize,
     // Bound ring_count BEFORE ring_sig_size (which multiplies by it) to avoid usize overflow.
     if ring_count == 0 || ring_count > MAX_RING_COUNT { return -4; }
     if member_stride < PK { return -1; }
-    if sig_len != ring_sig_size(ring_count) { return -3; }
-    // checked_mul: a wrapped ring_count*member_stride would build a tiny slice → OOB read in split_ring.
+    // Raptor sigs are VARIABLE length (Golomb-compressed): reject only an absurdly large blob as a DoS
+    // guard, then let unpack enforce the canonical length (it rejects trailing garbage + wrong ring).
+    if sig_len == 0 || sig_len > ring_sig_size(ring_count) { return -3; }
+    // checked_mul: a wrapped ring_count*member_stride would build a tiny slice → OOB read in decode_ring.
     let ring_bytes = match ring_count.checked_mul(member_stride) { Some(b) => b, None => return -4 };
     let msg = unsafe { std::slice::from_raw_parts(msg, msg_len) };
     let sigb = unsafe { std::slice::from_raw_parts(sig, sig_len) };
     let ringb = unsafe { std::slice::from_raw_parts(ring, ring_bytes) };
-    let pks = split_ring(ringb, ring_count, member_stride);
-    // Anonymous verify: walks the symmetric ring chain; it NEVER learns which member signed.
-    match ringsig::verify(msg, &pks, sigb) {
-        Some(tag_bytes) => {
+    let ring_polys = match decode_ring(ringb, ring_count, member_stride) { Some(p) => p, None => return -1 };
+    let parsed = match raptor_abi::unpack(sigb, ring_count) { Some(s) => s, None => return -3 };
+    // Anonymous verify: checks the symmetric ring relation; it NEVER learns which member signed.
+    match raptor::verify(msg, &ring_polys, &parsed) {
+        Ok(nf) => {
             if !nf_out.is_null() {
                 if nf_cap < NF { return -2; }
-                let nf = nf_from_tag(&tag_bytes);
                 unsafe { std::ptr::copy_nonoverlapping(nf.as_ptr(), nf_out, NF); }
             }
             0
         }
-        None => -5,
+        Err(_) => -5,
     }
   })
 }
