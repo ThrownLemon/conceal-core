@@ -133,10 +133,48 @@ height — they converge on that one fork.</p>
 </blockquote>
 <hr />
 <h2
-id="d1--production-privacy-scheme--default-updated-pq-ring-signature-plaintext-amounts--scheme-gated-on-max-ring-size-elrs-vs-latticeraptor-pending-consensus">D1
-— Production privacy scheme · <strong>default (updated): PQ ring
-signature, <em>plaintext amounts</em> — scheme gated on <strong>max ring
-size</strong> (ELRS vs lattice/Raptor); pending consensus</strong></h2>
+id="d1--production-privacy-scheme--default-resolved-small-ring-pq-lattice-linkable-ring-sig--raptor-leading-pending-consensus">D1
+— Production privacy scheme · <strong>default (resolved): small-ring PQ
+lattice linkable ring sig — <em>Raptor leading</em>; pending
+consensus</strong></h2>
+<blockquote>
+<p><strong>RING-SIZE FORK DECIDED (team input): keep current ring size
+(small, ~mixin 6).</strong> That selects the <strong>small-ring
+branch</strong> — <strong>ELRS is out</strong> (its flat ~25 KB STARK
+floor is <em>wasted flatness</em> at ring-6), and the scheme is a
+<strong>small-ring lattice/NTRU linkable ring signature, plaintext
+amounts</strong>. Leaderboard at Conceal's ring size (confirm the exact
+KB against the real PDFs — eprint was blocked, see <a
+href="pq-ringsig-verdict.md"><code>pq-ringsig-verdict.md</code></a>):</p>
+<ul>
+<li><strong>Raptor</strong> (NTRU, ACNS 2019) —
+<strong>leading.</strong> ~8–10 KB at ring-6/8 (≈ <strong>5×
+smaller</strong> than the PoC's in-house lattice stand-in at ~43 KB @
+ring-6), <strong>natively linkable</strong>, <strong>NTRU/Ring-SIS
+reduction</strong> (NTRU is the Falcon/FIPS-205-adjacent family —
+well-studied), <strong>public Rust PoC</strong>
+(<code>zhenfeizhang/raptor</code>). Linear size, which is <em>fine</em>
+now that rings stay small. Catch: unaudited; ring-6 KB needs confirming
+(cited at 100-bit).</li>
+<li><strong>Harden the in-house lattice stand-in</strong> (the PoC's
+K=L=6 LSAG) — fallback. Already integrated + working end-to-end, but
+<strong>demo-grade</strong>: biased sampling, not constant-time, params
+not a calibrated 128-bit level, and ~43 KB @ ring-6 (≈5× Raptor). Would
+need a security-level recalibration + constant-time rewrite for mainnet
+anyway — so "adopt Raptor" vs "harden the stand-in" is the real
+choice.</li>
+<li><strong>MatRiCT+ ring component</strong> (Module-SIS/MLWE, C++, fast
+verify) — alternative with the <em>cleanest</em> assumption (ML-DSA
+family) and the most mature code, <strong>but</strong> RingCT-coupled
+(must extract just the plaintext linkable-membership proof; its
+standalone size isn't isolated in the paper).</li>
+</ul>
+<p><strong>Net:</strong> ELRS demoted; the production target is a
+small-ring lattice linkable ring sig, <strong>Raptor the leading
+candidate to replace the demo-grade stand-in</strong>. Cheapest de-risk:
+build Raptor's Rust PoC + benchmark size + cold-verify + sign at rings
+4/6/8 head-to-head vs the in-house stand-in.</p>
+</blockquote>
 <blockquote>
 <p><strong>DIRECTION UPDATE (team input + this session's
 benchmarks).</strong> Conceal keeps <strong>plaintext amounts</strong> —
@@ -589,12 +627,10 @@ final.</em></p>
 <tr>
 <td>D1</td>
 <td>Production privacy scheme</td>
-<td><strong>PQ ring sig, <em>plaintext amounts</em></strong> — scheme
-gated on <strong>max ring size</strong>: small (≤16) →
-lattice/<strong>Raptor</strong> (smaller + cleaner assumption); large →
-<strong>ELRS</strong>. MatRiCT-Au demoted (hides amounts → breaks
-verify-funds)</td>
-<td>lean (~65%)</td>
+<td><strong>small-ring PQ lattice linkable ring sig — Raptor
+leading</strong> (ring size decided small; ELRS demoted = wasted
+flatness; MatRiCT-Au demoted = hides amounts)</td>
+<td>lean</td>
 <td>yes (via audit)</td>
 </tr>
 <tr>
