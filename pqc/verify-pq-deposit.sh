@@ -124,12 +124,19 @@ grep -oE '([a-z]+ ){24}[a-z]+' "$GENOUT" | head -1 > "$MNEMONIC_FILE" || true
 echo "   mining address = $MINE_ADDR"
 [ -s "$MNEMONIC_FILE" ] && echo "   mnemonic captured ($(wc -w < "$MNEMONIC_FILE") words)" || echo "   (mnemonic not captured — behavior #5 will be skipped)"
 
-# ── Step 1: launch a single isolated testnet node mining to our address at log-level 3. ─────────────
-echo ">> launch isolated testnet node (mines to our address, --log-level 3 to capture PQ accept/reject lines)"
+# ── Step 1: launch TWO isolated testnet nodes (node1 mines). Two nodes that peer ONLY with each other
+#    sync trivially at genesis and node1 starts mining (the miner only starts after
+#    on_connection_synchronized(), which needs a peer) — a single isolated node never produces the PQ
+#    coinbase outputs the deposit is funded from. node1 mines to our address at log-level 3. ───────────
+N2=/tmp/ccx-pqd2; rm -rf "$N2"; mkdir -p "$N2"
+echo ">> launch 2 isolated testnet nodes (node1 mines to our address, --log-level 3 for PQ accept/reject lines)"
 setsid "$CONCEALD" --testnet --data-dir "$N1" --no-console --hide-my-port --p2p-bind-ip 127.0.0.1 \
-  --rpc-bind-port "$RPC1" --p2p-bind-port 15500 \
+  --add-exclusive-node 127.0.0.1:15600 --rpc-bind-port "$RPC1" --p2p-bind-port 15500 \
   --log-level 3 --log-file "$D1LOG" --start-mining "$MINE_ADDR" --mining-threads 4 \
   >/tmp/ccx-pqd1.out 2>&1 </dev/null &
+setsid "$CONCEALD" --testnet --data-dir "$N2" --no-console --hide-my-port --p2p-bind-ip 127.0.0.1 \
+  --add-exclusive-node 127.0.0.1:15500 --rpc-bind-port 16601 --p2p-bind-port 15600 \
+  --log-level 0 --log-file "$N2/d.log" >/tmp/ccx-pqd2.out 2>&1 </dev/null &
 
 TARGET=$((V9 + MINE_BUF))
 echo ">> wait for chain to reach height $TARGET (past V9=$V9 so PQ deposits are active + coinbase PQ outputs exist)"
