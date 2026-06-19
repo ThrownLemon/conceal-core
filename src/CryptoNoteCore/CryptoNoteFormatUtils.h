@@ -81,6 +81,13 @@ bool lookup_acc_outs(const AccountKeys& acc, const Transaction& tx, std::vector<
 bool generate_key_image_helper(const AccountKeys& ack, const crypto::PublicKey& tx_public_key, size_t real_output_index, KeyPair& in_ephemeral, crypto::KeyImage& ki);
 std::string short_hash_str(const crypto::Hash& h);
 
+// True if the transaction CREATES a classical (Ed25519) deposit output — a MultisignatureOutput with a
+// non-zero term. Single source of truth for the CIP-0001 Option-3 "PQ-only deposits after the fork"
+// freeze, shared by the authoritative Blockchain::pushBlock gate and the mempool/template policy gates
+// so they can never drift apart. CREATION-side only — never matches a withdraw (which carries a
+// MultisignatureInput and only term==0 outputs).
+bool transactionContainsClassicalDeposit(const Transaction& tx);
+
 bool get_block_hashing_blob(const Block& b, BinaryArray& blob);
 bool get_aux_block_header_hash(const Block& b, crypto::Hash& res);
 bool get_block_hash(const Block& b, crypto::Hash& res);

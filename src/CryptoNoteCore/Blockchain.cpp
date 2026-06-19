@@ -92,25 +92,9 @@ namespace cn
     return false;
   }
 
-  // True if the transaction CREATES a classical (Ed25519) deposit output — a MultisignatureOutput
-  // with a non-zero term. Used to freeze classical deposit creation at/after UPGRADE_HEIGHT_V9
-  // (CIP-0001, Option 3 "PQ-only deposits after the fork"): on exactly the block PQ deposits open,
-  // classical deposit creation closes so PqMultisig becomes the only new deposit path. CREATION-side
-  // only — this never affects spending of already-existing classical deposits (the input/interest/
-  // lock validation paths are deliberately left untouched, or pre-fork locked funds would strand).
-  // A non-deposit multisig (term == 0) is unaffected.
-  static bool transactionContainsClassicalDeposit(const Transaction &tx)
-  {
-    for (const auto &out : tx.outputs)
-    {
-      if (out.target.type() == typeid(MultisignatureOutput) &&
-          boost::get<MultisignatureOutput>(out.target).term != 0)
-      {
-        return true;
-      }
-    }
-    return false;
-  }
+  // transactionContainsClassicalDeposit (the Option-3 freeze predicate) is a shared free function in
+  // CryptoNoteFormatUtils.h — single source of truth for both this authoritative pushBlock gate and the
+  // mempool/template policy gates in TransactionPool.cpp, so they cannot drift apart.
 
   // custom serialization to speedup cache loading
   bool serialize(std::vector<std::pair<Blockchain::TransactionIndex, uint16_t>> &value, common::StringView name, cn::ISerializer &s)

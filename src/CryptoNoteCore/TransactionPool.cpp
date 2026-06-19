@@ -35,23 +35,9 @@ using namespace logging;
 namespace cn
 {
 
-  // True if the transaction CREATES a classical (Ed25519) deposit output — a MultisignatureOutput
-  // with a non-zero term. Mempool twin of Blockchain.cpp::transactionContainsClassicalDeposit (keep
-  // the two in sync). Used to reject new classical deposit creation at/after UPGRADE_HEIGHT_V9
-  // (CIP-0001, Option 3 "PQ-only deposits after the fork"): mirrors the authoritative pushBlock
-  // consensus gate so a frozen deposit never enters the pool, gets relayed, or stalls mining.
-  static bool transactionContainsClassicalDeposit(const Transaction &tx)
-  {
-    for (const auto &out : tx.outputs)
-    {
-      if (out.target.type() == typeid(MultisignatureOutput) &&
-          boost::get<MultisignatureOutput>(out.target).term != 0)
-      {
-        return true;
-      }
-    }
-    return false;
-  }
+  // transactionContainsClassicalDeposit (the Option-3 freeze predicate) is a shared free function in
+  // CryptoNoteFormatUtils.h (included above) — single source of truth shared with the authoritative
+  // Blockchain::pushBlock gate, so mempool policy and consensus cannot drift apart.
 
   //---------------------------------------------------------------------------------
   // BlockTemplate
