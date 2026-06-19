@@ -43,6 +43,7 @@ DOCS = [
     ("wallet-address-v2.md", "Wallet address v2", "Implementation"),
     ("wallet-pq-transfers.md", "Wallet PQ transfers", "Implementation"),
     ("matrict-integration-plan.md", "MatRiCT-Au integration plan", "Implementation"),
+    ("raptor-integration-plan.md", "Raptor integration plan", "Implementation"),
     ("rpc-get-pq-outputs.md", "RPC: get_pq_outputs", "Implementation"),
     ("serialization-format-spec.md", "Serialization format spec", "Implementation"),
     ("pow-grover-widening.md", "PoW Grover widening", "Implementation"),

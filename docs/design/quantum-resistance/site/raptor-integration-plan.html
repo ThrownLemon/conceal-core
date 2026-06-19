@@ -1,0 +1,320 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Raptor integration plan — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class="active"><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1
+id="raptor-integration-plan--swap-the-demo-stand-in-ring-sig-for-clean-room-raptor">Raptor
+integration plan — swap the demo stand-in ring-sig for clean-room
+Raptor</h1>
+<p><em>Ordered port plan (multi-agent integration-surface map + verified
+synthesis, 2026-06-20). Replaces conceal-core's demo-grade in-house
+lattice ring-sig stand-in (<code>pqc/ccx-pqc/src/ringsig.rs</code>,
+SCHEME_ID <code>0xC0DE0004</code>) with the clean-room
+<strong>Raptor</strong> implementation (built + hardened isolated spike
+at <code>~/raptor-spike</code> on WSL, same <code>ccx_pq_*</code> C
+ABI). <strong>Target branch <code>pqc/testnet-poc</code> — LOCAL, NOT
+pushed.</strong> Every choice below (SCHEME_ID value, ring sizes, FP
+strategy) is a <strong>provisional default awaiting team +
+external-audit consensus</strong>, never "decided." This wires an
+<strong>UNAUDITED</strong> research construction into consensus-shaped
+code on a <strong>resettable testnet</strong> — it does NOT make
+conceal-core mainnet-PQ-ready (see audit gates, §5).</em></p>
+<h2 id="0-verified-facts-that-shape-the-plan">0. Verified facts that
+shape the plan</h2>
+<ul>
+<li><strong>Current PK = 6144 B</strong>
+(<code>ringsig::PK_BYTES = K*N*4 = 6*256*4</code>,
+<code>ringsig.rs:473</code>), surfaced via
+<code>ccx_pq_pubkey_bytes()</code>. Raptor PK = <strong>896 B</strong>
+(<code>spike abi.rs:25</code>) — a shrink, but still a wire-format
+change for <code>PqKeyOutput.key</code>.</li>
+<li><strong>Raptor SCHEME_ID = <code>0x52415054</code> ("RAPT")</strong>
+in the spike, vs current <code>0xC0DE0004</code>. Pin deliberately;
+recommend adopting the spike's value (avoids spike-vs-prod KAT
+divergence) — <em>provisional default</em>.</li>
+<li><strong>Seckey 32 → 48 B</strong> (wallet-local seed, never
+on-chain; all C++ <code>ccx_pq_seckey_bytes()</code> allocations already
+runtime-queried).</li>
+<li><strong>Nullifier stays 32 B</strong> in both
+(<code>SHAKE256(aots)</code> for Raptor); confirmed opaque end-to-end →
+<strong>no spent-set changes</strong>.</li>
+<li><strong>Raptor ring-6 sig = 9,719 B</strong> vs stand-in 43,040 B —
+both fit the 256 KB sign buffers + 99.4 KB tx limit. The sig-size
+<em>formula</em> changes but is comment-only, never enforced in
+C++.</li>
+<li><strong>The spike already vendors Falcon C + a working
+<code>build.rs</code></strong> — Phase 1 is a <em>transplant</em>, not
+greenfield. Current <code>ccx-pqc</code> is pure-Rust (no
+build.rs/csrc/vendor).</li>
+<li><strong>FP-determinism is the real consensus blocker</strong> — the
+spike compiles Falcon <code>FALCON_FPNATIVE=1</code> (native double);
+its KAT "DETECTS, does not fix." Real fix = emulated/integer-FP Falcon
+(§3).</li>
+<li><strong>Map correction:</strong> the "1 hardcoded C++ constant to
+fix" (<code>PQ_KEM_PUBLIC_KEY_SIZE</code>) is an <strong>ML-KEM red
+herring</strong> — Raptor doesn't touch it. So Phase 4 collapses into
+Phase 3 (only the SCHEME_ID const).</li>
+</ul>
+<h2
+id="phase-1--buildvendoring-falcon-c--raptor-rust-into-pqcccx-pqc">Phase
+1 — Build/vendoring: Falcon C + Raptor Rust into
+<code>pqc/ccx-pqc</code></h2>
+<p>Transplant from <code>~/raptor-spike</code> (CMake invocation
+unchanged — <code>cc</code> links the <code>.o</code>s into
+<code>libccx_pqc.a</code>):</p>
+<ol type="1">
+<li>Create <code>pqc/ccx-pqc/vendor/falcon/</code> — copy the 18
+vendored Falcon files verbatim (keep <code>LICENSE.falcon</code>,
+MIT/CC0; record provenance).</li>
+<li>Create <code>pqc/ccx-pqc/csrc/raptor_falcon.c</code> (the clean-room
+shim). Leave <code>abi_test.c</code> out.</li>
+<li>Create <code>pqc/ccx-pqc/build.rs</code> — port from the spike.
+<strong>Use the emulated-FP define (not
+<code>FALCON_FPNATIVE</code>)</strong> once the FP task lands (§3).</li>
+<li><code>Cargo.toml</code>: add <code>[build-dependencies] cc</code>,
+<code>[dependencies] rand</code>/<code>rand_chacha</code> (verify no
+clash with the exact-pinned
+<code>ml-kem</code>/<code>ml-dsa</code>/<code>hybrid-array</code>); keep
+<code>panic="unwind"</code> (FFI guard) +
+<code>crate-type=["staticlib"]</code>.</li>
+<li>Copy <code>raptor.rs</code>, <code>falcon_ffi.rs</code>, the
+relevant <code>abi.rs</code> body into <code>src/</code>. Don't import
+the spike's <code>src/bin/*</code>.</li>
+<li>Re-pin <code>Cargo.lock</code> after deps settle.</li>
+</ol>
+<ul>
+<li><strong>Gate:</strong> <code>cargo build --release</code> green on
+WSL; <code>nm libccx_pqc.a | grep -E 'ccx_pq_sign|falcon'</code>.</li>
+</ul>
+<h2
+id="phase-2--swap-the-ccx_pq_-impl-in-librs-abi-unchanged--no-c-call-site-changes">Phase
+2 — Swap the <code>ccx_pq_*</code> impl in <code>lib.rs</code> (ABI
+unchanged → no C++ call-site changes)</h2>
+<ol type="1">
+<li><code>lib.rs</code>: repoint <code>PK/SK/NF/ring_sig_size()</code>
+to Raptor; rewire
+<code>ccx_pq_keygen/nullifier/sign/verify/pubkey_is_canonical</code> to
+<code>raptor::*</code>/<code>abi::*</code>. <strong>Preserve
+<code>ffi_guard()</code> panic-catch + the i32 0/negative
+contract</strong> (a panic across FFI = UB).</li>
+<li><code>ringsig.rs</code>: <strong>retire, don't delete</strong> (keep
+behind <code>#[cfg(feature="legacy_ringsig")]</code> for A/B selftests;
+remove in a later cleanup — immutability-of-reference).</li>
+<li><code>pq_ring_sig.h</code>: no signature changes; update the
+size/scheme comments only.</li>
+</ol>
+<h2 id="phase-3-4-collapsed--scheme_id--wire-bump">Phase 3 (+4
+collapsed) — SCHEME_ID / wire bump</h2>
+<ol type="1">
+<li><code>src/CryptoNoteConfig.h:191</code> —
+<code>PQ_RING_SCHEME_ID</code> → chosen value (must equal
+<code>ccx_pq_scheme_id()</code> exactly or every PQ address parse
+fails).</li>
+<li><code>CryptoNoteConfig.h:199-201</code> — update the
+<code>sig_bytes</code> comment; re-confirm
+<code>PQ_MAX_RING_SIZE=8</code> headroom (Raptor ring-8 ≈ 12-13 KB, far
+under the tx limit).</li>
+<li><strong>No</strong> change at
+<code>CryptoNoteBasicImpl.cpp:124</code> (ML-KEM, not ring-sig).
+<strong>No</strong> serialization-code change (length-prefixed, variant
+<code>0x4</code>, absorbs new sizes). On-chain bytes differ →
+<strong>testnet reset</strong>.</li>
+</ol>
+<h2 id="phase-5--nullifier-confirm-verify-dont-edit">Phase 5 — Nullifier
+confirm (verify, don't edit)</h2>
+<p>Opaque 32-byte blob throughout <code>m_spent_pq_nullifiers</code>
+(pre-check/bind/insert/rollback/rebuild/persist). Raptor nullifier = 32
+B, same. Action: confirm <code>recoveredNf == txin.nullifier</code> on a
+Raptor sig (covered by the Phase 6 round-trip test).</p>
+<h2 id="phase-6--tests--golden-vectors">Phase 6 — Tests / golden
+vectors</h2>
+<ol type="1">
+<li><code>pqc/tests/tx_roundtrip.cpp</code> — replace magic numbers
+(<code>ringSig 21104</code>, <code>key 1312→896</code>, assertion) with
+<code>ccx_pq_*_bytes()</code>/sign-then-measure.</li>
+<li><code>tests/UnitTests/TestTransactionSerializationGolden.cpp</code>
+— synthetic fixed-size payloads → hex should be
+<strong>unchanged</strong> (envelope, not size). Re-run, update only if
+it actually changes; don't pre-emptively rewrite.</li>
+<li><code>pqc/test_pqc.cpp</code> — auto-adapts; primary fast Raptor
+smoke.</li>
+<li>Repoint the <code>ccx_pqr_*</code> selftests
+(forgery/soundness/ntt_equiv) to Raptor's adversarial harnesses + the
+KAT tripwire (the NTT-equiv test is stand-in-specific → replace with the
+keygen-KAT digest).</li>
+<li>Shell e2e (<code>pqc/*.sh</code>) — <strong>no edits</strong>
+(RPC/wallet-level, scheme-agnostic); they are the acceptance gate.</li>
+</ol>
+<h2 id="3-fp-determinism-prerequisite-needs-care--consensus-blocker">3.
+FP-determinism PREREQUISITE
+<code>[needs-care — consensus blocker]</code></h2>
+<p><strong>Not consensus-safe until Falcon keygen is deterministic
+across platforms.</strong> Native FP ⇒ different CPUs derive different
+<code>a0</code>/<code>aots</code> from the same seed ⇒ chain split +
+unspendable restores. The ABI is independent of this, so <strong>Phases
+1/2/5/6 may proceed now on a single machine</strong>; but <strong>Phase
+3 (SCHEME_ID pin) and any multi-node / "blessed testnet" run must
+wait</strong> for the emulated-FP build (flip <code>build.rs</code> off
+<code>FALCON_FPNATIVE</code>, re-pin KAT under emulated FP, prove
+same-seed→same-digest on a 2nd arch). <strong>Land FP-emulation before
+minting the SCHEME_ID</strong> so the id is committed against the
+deterministic build.</p>
+<h2 id="4-build--test-sequence-wsl-10010090103-claudewsl-buildsh">4.
+Build + test sequence (WSL <code>100.100.90.103</code>,
+<code>.claude/wsl-build.sh</code>)</h2>
+<pre><code># 1. Phase 1 gate
+ssh 100.100.90.103 &#39;cd ~/conceal-core/pqc/ccx-pqc &amp;&amp; cargo build --release &amp;&amp; nm target/release/libccx_pqc.a | grep -E &quot;ccx_pq_sign|falcon&quot;&#39;
+# 2. Full build with tests
+.claude/wsl-build.sh clean &amp;&amp; .claude/wsl-build.sh build      # -DBUILD_TESTS=ON -DSTATIC=ON, -j16
+# 3. Crypto smoke
+ssh 100.100.90.103 &#39;cd ~/conceal-core/build &amp;&amp; ./pqc/test_pqc &amp;&amp; ./pqc/tx_roundtrip&#39;
+# 4. Unit subset (respect the baked-in gtest skip list)
+ssh 100.100.90.103 &#39;cd ~/conceal-core/build &amp;&amp; ./tests/UnitTests --gtest_filter=&quot;*Pq*:TransactionSerializationGolden.*&quot;&#39;
+# 5. e2e on a fresh (resettable) testnet — wipe data dir between Raptor / pre-Raptor runs
+ssh 100.100.90.103 &#39;cd ~/conceal-core &amp;&amp; pqc/run-poc-testnet.sh &amp;&amp; pqc/verify-wallet-spend.sh &amp;&amp; pqc/verify-wallet-w2w.sh &amp;&amp; pqc/verify-pq-deposit.sh &amp;&amp; pqc/verify-deposit-freeze.sh&#39;
+# 6. (FP gate) build emulated-FP crate on x86_64 + a 2nd target; assert equal KAT_KEYGEN_DIGEST</code></pre>
+<p>Load-bearing consensus checks: <code>run-poc-testnet.sh</code>
+double-spend rejection + ring-sig accept/reject.</p>
+<h2 id="5-stays-gated-for-the-external-audit--not-mainnet-ready">5.
+Stays GATED for the external audit — NOT mainnet-ready</h2>
+<ul>
+<li><strong>Raptor's cryptographic soundness</strong>
+(linkability/anonymity/unforgeability proofs + the clean-room impl)
+needs an external cryptographer. In-crate adversarial tests are
+necessary, not sufficient.</li>
+<li><strong>FP-determinism</strong> completed + cross-arch-verified
+before any chain is canonical.</li>
+<li><strong>Falcon constant-time / side-channel</strong> review of the
+signing path.</li>
+<li><strong>Parameter / size review at consensus scale</strong> (ring
+size, tx-size, verify-CPU-DoS under adversarial inputs).</li>
+<li><strong>SCHEME_ID as a permanent commitment</strong> — mint only
+against the deterministic, audited build.</li>
+<li><strong>Wallet spend-path completeness</strong> re-confirmed under
+Raptor.</li>
+</ul>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>
