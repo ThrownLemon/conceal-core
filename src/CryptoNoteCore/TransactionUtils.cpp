@@ -127,27 +127,29 @@ bool findOutputsToAccount(const cn::TransactionPrefix& transaction, const Accoun
   crypto::PublicKey txPubKey = getTransactionPublicKeyFromExtra(transaction.extra);
 
   amount = 0;
-  size_t keyIndex = 0;
   uint32_t outputIndex = 0;
 
   crypto::KeyDerivation derivation;
   generate_key_derivation(txPubKey, keys.viewSecretKey, derivation);
 
+  // Underive each KeyOutput at its OUTPUT POSITION (outputIndex), matching construction (which derives
+  // every output key at its position) and the Multisignature branch below (which already uses
+  // outputIndex). A prior key-slot counter skipped PqKeyOutput/PqMultisigOutput, so a Key output after
+  // a PQ output (e.g. the testnet PQ-coinbase remainder) was underived at the wrong index and missed.
   for (const TransactionOutput& o : transaction.outputs) {
-    assert(o.target.type() == typeid(KeyOutput) || o.target.type() == typeid(MultisignatureOutput));
+    assert(o.target.type() == typeid(KeyOutput) || o.target.type() == typeid(MultisignatureOutput) ||
+           o.target.type() == typeid(PqKeyOutput) || o.target.type() == typeid(PqMultisigOutput));
     if (o.target.type() == typeid(KeyOutput)) {
-      if (is_out_to_acc(keys, boost::get<KeyOutput>(o.target), derivation, keyIndex)) {
+      if (is_out_to_acc(keys, boost::get<KeyOutput>(o.target), derivation, static_cast<size_t>(outputIndex))) {
         out.push_back(outputIndex);
         amount += o.amount;
       }
-      ++keyIndex;
     } else if (o.target.type() == typeid(MultisignatureOutput)) {
       const auto& target = boost::get<MultisignatureOutput>(o.target);
       for (const auto& key : target.keys) {
         if (isOutToKey(keys.address.spendPublicKey, key, derivation, static_cast<size_t>(outputIndex))) {
           out.push_back(outputIndex);
         }
-        ++keyIndex;
       }
     }
     ++outputIndex;

@@ -65,9 +65,14 @@ void findMyOutputs(
     return;
   }
 
-  size_t keyIndex = 0;
   size_t outputCount = tx.getOutputCount();
 
+  // The one-time key of every output is derived at its OUTPUT POSITION (idx) on the construction side
+  // (TransactionImpl::addOutput uses transaction.outputs.size(); the coinbase remainder uses
+  // tx.outputs.size()). Scanning must underive at the same idx — NOT a key-slot counter that skips
+  // PqKeyOutput/PqMultisigOutput. Using idx for both branches keeps construction and scan aligned even
+  // when a non-Key output (e.g. the testnet PQ coinbase output) precedes a Key output. This recognizes
+  // a superset of the old behavior: any output the old scan matched necessarily had keyIndex == idx.
   for (size_t idx = 0; idx < outputCount; ++idx) {
 
     auto outType = tx.getOutputType(size_t(idx));
@@ -77,8 +82,7 @@ void findMyOutputs(
       uint64_t amount;
       KeyOutput out;
       tx.getOutput(idx, out, amount);
-      checkOutputKey(derivation, out.key, keyIndex, idx, spendKeys, outputs);
-      ++keyIndex;
+      checkOutputKey(derivation, out.key, idx, idx, spendKeys, outputs);
 
     } else if (outType == transaction_types::OutputType::Multisignature) {
 
@@ -87,7 +91,6 @@ void findMyOutputs(
       tx.getOutput(idx, out, amount);
       for (const auto& key : out.keys) {
         checkOutputKey(derivation, key, idx, idx, spendKeys, outputs);
-        ++keyIndex;
      }
     }
   }
