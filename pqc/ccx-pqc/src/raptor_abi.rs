@@ -73,7 +73,12 @@ fn get_varint(inp: &[u8], pos: &mut usize) -> Option<u64> {
         if *pos >= inp.len() || shift >= 64 { return None; }
         let byte = inp[*pos]; *pos += 1;
         v |= ((byte & 0x7f) as u64) << shift;
-        if byte & 0x80 == 0 { break; }
+        if byte & 0x80 == 0 {
+            // reject overlong (non-canonical) encodings — a multi-byte varint whose terminating group
+            // is zero could also be written shorter; canonical wire = no malleable length prefixes.
+            if shift > 0 && byte == 0 { return None; }
+            break;
+        }
         shift += 7;
     }
     Some(v)
@@ -128,7 +133,16 @@ pub fn unpack(inp: &[u8], expect_ring: usize) -> Option<Signature> {
         members.push(Member { r0, r1, b });
     }
     if pos + PUBKEY_BYTES > inp.len() { return None; }
-    let aots = fc::modq_decode(&inp[pos..pos + PUBKEY_BYTES])?;
+    let aots_bytes = &inp[pos..pos + PUBKEY_BYTES];
+    let aots = fc::modq_decode(aots_bytes)?;
+    // Canonical aots: re-encoding must reproduce the exact bytes (same round-trip check as
+    // pubkey_is_canonical). The nullifier binds aots, and the on-chain sig must have a UNIQUE byte
+    // encoding — rejecting a non-canonical packing here prevents signature/txid malleability via an
+    // alternate aots encoding. (For q<2^14 the 14-bit packing is injective, so this is also a proof.)
+    match fc::modq_encode(&aots) {
+        Some(re) if re.len() == PUBKEY_BYTES && re.as_slice() == aots_bytes => {}
+        _ => return None,
+    }
     pos += PUBKEY_BYTES;
     let s0b = get_blob(inp, &mut pos)?;
     let s0 = fc::comp_decode(s0b)?;

@@ -14,9 +14,16 @@
 // unnamespaced symbols (shake256_inc_*, sha3_*, randombytes, …).  Two definitions with potentially
 // different `shake256incctx` layouts in one archive => the linker binds Falcon's `inner_shake256_*`
 // (which inner.h maps to shake256_inc_*) to the WRONG implementation => state-struct overflow / stack
-// smash.  We therefore rename every fips202/randombytes public symbol Falcon defines+uses to a
-// `ccxfalcon_`-prefixed name via -D, applied to ALL Falcon translation units so definition and call
-// sites stay consistent, fully isolating Falcon's hashing from the pqcrypto crates'.
+// smash.  We therefore rename every fips202 public symbol Falcon defines+uses to a `ccxfalcon_`-prefixed
+// name via -D, applied to ALL Falcon translation units so definition and call sites stay consistent,
+// fully isolating Falcon's hashing (the consensus-critical collision) from the pqcrypto crates'.
+// NOTE on `randombytes`: vendor/falcon/randombytes.h carries its OWN `#define randombytes
+// PQCLEAN_randombytes`, which (being in-source) wins over our command-line -D, so Falcon's randombytes
+// resolves to `PQCLEAN_randombytes` rather than `ccxfalcon_randombytes`.  Verified harmless: `nm` shows
+// a single `PQCLEAN_randombytes` def and ZERO undefined `randombytes` refs — Falcon's deterministic
+// keygen/sign here are seeded (inner_shake256 over a caller seed) and never call OS randombytes, and
+// det-keygen is confirmed bit-exact (KAT sweep).  The -D for randombytes is thus a no-op kept only for
+// documentation symmetry.
 
 use std::path::PathBuf;
 

@@ -24,6 +24,7 @@ use pqcrypto_dilithium::dilithium3;
 use pqcrypto_traits::kem::{PublicKey as KP, SecretKey as KS, Ciphertext as KC, SharedSecret as KSS};
 use pqcrypto_traits::sign::{PublicKey as SP, SecretKey as SS, SignedMessage as SM, DetachedSignature as SD};
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use rand::RngCore; // OsRng → fresh per-spend signing entropy in ccx_pq_sign (anti lattice-nonce-reuse)
 
 mod ringsig; // LEGACY demo stand-in — RETAINED (compiled) only for its adversarial selftests (A/B); the
              // production ccx_pq_* ring-sig core now dispatches to `raptor` below.
@@ -120,7 +121,7 @@ pub extern "C" fn ccx_pq_nullifier(sk: *const u8, sk_len: usize,
                                    nf_out: *mut u8, nf_cap: usize) -> i32 {
   ffi_guard(-99, || {
     if sk.is_null() || nf_out.is_null() { return -1; }
-    if nf_cap < NF || sk_len < SK { return -2; }
+    if nf_cap < NF || sk_len != SK { return -2; } // exactly the 48-byte sk keygen exported (see ccx_pq_sign)
     let skb = unsafe { std::slice::from_raw_parts(sk, SK) };
     let secret = raptor_secret(skb);
     let nf = raptor::nullifier(&secret); // SHAKE256(aots), bound to the secret
@@ -153,7 +154,10 @@ pub extern "C" fn ccx_pq_sign(msg: *const u8, msg_len: usize,
     if sig_out.is_null() { unsafe { *sig_len = upper; } return 0; } // two-call size query -> upper bound
     let cap = unsafe { *sig_len };
     if msg.is_null() || ring.is_null() || sk.is_null() { return -1; }
-    if sk_len < SK || member_stride < PK || signer_index >= ring_count { return -1; }
+    // sk_len MUST be exactly SK: ccx_pq_keygen exports a 48-byte sk and the C++ spend path passes it
+    // back verbatim. Accepting sk_len > SK and truncating would let a raw wallet seed produce a key that
+    // differs from what keygen minted -> a nullifier that never matches -> silent double-spend break.
+    if sk_len != SK || member_stride < PK || signer_index >= ring_count { return -1; }
     // checked_mul: a wrapped ring_count*member_stride would build a tiny slice → OOB read in decode_ring.
     let ring_bytes = match ring_count.checked_mul(member_stride) { Some(b) => b, None => return -4 };
     let msg = unsafe { std::slice::from_raw_parts(msg, msg_len) };
@@ -161,11 +165,20 @@ pub extern "C" fn ccx_pq_sign(msg: *const u8, msg_len: usize,
     let ringb = unsafe { std::slice::from_raw_parts(ring, ring_bytes) };
     let ring_polys = match decode_ring(ringb, ring_count, member_stride) { Some(p) => p, None => return -1 };
     let secret = raptor_secret(skb);
-    // Deterministic per-spend signing randomness for the PoC, bound to sk so verification reproduces.
-    // PROD GATE: replace with an audited per-spend KDF over (wallet seed, spend context) —
-    // see raptor-integration-plan.md §5.
-    let mut sign_seed = Vec::from(&b"ccx-raptor-sign"[..]);
+    // Per-spend signing randomness: FRESH OS entropy mixed with sk + msg, so two spends from the SAME
+    // key never reuse the sampler randomness across different messages — a deterministic, message-
+    // independent seed is the classic lattice nonce-reuse that leaks the Falcon trapdoor after two
+    // signatures (Codex C-1). The nullifier is derived from the SECRET (aots), NOT from this seed, so
+    // randomizing here does NOT affect double-spend linkability or verification. PROD GATE: a production
+    // wallet should derive this from a hardened per-spend KDF over wallet state (still an audit item),
+    // but this closes the reuse break — see raptor-integration-plan.md §5.
+    let mut os_rand = [0u8; 32];
+    rand::rngs::OsRng.fill_bytes(&mut os_rand);
+    let mut sign_seed = Vec::with_capacity(15 + SK + 32 + msg.len());
+    sign_seed.extend_from_slice(b"ccx-raptor-sign");
     sign_seed.extend_from_slice(skb);
+    sign_seed.extend_from_slice(&os_rand);
+    sign_seed.extend_from_slice(msg);
     let sig = match raptor::sign(msg, &ring_polys, &secret, signer_index, &sign_seed) {
         Ok(s) => s,
         Err(_) => return -6, // signing aborted (rejection sampling / bad inputs)

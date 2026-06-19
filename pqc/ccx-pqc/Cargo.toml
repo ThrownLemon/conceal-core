@@ -2,7 +2,7 @@
 name = "ccx-pqc"
 version = "0.1.0"
 edition = "2021"
-description = "Conceal post-quantum crypto module (C-ABI). Real ML-KEM/ML-DSA; ring-sig is an INSECURE STUB pending the audited lattice backend."
+description = "Conceal post-quantum crypto module (C-ABI). Real ML-KEM/ML-DSA; ring-sig is an unaudited clean-room Raptor PoC (eprint 2018/857) over PQClean Falcon-512 — NOT production-ready (see docs raptor-integration-plan.md sec 5)."
 
 [lib]
 name = "ccx_pqc"
