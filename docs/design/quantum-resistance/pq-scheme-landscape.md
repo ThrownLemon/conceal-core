@@ -10,7 +10,7 @@
 >   over MatRiCT-Au.** The "#1 successor" ranking below is retracted.
 > - **ELRS — NOT the clear winner after the focused follow-up sweep** ([`pq-ringsig-verdict.md`](pq-ringsig-verdict.md),
 >   ~65% confidence). Flat ~25–29 KB is a real win at *large* rings, but **at Conceal's small rings (5–16) it's
->   wasted flatness — linear lattice schemes (Raptor ~10 KB @ ring-8) are SMALLER and rest on a CLEANER
+>   wasted flatness — linear lattice schemes (Raptor measured 10.2 KB @ ring-6) are SMALLER and rest on a CLEANER
 >   (Module-SIS/NIST) assumption** vs ELRS's conjectured hash/FRI. And the **verify is contested** (0.3 ms
 >   measured vs 128 ms paper). **The choice hinges on max ring size, not the crypto.** §G + the verdict doc.
 > - **MatRiCT-Au measured:** 107.4 KB, ~12 ms verify, 63 ms prove (Ryzen 5950X) — remains the only full,
@@ -117,7 +117,7 @@ Do **not** commit to building on LaZer/LaBRADOR yet (research-grade gap + soundn
 | Scheme | Type | Proof size | Verify | Implementation | Audit | Verdict |
 |---|---|---|---|---|---|---|
 | **MatRiCT-Au** *(baseline)* | lattice ring-RingCT + auditability | ~107 KB floor (58 KB unbuilt) | ~45 ms | research C, in-repo lib | none | Incumbent; full feature set, heavy |
-| **Gao et al.** | lattice ring-RingCT | ~50% < MatRiCT (abs. unconfirmed) | ~20% faster (~36 ms-class) | **Golang, open** | none | **Top successor — evaluate next** |
+| **Gao et al.** | lattice ring-RingCT | ~50% < MatRiCT (abs. unconfirmed) | ~20% faster (~36 ms-class) | **Golang, open** | none | **DOWNGRADED** (benchmarked: "50% smaller" is vs *original* MatRiCT 2019, not MatRiCT-Au; not a demonstrated win — see banner) |
 | MatRiCT+ | lattice ring-RingCT | 2–18× < MatRiCT | 3–11× faster | research C | none | Conservative fallback (no auditability) |
 | **ELRS (STARK)** | linkable ring sig (no amounts) | ~29 KB @ring 1024 | 0.3 ms amortized / 128 ms single | research | none | **Strong if amounts stay plaintext** |
 | SMILE | lattice set-membership | 16–22 KB ring sig | not reported | research | none | Good membership building block |

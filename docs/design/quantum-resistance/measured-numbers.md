@@ -379,15 +379,20 @@ against the PoC's in-house lattice ring-sig stand-in (`ccx-pqc` K=L=6, N=256).
   the signer's `h`); maps to a key-image/nullifier, same role as the stand-in's `SHAKE256(I)`.
 - **Catches (load-bearing for integration):** (1) the compact sizes above are **paper/model** — the reference
   binary emits a **~4× bloated `int64` debug encoding**; production must implement the compact packing
-  (~14 bits/coeff, a `TODO` in the repo). My 14-bit-packed model independently agrees within ~15%. (2) **GPLv3**
-  license — compatibility with Conceal must be cleared. (3) **C, not Rust** → C-FFI integration, not the
-  existing `ccx-pqc` Rust-FFI pattern (rewrite/bind or port). (4) Falcon's **floating-point Gaussian sampler**
-  is a known constant-time / portability hazard. (5) Unaudited research code.
+  (~14 bits/coeff, a `TODO` in the repo). My 14-bit-packed model independently agrees within ~15%. (2) **LICENSE —
+  resolved into a path:** the upstream Raptor repo is **GPL + patent-asserted** and **cannot be copied** into MIT
+  Conceal — but the *construction* is a published algorithm (eprint 2018/857) and **Falcon is NIST FIPS 206,
+  patent-free/royalty-free**, so the route is a **clean-room reimplementation over permissive PQClean Falcon
+  (public-domain)**, reimplemented in the existing Rust `ccx-pqc` island (so "C, not Rust" is moot — we don't bind
+  the GPL C). *An isolated clean-room spike is in progress* (behind the `ccx_pq_*` ABI, not wired into consensus).
+  (3) Raptor needs Falcon's **low-level trapdoor preimage sampler**, not just stock FN-DSA sign/verify. (4) Falcon's
+  **floating-point Gaussian sampler** is a constant-time **and consensus-determinism** hazard (cross-platform FP
+  rounding → block-validation split). (5) Unaudited research code.
 
 **Verdict:** Raptor beats the in-house stand-in on size, verify, assumption-cleanliness/calibration, and
 maturity — it is the **production candidate to track** for the small-ring plaintext path. The work is in the
-*integration* (compact packing, C/Rust + GPLv3, constant-time sampler, audit), not the cryptography. *(Raw notes
-on WSL `~/raptor-bench-notes.md`.)*
+*integration* (clean-room reimpl over PQClean Falcon, compact packing, constant-time/deterministic sampler, audit),
+not the cryptography. *(Raw notes on WSL `~/raptor-bench-notes.md`.)*
 
 ---
 

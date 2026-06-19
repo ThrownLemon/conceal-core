@@ -114,14 +114,20 @@ Linkable Ring Signature Verdict for Conceal (Plaintext-Amounts
 Path)</h1>
 <blockquote>
 <p><strong>MEASURED UPDATE (supersedes Raptor estimates below).</strong>
-Conceal decided to keep <strong>small rings</strong>, selecting Raptor
-as the lead. It was then built + benchmarked (<a
-href="measured-numbers.md"><code>measured-numbers.md</code></a> §I):
+The selected default (pending team consensus) keeps <strong>small
+rings</strong> with Raptor as the lead. It was then built + benchmarked
+(<a href="measured-numbers.md"><code>measured-numbers.md</code></a> §I):
 <strong>10.2 KB @ ring-6 (4.1× smaller than the in-house stand-in, not
 5×), 0.79 ms verify (2.5× faster), NIST cat-1 <em>calibrated</em>
 (Falcon-512), confirmed linkable.</strong> Corrections to the table
-below: Raptor is <strong>C, not Rust</strong>; <strong>GPLv3</strong>;
-the compact size needs the reference's TODO packing (binary emits ~4×
+below: Raptor's reference is <strong>C, not Rust</strong>.
+<strong>License resolved into a path:</strong> the upstream repo is
+<strong>GPL + patent-asserted</strong> and cannot be copied into MIT
+Conceal — but the construction is published (eprint 2018/857) and
+<strong>Falcon is NIST FIPS 206, royalty-free</strong>, so the route is
+a <strong>clean-room reimplementation over permissive PQClean
+Falcon</strong> (MIT-clean); an isolated spike is in progress. The
+compact size still needs the reference's TODO packing (binary emits ~4×
 bloat). It beats the stand-in on every axis — the work is the
 <em>integration</em>, not the crypto.</p>
 </blockquote>

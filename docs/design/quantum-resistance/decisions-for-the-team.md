@@ -43,15 +43,17 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 >   rounding can differ across platforms → block-validation split); (5) unaudited research code.
 > - **Harden the in-house lattice stand-in** (the PoC's K=L=6 LSAG) — fallback. Already integrated + working
 >   end-to-end, but **demo-grade**: biased sampling, not constant-time, params not a calibrated 128-bit level,
->   and ~43 KB @ ring-6 (≈5× Raptor). Would need a security-level recalibration + constant-time rewrite for
->   mainnet anyway — so "adopt Raptor" vs "harden the stand-in" is the real choice.
+>   and ~42 KB @ ring-6 (≈4× Raptor, measured). Would need a security-level recalibration + constant-time rewrite
+>   for mainnet anyway — so "adopt Raptor" vs "harden the stand-in" is the real choice.
 > - **MatRiCT+ ring component** (Module-SIS/MLWE, C++, fast verify) — alternative with the *cleanest* assumption
 >   (ML-DSA family) and the most mature code, **but** RingCT-coupled (must extract just the plaintext
 >   linkable-membership proof; its standalone size isn't isolated in the paper).
 >
 > **Net:** ELRS demoted; the production target is a small-ring lattice linkable ring sig, **Raptor the leading
-> candidate to replace the demo-grade stand-in**. Cheapest de-risk: build Raptor's Rust PoC + benchmark size +
-> cold-verify + sign at rings 4/6/8 head-to-head vs the in-house stand-in.
+> candidate to replace the demo-grade stand-in** — now benchmarked (the GPL C reference) at 4.1× smaller / 2.5×
+> faster verify. Next de-risk (in progress): an **isolated clean-room Raptor spike** — reimplement the construction
+> over permissive PQClean Falcon (MIT-clean; the GPL repo can't be copied) behind the existing `ccx_pq_*` ABI, to
+> validate linkability + measure the real *compact* size before any consensus swap.
 
 > **DIRECTION UPDATE (team input + this session's benchmarks).** Conceal keeps **plaintext amounts** — its
 > **verify-funds feature needs visible amounts** — so **confidential-amount RingCT (MatRiCT-Au) is the wrong
@@ -71,7 +73,7 @@ above because it hides amounts:
 
 | Option | Privacy | Spend size | Verify | Storage/yr | Maturity | Notes |
 |---|---|---|---|---|---|---|
-| **A — MatRiCT-Au** (lattice RingCT, log-size) | **full ring + confidential amounts** | **~107 KB** *(58 KB only w/ compression — see note)* | ~45 ms | **~33–35 GB** | research code, builds; **library-ized this session** (`~/matrict-lib`) | the privacy-preserving production target |
+| **A — MatRiCT-Au** (lattice RingCT, log-size) | **full ring + confidential amounts** | **~107 KB** *(58 KB only w/ compression — see note)* | ~45 ms | **~33–35 GB** | research code, builds; **library-ized this session** (`~/matrict-lib`) | **DEMOTED** — the confidential-amounts option; not selected, because amounts are kept plaintext (verify-funds) |
 | B — keep the lattice **stand-in** | full ring, plaintext amounts | 25–61 KB (ring 2–8) | ~1 ms | ~13 GB | **experimental, unaudited, demo-grade** | the current PoC engine; **not mainnet-safe** |
 | C — **Falcon, no ring** (stealth only) | **no sender anonymity** | 6.4 KB | 0.2 ms | ~1.9 GB | NIST-standardized | smallest/fastest, but drops Conceal's core privacy |
 
@@ -122,8 +124,9 @@ while A is integrated + audited; see [`matrict-integration-plan.md`](matrict-int
 >   the answer hinges on max ring size, not the crypto:**
 >   - **At Conceal's *small* rings (mixin 5–16) — ELRS does NOT win.** Its flat ~25 KB is *wasted flatness*;
 >     **linear lattice schemes are SMALLER and have a CLEANER assumption** here: **Raptor** (NTRU, natively
->     linkable, Rust PoC) ~10 KB @ ring-8 / ~21 KB @ ring-16; *LAPQ-LRS* (MLWE/MSIS, ML-DSA family) ~4.4 KB @
->     ring-8 *if its numbers hold*. ELRS's security is *conjectured hash/FRI* (no reduction); the lattice
+>     linkable; C reference) **measured 10.2 KB @ ring-6 / 13.1 KB @ ring-8 / 24.7 KB @ ring-16**; *LAPQ-LRS*
+>     (MLWE/MSIS, ML-DSA family) ~4.4 KB @ ring-8 *if its numbers hold*. ELRS's security is *conjectured hash/FRI*
+>     (no reduction); the lattice
 >     schemes reduce to **Module-SIS/MLWE — the NIST ML-DSA assumptions**. Cleaner footing.
 >   - **Only if Conceal grows rings to ≥64–1024** does ELRS's flatness pay off (linear schemes hit MBs there).
 >   - **And the verify advantage is CONTESTED** — measured 0.3 ms vs the paper's ~128 ms (amortized-vs-cold);
@@ -233,7 +236,7 @@ mainnet** to preserve deposit privacy. Reversible; team to confirm. **Who confir
 
 **The choice.** What must be professionally audited, and in what order, before mainnet. The non-negotiable
 gate. Scope at minimum:
-- the production ring-sig/RingCT construction (**MatRiCT-Au** per **D1**) + its integration;
+- the production PQ linkable-ring-sig construction (**Raptor** per **D1** — clean-room over PQClean Falcon) + its integration;
 - the **ML-DSA-65 deposit** money paths (interest/lock/reorg) + the consensus PQ-input validators;
 - **constant-time / side-channel** review of the lattice code;
 - the wallet money-path scanning (the output-index alignment fixed this session is wallet-side, but the whole

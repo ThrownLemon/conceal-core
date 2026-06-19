@@ -2,12 +2,15 @@
 
 # PQ Linkable Ring Signature Verdict for Conceal (Plaintext-Amounts Path)
 
-> **MEASURED UPDATE (supersedes Raptor estimates below).** Conceal decided to keep **small rings**, selecting
-> Raptor as the lead. It was then built + benchmarked ([`measured-numbers.md`](measured-numbers.md) §I):
+> **MEASURED UPDATE (supersedes Raptor estimates below).** The selected default (pending team consensus) keeps
+> **small rings** with Raptor as the lead. It was then built + benchmarked ([`measured-numbers.md`](measured-numbers.md) §I):
 > **10.2 KB @ ring-6 (4.1× smaller than the in-house stand-in, not 5×), 0.79 ms verify (2.5× faster),
-> NIST cat-1 *calibrated* (Falcon-512), confirmed linkable.** Corrections to the table below: Raptor is **C, not
-> Rust**; **GPLv3**; the compact size needs the reference's TODO packing (binary emits ~4× bloat). It beats the
-> stand-in on every axis — the work is the *integration*, not the crypto.
+> NIST cat-1 *calibrated* (Falcon-512), confirmed linkable.** Corrections to the table below: Raptor's reference is
+> **C, not Rust**. **License resolved into a path:** the upstream repo is **GPL + patent-asserted** and cannot be
+> copied into MIT Conceal — but the construction is published (eprint 2018/857) and **Falcon is NIST FIPS 206,
+> royalty-free**, so the route is a **clean-room reimplementation over permissive PQClean Falcon** (MIT-clean); an
+> isolated spike is in progress. The compact size still needs the reference's TODO packing (binary emits ~4× bloat).
+> It beats the stand-in on every axis — the work is the *integration*, not the crypto.
 
 **Question:** Is ELRS (ESORICS 2024, eprint 2024/553) the right PQ linkable ring signature to proceed with, or is something newer/better available?
 

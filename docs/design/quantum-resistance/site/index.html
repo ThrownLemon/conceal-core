@@ -179,10 +179,10 @@ platforms → block-validation split); (5) unaudited research code.</li>
 <li><strong>Harden the in-house lattice stand-in</strong> (the PoC's
 K=L=6 LSAG) — fallback. Already integrated + working end-to-end, but
 <strong>demo-grade</strong>: biased sampling, not constant-time, params
-not a calibrated 128-bit level, and ~43 KB @ ring-6 (≈5× Raptor). Would
-need a security-level recalibration + constant-time rewrite for mainnet
-anyway — so "adopt Raptor" vs "harden the stand-in" is the real
-choice.</li>
+not a calibrated 128-bit level, and ~42 KB @ ring-6 (≈4× Raptor,
+measured). Would need a security-level recalibration + constant-time
+rewrite for mainnet anyway — so "adopt Raptor" vs "harden the stand-in"
+is the real choice.</li>
 <li><strong>MatRiCT+ ring component</strong> (Module-SIS/MLWE, C++, fast
 verify) — alternative with the <em>cleanest</em> assumption (ML-DSA
 family) and the most mature code, <strong>but</strong> RingCT-coupled
@@ -191,9 +191,13 @@ standalone size isn't isolated in the paper).</li>
 </ul>
 <p><strong>Net:</strong> ELRS demoted; the production target is a
 small-ring lattice linkable ring sig, <strong>Raptor the leading
-candidate to replace the demo-grade stand-in</strong>. Cheapest de-risk:
-build Raptor's Rust PoC + benchmark size + cold-verify + sign at rings
-4/6/8 head-to-head vs the in-house stand-in.</p>
+candidate to replace the demo-grade stand-in</strong> — now benchmarked
+(the GPL C reference) at 4.1× smaller / 2.5× faster verify. Next de-risk
+(in progress): an <strong>isolated clean-room Raptor spike</strong> —
+reimplement the construction over permissive PQClean Falcon (MIT-clean;
+the GPL repo can't be copied) behind the existing <code>ccx_pq_*</code>
+ABI, to validate linkability + measure the real <em>compact</em> size
+before any consensus swap.</p>
 </blockquote>
 <blockquote>
 <p><strong>DIRECTION UPDATE (team input + this session's
@@ -244,7 +248,8 @@ note)</em></td>
 <td><strong>~33–35 GB</strong></td>
 <td>research code, builds; <strong>library-ized this session</strong>
 (<code>~/matrict-lib</code>)</td>
-<td>the privacy-preserving production target</td>
+<td><strong>DEMOTED</strong> — the confidential-amounts option; not
+selected, because amounts are kept plaintext (verify-funds)</td>
 </tr>
 <tr>
 <td>B — keep the lattice <strong>stand-in</strong></td>
@@ -349,11 +354,12 @@ max ring size, not the crypto:</strong>
 NOT win.</strong> Its flat ~25 KB is <em>wasted flatness</em>;
 <strong>linear lattice schemes are SMALLER and have a CLEANER
 assumption</strong> here: <strong>Raptor</strong> (NTRU, natively
-linkable, Rust PoC) ~10 KB @ ring-8 / ~21 KB @ ring-16;
-<em>LAPQ-LRS</em> (MLWE/MSIS, ML-DSA family) ~4.4 KB @ ring-8 <em>if its
-numbers hold</em>. ELRS's security is <em>conjectured hash/FRI</em> (no
-reduction); the lattice schemes reduce to <strong>Module-SIS/MLWE — the
-NIST ML-DSA assumptions</strong>. Cleaner footing.</li>
+linkable; C reference) <strong>measured 10.2 KB @ ring-6 / 13.1 KB @
+ring-8 / 24.7 KB @ ring-16</strong>; <em>LAPQ-LRS</em> (MLWE/MSIS,
+ML-DSA family) ~4.4 KB @ ring-8 <em>if its numbers hold</em>. ELRS's
+security is <em>conjectured hash/FRI</em> (no reduction); the lattice
+schemes reduce to <strong>Module-SIS/MLWE — the NIST ML-DSA
+assumptions</strong>. Cleaner footing.</li>
 <li><strong>Only if Conceal grows rings to ≥64–1024</strong> does ELRS's
 flatness pay off (linear schemes hit MBs there).</li>
 <li><strong>And the verify advantage is CONTESTED</strong> — measured
@@ -536,9 +542,9 @@ consensus</strong></h2>
 in what order, before mainnet. The non-negotiable gate. Scope at
 minimum:</p>
 <ul>
-<li>the production ring-sig/RingCT construction
-(<strong>MatRiCT-Au</strong> per <strong>D1</strong>) + its
-integration;</li>
+<li>the production PQ linkable-ring-sig construction
+(<strong>Raptor</strong> per <strong>D1</strong> — clean-room over
+PQClean Falcon) + its integration;</li>
 <li>the <strong>ML-DSA-65 deposit</strong> money paths
 (interest/lock/reorg) + the consensus PQ-input validators;</li>
 <li><strong>constant-time / side-channel</strong> review of the lattice
