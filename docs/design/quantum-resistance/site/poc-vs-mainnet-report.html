@@ -504,17 +504,26 @@ gives <strong>~107 KB</strong> (n10m1, the same ring-10/1-in params the
 58 KB describes), and that is the <strong>floor for the
 reference</strong>: every coefficient is already at its formal norm
 bound, so there is <em>no packing slack left</em>. The ~274 KB raw →
-~107 KB packed is the serialization win; closing <strong>107 → 58 KB
-needs Dilithium-style response compression</strong> (high bits + hint;
-verifier reconstructs the low bits) — a change to <strong>prover
-<em>and</em> verifier</strong>
-(<code>spend.c</code>+<code>verify.c</code>),
-<strong>soundness-affecting</strong> and inside the
-<strong>audited</strong> artifact, i.e. a crypto sub-project, not
-serialization. <strong>Plan on ~107 KB / ~33–35 GB/yr</strong> as the
-realistic baseline; 58 KB / ~18 GB/yr is conditional on building +
-auditing that compression. (Verify ~45 ms is the paper's figure, not
-re-measured here.)</p>
+~107 KB packed is the serialization win. A second pass <strong>measured
+the realized coefficient distributions</strong> (60 spend runs):
+FS-with- aborts makes every response coefficient near-uniform over its
+full norm interval (entropy = packed width to &lt;1 bit), so the
+<strong>responses — 73% of the proof — are at the information-theoretic
+floor</strong> and re-encoding them wins **~0 KB** (a single 304-byte
+safe split aside). <strong>Re-encoding cannot reach 58 KB.</strong> The
+paper's 58 KB comes instead from <strong>high-bit <em>truncation of the
+commitments</em> <code>b</code>/<code>c</code> + a hint</strong>
+(Dilithium <code>t1/t0</code>/<code>UseHint</code>): a
+<strong>protocol/soundness-statement change</strong> — the FS hash binds
+the <em>full</em> commitments, so it needs the <strong>verification
+equation rewritten + the extractor proof redone + the audit</strong>;
+and <strong>truncating <code>b</code> breaks auditability</strong>
+(<code>b</code> is the partially-decryptable commitment). So 58 KB is a
+<strong>cryptographic-research-grade sub-project</strong>, not a
+serialization or re-encoding task. <strong>Plan on ~107 KB / ~33–35
+GB/yr</strong> as the realistic baseline; 58 KB / ~18 GB/yr is
+conditional on building + auditing that compression. (Verify ~45 ms is
+the paper's figure, not re-measured here.)</p>
 <h3 id="103-the-four-adapter-gaps-what-the-wrapper-must-bridge">10.3 The
 four adapter gaps (what the wrapper must bridge)</h3>
 <ol type="1">

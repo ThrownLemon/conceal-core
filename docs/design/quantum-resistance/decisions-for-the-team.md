@@ -35,16 +35,22 @@ than first recorded — see the proof-size note below — and C forfeits the cha
 ship unaudited. The swappable backend (`pq_ring_sig.h` C-ABI) lets the stand-in (B) stay the **testnet** engine
 while A is integrated + audited; see [`matrict-integration-plan.md`](matrict-integration-plan.md).
 
-> **Proof-size correction (measured this session).** The "58 KB" widely quoted for MatRiCT-Au is the **paper's
-> *compressed* proof**, NOT a measurement — the reference code ships **no proof serializer at all** and only
-> holds the proof as full in-memory arrays. Library-izing it + writing a canonical packed serializer this
-> session yields **~107 KB** (n10m1, ring-10/1-in — the same params the paper's 58 KB describes), and that is
-> the *floor* for the reference (every coefficient already at its formal norm bound; no packing slack left).
-> Reaching ~58 KB needs **Dilithium-style response compression** (send high bits + a hint, verifier
-> reconstructs the low bits) — a change to the **prover *and* verifier** (`spend.c`+`verify.c`),
-> **soundness-affecting**, inside the **audited** artifact: a real crypto sub-project, not a serialization
-> tweak. **Plan on ~107 KB / ~33–35 GB/yr** unless the team commits to building + auditing that compression
-> (then ~58 KB / ~18 GB/yr). So a PQ spend is **~68×→~200×** a classical spend depending on that decision.
+> **Proof-size correction (measured this session, two independent passes).** The "58 KB" widely quoted for
+> MatRiCT-Au is the **paper's *compressed* proof**, NOT a measurement — the reference code ships **no proof
+> serializer** and only holds the proof as full in-memory arrays. Library-izing it + a canonical packed
+> serializer yields **~107 KB** (n10m1, ring-10/1-in — the same params the paper's 58 KB describes), and that
+> is the **information-theoretic floor**: a second pass *measured the realized coefficient distributions* and
+> found Fiat-Shamir-with-aborts makes every response coefficient near-uniform over its full norm interval
+> (entropy = packed width to <1 bit), so smarter encoding of the responses — which are **73%** of the proof —
+> wins **~0 KB** (only a 304-byte safe split exists). **Re-encoding cannot reach 58 KB.**
+> The paper's 58 KB instead comes from **high-bit *truncation of the commitments* `b`/`c` + a hint** (Dilithium
+> `t1/t0`/`UseHint` style) — a **protocol / soundness-statement change**, not serialization: the FS hash binds
+> the *full* commitments, so it needs the **verification equation rewritten + the MatRiCT-Au extractor proof
+> redone + the audit**. And **truncating `b` breaks auditability** (`b` is the partially-decryptable commitment
+> the audit trapdoor decrypts) — so it also collides with the accountability layer. **Plan on ~107 KB /
+> ~33–35 GB/yr** as the realistic baseline; 58 KB / ~18 GB/yr is a *cryptographic-research-grade* sub-project
+> (re-implement the paper's truncated construction + re-prove + audit), not a quick add. A PQ spend is **~89×**
+> a classical spend at 107 KB.
 
 **Depends on / unblocks:** the audit (**D7**), tx-size + fusion (**D3**), and the proof-compression sub-decision
 above. **Who confirms:** core team — this is the headline strategic call.

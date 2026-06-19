@@ -200,9 +200,15 @@ it.** From reading its actual API, here is the concrete delta.
 as full in-memory arrays. Library-izing it + a canonical packed serializer gives **~107 KB** (n10m1, the same
 ring-10/1-in params the 58 KB describes), and that is the **floor for the reference**: every coefficient is
 already at its formal norm bound, so there is *no packing slack left*. The ~274 KB raw → ~107 KB packed is the
-serialization win; closing **107 → 58 KB needs Dilithium-style response compression** (high bits + hint;
-verifier reconstructs the low bits) — a change to **prover *and* verifier** (`spend.c`+`verify.c`),
-**soundness-affecting** and inside the **audited** artifact, i.e. a crypto sub-project, not serialization.
+serialization win. A second pass **measured the realized coefficient distributions** (60 spend runs): FS-with-
+aborts makes every response coefficient near-uniform over its full norm interval (entropy = packed width to
+<1 bit), so the **responses — 73% of the proof — are at the information-theoretic floor** and re-encoding them
+wins **~0 KB** (a single 304-byte safe split aside). **Re-encoding cannot reach 58 KB.** The paper's 58 KB
+comes instead from **high-bit *truncation of the commitments* `b`/`c` + a hint** (Dilithium `t1/t0`/`UseHint`):
+a **protocol/soundness-statement change** — the FS hash binds the *full* commitments, so it needs the
+**verification equation rewritten + the extractor proof redone + the audit**; and **truncating `b` breaks
+auditability** (`b` is the partially-decryptable commitment). So 58 KB is a **cryptographic-research-grade
+sub-project**, not a serialization or re-encoding task.
 **Plan on ~107 KB / ~33–35 GB/yr** as the realistic baseline; 58 KB / ~18 GB/yr is conditional on building +
 auditing that compression. (Verify ~45 ms is the paper's figure, not re-measured here.)
 

@@ -261,11 +261,16 @@ round-trip byte-exact 30/30). <strong>Full reentrancy</strong> — TLS
 scratch (<code>matrict_tls.h</code>), coarse lock retired, 8-thread
 64/64, <strong>TSan 0 races</strong> (API contract: per-call
 <code>g_hat</code>). <strong>aarch64 full run</strong> under qemu
-(selftest 20/20, serialize 10/10, byte-portable wire).
-<strong>Remaining:</strong> the ~58 KB target needs <em>algebraic
-proof-compression</em> (a crypto change, not serialization) — deferred
-to the integration; the packer is ready to sit behind a compressed
-proof</td>
+(selftest 20/20, serialize 10/10, byte-portable wire). <strong>Size
+finding:</strong> 107 KB is the <strong>information-theoretic
+floor</strong> — a measured pass (realized coefficient distributions, 60
+runs) shows the responses (73% of the proof) are near-uniform over their
+norm intervals, so re-encoding wins ~0 KB. The paper's **~58 KB requires
+commitment (<code>b</code>/<code>c</code>) high-bit truncation + hint**
+— a soundness-statement change (verifier-equation rewrite + extractor
+re-proof + audit), and truncating <code>b</code> <strong>conflicts with
+auditability</strong>. A research-grade sub-project, NOT serialization;
+the 107 KB packer is the realistic baseline. See decision-doc D1</td>
 </tr>
 <tr>
 <td><strong>P1 — adapter</strong></td>
