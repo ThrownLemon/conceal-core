@@ -2309,6 +2309,71 @@ namespace cn
     return true;
   }
 
+  // Read-only enumeration of the PQ deposit cells (PqMultisigOutput) under one amount. A faithful twin
+  // of getPqOutputs, walking m_pqMultisigOutputs instead of m_pqOutputs and surfacing the deposit
+  // metadata a wallet needs to (a) find its own cells by named-key match on keys[0], and (b) build a
+  // withdrawal (the outputIndex into this vector is exactly PqMultisigInput.outputIndex, term binds the
+  // input, isUsed is the consensus double-spend flag). Crash-guarded against stale/corrupt indices the
+  // same way getPqOutputs is — this is a read-only RPC path and must never abort the daemon.
+  bool Blockchain::getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry> &outs)
+  {
+    std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
+    outs.clear();
+
+    auto it = m_pqMultisigOutputs.find(amount);
+    if (it == m_pqMultisigOutputs.end())
+    {
+      return true; // no PQ multisig outputs indexed for this amount: empty result, not an error
+    }
+
+    const std::vector<MultisignatureOutputUsage> &usages = it->second;
+    outs.reserve(usages.size());
+
+    for (size_t i = 0; i < usages.size(); ++i)
+    {
+      const MultisignatureOutputUsage &usage = usages[i];
+      const TransactionIndex &idx = usage.transactionIndex;
+
+      // Crash-guard: skip a stale / corrupt index rather than deref out of range and crash the daemon.
+      if (!(idx.block < m_blocks.size()) ||
+          !(idx.transaction < m_blocks[idx.block].transactions.size()))
+      {
+        logger(ERROR, BRIGHT_RED) << "PQ multisig output references out-of-range transaction index (block="
+                                  << idx.block << ", tx=" << idx.transaction << "); skipping";
+        continue;
+      }
+
+      const TransactionEntry &te = transactionByIndex(idx);
+      if (!(usage.outputIndex < te.tx.outputs.size()))
+      {
+        logger(ERROR, BRIGHT_RED) << "PQ multisig output index out of range in referenced transaction: " << usage.outputIndex;
+        return false;
+      }
+
+      const TransactionOutputTarget &target = te.tx.outputs[usage.outputIndex].target;
+      if (target.type() != typeid(PqMultisigOutput))
+      {
+        logger(INFO, BRIGHT_WHITE) << "Indexed PQ multisig output is not a PqMultisigOutput";
+        return false;
+      }
+
+      const PqMultisigOutput &out = boost::get<PqMultisigOutput>(target);
+
+      PqMultisigOutputEntry entry;
+      entry.outputIndex = static_cast<uint32_t>(i);
+      entry.keys = out.keys;
+      entry.requiredSignatureCount = out.requiredSignatureCount;
+      entry.term = out.term;
+      entry.txHash = getObjectHash(te.tx);
+      entry.height = idx.block;
+      entry.isUsed = usage.isUsed;
+      entry.spendable = is_tx_spendtime_unlocked(te.tx.unlockTime);
+      outs.push_back(entry);
+    }
+
+    return true;
+  }
+
   bool Blockchain::checkTransactionInputs(const Transaction &tx, uint32_t &max_used_block_height, crypto::Hash &max_used_block_id, BlockInfo *tail)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);

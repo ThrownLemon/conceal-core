@@ -340,6 +340,64 @@ struct COMMAND_RPC_GET_PQ_OUTPUTS {
 };
 
 //-----------------------------------------------
+// PQ deposit-cell enumeration (CIP-0001 UPGRADE_HEIGHT_V9, Option 3). Read-only projection of the
+// daemon's m_pqMultisigOutputs so a wallet can find its own deposits (named-key match on keys[0]) and
+// resolve the (output_index, term, is_used, height) a PQ withdrawal needs. Mirrors get_pq_outputs.
+struct COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS {
+  struct request {
+    std::vector<uint64_t> amounts;
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(amounts)
+    }
+  };
+
+  struct pq_msig_out_entry {
+    uint32_t output_index;            // position in m_pqMultisigOutputs[amount] (== PqMultisigInput.outputIndex)
+    std::vector<std::string> keys;    // hex of each PqMultisigOutput.keys[i] (n ML-DSA-65 public keys)
+    uint32_t required_signature_count;// m
+    uint32_t term;                    // deposit term (0 = plain multisig; != 0 = deposit)
+    std::string tx_hash;              // hex of the creating transaction
+    uint32_t height;                  // block height that created the cell
+    bool is_used;                     // already withdrawn (double-spend guard)
+    bool spendable;                   // is_tx_spendtime_unlocked(unlockTime)
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(output_index)
+      KV_MEMBER(keys)
+      KV_MEMBER(required_signature_count)
+      KV_MEMBER(term)
+      KV_MEMBER(tx_hash)
+      KV_MEMBER(height)
+      KV_MEMBER(is_used)
+      KV_MEMBER(spendable)
+    }
+  };
+
+  struct outs_for_amount {
+    uint64_t amount;
+    std::vector<pq_msig_out_entry> outs;
+    bool truncated = false;  // true if the node capped this amount's bucket (more cells exist on-chain)
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(amount)
+      KV_MEMBER(outs)
+      KV_MEMBER(truncated)
+    }
+  };
+
+  struct response {
+    std::vector<outs_for_amount> outs;
+    std::string status;
+
+    void serialize(ISerializer& s) {
+      KV_MEMBER(outs)
+      KV_MEMBER(status)
+    }
+  };
+};
+
+//-----------------------------------------------
 struct COMMAND_RPC_SEND_RAW_TX {
   struct request {
     std::string tx_as_hex;

@@ -175,7 +175,8 @@ bool RpcServer::processJsonRpcRequest(const HttpRequest& request, HttpResponse& 
         {"getblockheaderbyheight", {makeMemberMethod(&RpcServer::on_get_block_header_by_height), false}},
         {"getrawtransactionspool", {makeMemberMethod(&RpcServer::on_get_transactions_pool_raw), true}},
         {"getrawtransactionsbyheights", {makeMemberMethod(&RpcServer::on_get_txs_with_output_global_indexes), true}},
-        {"get_pq_outputs", {makeMemberMethod(&RpcServer::on_get_pq_outputs), false}}
+        {"get_pq_outputs", {makeMemberMethod(&RpcServer::on_get_pq_outputs), false}},
+        {"get_pq_multisig_outputs", {makeMemberMethod(&RpcServer::on_get_pq_multisig_outputs), false}}
     };
 
     auto it = jsonRpcHandlers.find(jsonRequest.getMethod());
@@ -957,6 +958,54 @@ bool RpcServer::on_get_pq_outputs(const COMMAND_RPC_GET_PQ_OUTPUTS::request& req
       out.kem = common::toHex(e.kemCt);
       out.tx_hash = common::podToHex(e.txHash);
       out.height = e.height;
+      out.spendable = e.spendable;
+      ofa.outs.push_back(out);
+    }
+    res.outs.push_back(ofa);
+  }
+
+  res.status = CORE_RPC_STATUS_OK;
+  return true;
+}
+
+bool RpcServer::on_get_pq_multisig_outputs(const COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::request& req, COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::response& res) {
+  res.status = "Failed";
+
+  // DoS guard (non-consensus): same rationale as get_pq_outputs — getPqMultisigOutputs holds
+  // m_blockchain_lock per amount, so an unbounded amounts list would monopolise the lock.
+  if (req.amounts.size() > cn::PQ_GET_MULTISIG_OUTPUTS_MAX_AMOUNTS) {
+    res.status = "Too many amounts requested (max " + std::to_string(cn::PQ_GET_MULTISIG_OUTPUTS_MAX_AMOUNTS) + ")";
+    return true;
+  }
+
+  res.outs.reserve(req.amounts.size());
+
+  for (uint64_t amount : req.amounts) {
+    std::vector<PqMultisigOutputEntry> entries;
+    if (!m_core.getPqMultisigOutputs(amount, entries)) {
+      return true;
+    }
+
+    COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::outs_for_amount ofa;
+    ofa.amount = amount;
+
+    // Cap the cells returned per amount (lowest output indices first), bounding the per-entry hex work.
+    const size_t emit = std::min<size_t>(entries.size(), cn::PQ_GET_MULTISIG_OUTPUTS_MAX_PER_AMOUNT);
+    ofa.truncated = (entries.size() > emit);
+    ofa.outs.reserve(emit);
+    for (size_t i = 0; i < emit; ++i) {
+      const PqMultisigOutputEntry& e = entries[i];
+      COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::pq_msig_out_entry out;
+      out.output_index = e.outputIndex;
+      out.keys.reserve(e.keys.size());
+      for (const auto& k : e.keys) {
+        out.keys.push_back(common::toHex(k));
+      }
+      out.required_signature_count = e.requiredSignatureCount;
+      out.term = e.term;
+      out.tx_hash = common::podToHex(e.txHash);
+      out.height = e.height;
+      out.is_used = e.isUsed;
       out.spendable = e.spendable;
       ofa.outs.push_back(out);
     }

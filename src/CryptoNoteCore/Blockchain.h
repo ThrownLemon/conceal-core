@@ -110,6 +110,9 @@ namespace cn
     bool get_out_by_msig_gindex(uint64_t amount, uint64_t gindex, MultisignatureOutput &out);
     // Read-only: enumerate every PqKeyOutput indexed under 'amount' from m_pqOutputs (PQ ring assembly).
     bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry> &outs);
+    // Read-only: enumerate every PqMultisigOutput (PQ deposit cell) indexed under 'amount' from
+    // m_pqMultisigOutputs (so a wallet can find + withdraw its deposits).
+    bool getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry> &outs);
     bool checkTransactionInputs(const Transaction &tx, uint32_t &pmax_used_block_height, crypto::Hash &max_used_block_id, BlockInfo *tail = nullptr);
     uint64_t getCurrentCumulativeBlocksizeLimit() const;
     uint64_t blockDifficulty(size_t i);

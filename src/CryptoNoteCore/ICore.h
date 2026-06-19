@@ -53,6 +53,22 @@ struct PqOutputEntry {
   bool spendable;                // is_tx_spendtime_unlocked(unlockTime)
 };
 
+// One post-quantum DEPOSIT cell (PqMultisigOutput), as enumerated for the get_pq_multisig_outputs RPC
+// so a wallet can find its own deposits (named-key match on keys[0]) and resolve the (amount,
+// outputIndex, term, height, isUsed) a PQ withdrawal needs (CIP-0001 UPGRADE_HEIGHT_V9, Option 3).
+// Read-only projection of m_pqMultisigOutputs[amount]; outputIndex is exactly the PqMultisigInput
+// .outputIndex the consensus check resolves against.
+struct PqMultisigOutputEntry {
+  uint32_t outputIndex;                       // position in m_pqMultisigOutputs[amount] (== PqMultisigInput.outputIndex)
+  std::vector<std::vector<uint8_t>> keys;     // PqMultisigOutput.keys (n ML-DSA-65 public keys)
+  uint8_t requiredSignatureCount;             // m
+  uint32_t term;                              // deposit term (0 = plain multisig; != 0 = deposit)
+  crypto::Hash txHash;                        // hash of the containing transaction
+  uint32_t height;                            // block height that created the cell
+  bool isUsed;                                // already withdrawn (double-spend guard)
+  bool spendable;                             // is_tx_spendtime_unlocked(unlockTime)
+};
+
 class ICore {
 public:
   virtual ~ICore() {}
@@ -114,6 +130,9 @@ public:
   virtual bool getMultisigOutputReference(const MultisignatureInput& txInMultisig, std::pair<crypto::Hash, size_t>& outputReference) = 0;
   // Read-only: enumerate every spendable PqKeyOutput indexed under 'amount' (for PQ ring assembly).
   virtual bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry>& outs) = 0;
+  // Read-only: enumerate every PqMultisigOutput (PQ deposit cell) indexed under 'amount' (so a wallet
+  // can find its deposits by named-key match and resolve the withdrawal's (outputIndex, term, isUsed)).
+  virtual bool getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry>& outs) = 0;
   virtual bool getTransaction(const crypto::Hash &id, Transaction &tx, bool checkTxPool = false) = 0;
   virtual bool getGeneratedTransactionsNumber(uint32_t height, uint64_t& generatedTransactions) = 0;
   virtual bool getOrphanBlocksByHeight(uint32_t height, std::vector<Block>& blocks) = 0;

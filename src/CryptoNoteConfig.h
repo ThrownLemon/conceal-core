@@ -204,6 +204,8 @@ namespace cn
 	   peer processing by asking for an unbounded number of amounts or an unbounded bucket. */
 	const size_t  PQ_GET_OUTPUTS_MAX_AMOUNTS  = 64;   /* max distinct amounts per get_pq_outputs request */
 	const size_t  PQ_GET_OUTPUTS_MAX_PER_AMOUNT = 1000; /* max entries returned per amount (lowest indices) */
+	const size_t  PQ_GET_MULTISIG_OUTPUTS_MAX_AMOUNTS  = 64;   /* max distinct amounts per get_pq_multisig_outputs request */
+	const size_t  PQ_GET_MULTISIG_OUTPUTS_MAX_PER_AMOUNT = 1000; /* max deposit cells returned per amount (lowest indices) */
 	/* Testnet PoC only (CIP-0001): deterministic seed for the PQ keypair that owns testnet coinbase
 	   PQ outputs. The daemon (coinbase) derives the public key; the injector derives the secret key.
 	   NOT a stealth/KEM scheme — a single shared known key, sufficient to exercise the spend path. */
