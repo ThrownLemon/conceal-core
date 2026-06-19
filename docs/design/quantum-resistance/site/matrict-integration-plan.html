@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MatRiCT-Au integration plan — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class="active"><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1
+id="matrict-au-integration--phased-plan--adapter-design-cip-0001-c1">MatRiCT-Au
+integration — phased plan + adapter design (CIP-0001 C1)</h1>
+<p><em>Concrete blueprint for swapping the bespoke linear ring-sig
+stand-in for the team's chosen production scheme,
+<strong>MatRiCT-Au</strong> (Esgin/Steinfeld/Zhao, PKC 2022; author code
+at <code>~/pqc-bench/repo-matrict</code>). Reads on top of <a
+href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
+§10 (the API/data-model facts) and the scaffold
+[<code>~/ccx-pqc-impl</code>] README (the stub→real-backend plan this
+realises).</em></p>
+<h2 id="0-the-one-decision-that-sets-the-scope">0. The one decision that
+sets the scope</h2>
+<p><strong>MatRiCT-Au is a RingCT confidential-transaction prover, not a
+bare ring signature.</strong> Adopting it ⇒ Conceal gains
+<strong>confidential amounts</strong> (it has plaintext amounts today).
+That is the headline feature <em>and</em> the largest new consensus
+surface. The plan below assumes <strong>full RingCT</strong> (the reason
+to pick MatRiCT-Au at all). A "ring-core-only, keep plaintext amounts"
+mode is possible but fights the design and forfeits the benefit — not
+recommended.</p>
+<h2 id="1-target-c-abi-ringct-shaped--the-new-island-contract">1. Target
+C-ABI (RingCT-shaped) — the new island contract</h2>
+<p>Today's <code>pq_ring_sig.h</code> ABI
+(<code>ccx_pq_sign(msgHash, ring, sk, idx) → sig</code>,
+<code>verify → nullifier</code>) cannot carry amounts. Introduce a
+<strong>parallel RingCT ABI</strong> (the existing signature ABI stays
+for the stand-in / testnet until cutover). Skeleton:</p>
+<pre class="c"><code>/* pq_ringct.h — RingCT spend backend (C ABI), MatRiCT-Au behind it. All sizes via the *_bytes() queries
+   so the C++ side stays size-agnostic (as it already is for the ring sig). */
+
+/* CRS / public parameters: sampled once from a network-fixed seed, shared by all txs. */
+int32_t ccx_rct_setup(const uint8_t *seed, size_t seed_len, ccx_rct_crs **out_crs);
+void    ccx_rct_crs_free(ccx_rct_crs *crs);
+
+size_t  ccx_rct_account_bytes(uint32_t ring_size);   /* pk + amount commitment, per member */
+size_t  ccx_rct_serial_bytes(void);                  /* the linking tag (= our nullifier) */
+size_t  ccx_rct_proof_bytes(uint32_t ring_size, uint32_t n_inputs, uint32_t n_outputs);
+size_t  ccx_rct_commitment_bytes(void);              /* one output amount commitment */
+
+/* keygen: spend keypair (sk = short vector r; pk = commitment-style public key). Deterministic from a
+   32-byte seed so it stays mnemonic-restorable, like the ML-KEM/ML-DSA keygen. */
+int32_t ccx_rct_keygen(const ccx_rct_crs*, const uint8_t seed[32],
+                       uint8_t *pk_out, size_t pk_cap, uint8_t *sk_out, size_t sk_cap);
+
+/* serial (nullifier) = H·sk — deterministic, key-derived. */
+int32_t ccx_rct_serial(const ccx_rct_crs*, const uint8_t *sk, size_t sk_len,
+                       uint8_t *serial_out, size_t serial_cap);
+
+/* SPEND: build + prove. `ring` = ring_size accounts (pk+commitment); `signer_index` = the real spender
+   (secret); `in_amounts`/`in_blinds` = the spent inputs; `out_keys`/`out_amounts` = recipients.
+   Emits: the proof blob, the per-input serial(s), and the output commitments. `msg_hash` binds the
+   Conceal tx-prefix into the Fiat-Shamir transcript (see §3.2). */
+int32_t ccx_rct_spend(const ccx_rct_crs*,
+                      const uint8_t *msg_hash, size_t msg_hash_len,
+                      const uint8_t *ring, uint32_t ring_size, size_t account_stride,
+                      uint32_t signer_index,
+                      const uint8_t *signer_sk, size_t signer_sk_len,
+                      const uint64_t *in_amounts, const uint8_t *in_blinds, uint32_t n_inputs,
+                      const uint8_t *out_keys, const uint64_t *out_amounts, uint32_t n_outputs,
+                      uint8_t *proof_out, size_t proof_cap, size_t *proof_len_out,
+                      uint8_t *serials_out, size_t serials_cap,
+                      uint8_t *out_commitments, size_t out_commitments_cap);
+
+/* VERIFY: returns 0 (valid) / negative (invalid). Takes the serials as INPUT (does not recover them) —
+   the daemon enforces serial uniqueness against m_spent_pq_nullifiers, exactly as today. */
+int32_t ccx_rct_verify(const ccx_rct_crs*,
+                       const uint8_t *msg_hash, size_t msg_hash_len,
+                       const uint8_t *ring, uint32_t ring_size, size_t account_stride,
+                       const uint8_t *proof, size_t proof_len,
+                       const uint8_t *serials, uint32_t n_inputs,
+                       const uint8_t *out_commitments, uint32_t n_outputs);</code></pre>
+<p><strong>Mapping to MatRiCT-Au</strong> (verified API):
+<code>ccx_rct_keygen</code>→<code>keygen</code>;
+<code>ccx_rct_serial</code>→<code>serialgen</code>
+(<code>s=H·sk</code>); <code>ccx_rct_spend</code>→<code>spend</code>
+(with <code>mint</code> for the output commitments, <strong>audit rows =
+NULL</strong> to strip accountability);
+<code>ccx_rct_verify</code>→<code>verify</code>;
+<code>ccx_rct_setup</code>→<code>sample_mat_g0/gr/gh/gbig</code>. The
+serial is MatRiCT's <code>s</code> lifted out of the proof.</p>
+<h2 id="2-c-wrapper-responsibilities-the-island-side">2. C++ wrapper
+responsibilities (the island side)</h2>
+<p>A <code>MatRiCTBackend</code> (Rust or C++ in <code>pqc/</code>) that
+owns what the reference benchmark leaves global:</p>
+<ul>
+<li><strong>CRS lifetime</strong> — <code>ccx_rct_setup</code> once at
+node start from a network-fixed seed; pass the <code>crs*</code> to
+every call (no file-scope statics).</li>
+<li><strong>Threading</strong> — wrap the (currently non-reentrant)
+<code>spend</code>/<code>verify</code> either with per-thread contexts
+(preferred) or a backend mutex (interim). [Milestone in §5.]</li>
+<li><strong>Ring-size dispatch</strong> — MatRiCT's ring size is
+compile-time; the wrapper selects the right compiled variant
+(<code>mrct_n10_* / n50_* / n100_*</code>) by <code>ring_size</code>.
+[§5.]</li>
+<li><strong>Serialization</strong> — pack mod-Q coefficients (~31 bits)
+/ QBIG (~57 bits) to hit the ~58 KB target (raw <code>sizeof</code> is
+~274–370 KB). This is the wire format; it must be canonical +
+consensus-stable.</li>
+<li><strong>Nullifier tracking</strong> — none new: the daemon already
+owns <code>m_spent_pq_nullifiers</code>; serial → nullifier.</li>
+</ul>
+<h2 id="3-consensus-changes-the-ringct-value-model">3. Consensus changes
+(the RingCT value model)</h2>
+<p>The big new surface — beyond the signature swap:</p>
+<ol type="1">
+<li><strong>Outputs carry commitments, not plaintext amounts.</strong>
+<code>PqKeyOutput</code>/the v3 output gains an amount commitment; the
+wallet stores blinds; stealth (ML-KEM) is orthogonal and unchanged.</li>
+<li><strong>Balance + range proofs</strong> live in the spend proof
+(MatRiCT does this internally) — the validator calls
+<code>ccx_rct_verify</code>; no separate Bulletproof needed.</li>
+<li><strong>Fee handling</strong> — fees become a public/committed value
+the balance proof accounts for (Monero-style:
+<code>sum(in) = sum(out) + fee</code>).</li>
+<li><strong>Tx-prefix binding</strong> (§3.2) — extend MatRiCT's
+Fiat-Shamir <code>hash()</code> input to include the Conceal tx-prefix
+hash so the proof binds the whole tx, not just its own body.</li>
+</ol>
+<h2 id="4-caps--fusion-raiseredesign">4. Caps &amp; fusion
+(raise/redesign)</h2>
+<ul>
+<li><strong>Raise <code>PQ_MAX_RING_SIZE</code></strong> — we lowered it
+to 8 for the linear stand-in; MatRiCT wants the larger rings (10/50/100)
+its log proof is built for.</li>
+<li><strong>Raise <code>CRYPTONOTE_MAX_TX_SIZE_LIMIT</code></strong>
+(~99 KB) — a MatRiCT tx (~58 KB+, multi-in) approaches it.</li>
+<li><strong>Redesign <code>FUSION_TX_MAX_SIZE</code></strong> (~30 KB) —
+every PQ scheme blows it; dust consolidation needs a new size budget +
+likely a denomination scheme (PQ output keys are 9–18 KB; many small
+outputs are costly).</li>
+</ul>
+<h2 id="5-phased-plan-sequence--gates">5. Phased plan (sequence +
+gates)</h2>
+<table>
+<thead>
+<tr>
+<th>Phase</th>
+<th>Work</th>
+<th>Output / gate</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>P0 — library-ize</strong> <em>(milestone 1 done —
+<code>~/matrict-lib</code> on WSL)</em></td>
+<td>Turn <code>repo-matrict</code> into a static lib + clean header;
+per-ring-size builds + dispatch; thread-safety (PRG/scratch); ARM/AES
+shim; packed serializer</td>
+<td><code>libmatrict_n{10,50,100}m1.a</code> + <code>matrict.h</code> +
+dispatcher built; correctness preserved (50/50 each, 4-thread PASS,
+SHAKE fallback PASS). <strong>Remaining for P0:</strong> packed
+serializer (still raw <code>sizeof</code>); full reentrancy
+(spend/verify scratch on interim coarse lock); aarch64 <em>run</em>
+(needs aarch64 <code>libXKCP.a</code>)</td>
+</tr>
+<tr>
+<td><strong>P1 — adapter</strong></td>
+<td>Implement <code>pq_ringct.h</code> over the lib
+(keygen/serial/spend/verify, CRS, audit=NULL); unit-test spend→verify +
+serial==nullifier vs the C++ side</td>
+<td>green adapter selftests behind the C ABI</td>
+</tr>
+<tr>
+<td><strong>P2 — value model</strong></td>
+<td>v3 output commitments + blinds; wallet commitment bookkeeping;
+fee-as-committed-value; tx-prefix FS binding; validator calls
+<code>ccx_rct_verify</code></td>
+<td>a RingCT v3 tx builds + validates on a local testnet</td>
+</tr>
+<tr>
+<td><strong>P3 — caps/fusion</strong></td>
+<td>Raise <code>MAX_TX_SIZE</code> + <code>PQ_MAX_RING_SIZE</code>;
+redesign <code>FUSION_TX</code> + denomination</td>
+<td>fusion works at PQ sizes</td>
+</tr>
+<tr>
+<td><strong>P4 — e2e + perf</strong></td>
+<td>A/B on the 2-node testnet (spend/receive/double-spend); measure real
+packed sizes + verify-ms vs the 58 KB/45 ms target</td>
+<td>numbers match the team bench</td>
+</tr>
+<tr>
+<td><strong>P5 — AUDIT (hard gate)</strong></td>
+<td>Professional review of MatRiCT-Au construction + the integration +
+constant-time; calibrate params</td>
+<td><strong>mainnet activation gate</strong> — do not ship before
+this</td>
+</tr>
+<tr>
+<td><strong>P6 — fork</strong></td>
+<td>New tx version, height-gated activation, hybrid period
+(<code>ccxh</code>), coordinated upgrade</td>
+<td>mainnet</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Dependencies:</strong> P1←P0; P2←P1; P3∥P2; P4←P2,P3; P5←P4;
+P6←P5. The bespoke linear stand-in remains the testnet backend through
+P0–P4 (the swappable slot lets both coexist).</p>
+<h2 id="6-open-decisions-for-the-team">6. Open decisions (for the
+team)</h2>
+<ol type="1">
+<li><strong>Full RingCT (confidential amounts) — confirm.</strong> It's
+MatRiCT-Au's reason for existing; assumed yes.</li>
+<li><strong>Ring-size policy</strong> — which fixed sizes to compile
+(10/50/100?) and the dispatch UX, vs investing in true runtime-N (a
+large rewrite of the reference's static arrays).</li>
+<li><strong>Accountability/Audit layer</strong> — strip (privacy coin)
+or keep (regulatory optionality)? Plan assumes strip
+(<code>t*=NULL</code>).</li>
+<li><strong>ARM/mobile</strong> — is an ARM node a target? (decides P0's
+AES-shim priority).</li>
+<li><strong>Migration of existing classical balances</strong> — hybrid
+period length; whether old plaintext-amount outputs are spendable
+post-fork or must be swept.</li>
+</ol>
+<h2 id="7-effort-honest">7. Effort (honest)</h2>
+<p>Multi-month. P0 (library-ize) — <strong>milestone 1 landed</strong>
+(<code>~/matrict-lib</code>: 3 namespaced static libs +
+<code>matrict.h</code> + size dispatcher, correctness preserved;
+original <code>repo-matrict</code> untouched; see its
+<code>README.md</code>). The plan's §1 API mapping is now validated
+against the real lib (it exposes <code>sample_mat_g0/gr/gh/gbig</code>,
+<code>keygen</code>, <code>mint</code>, <code>serialgen</code>,
+<code>spend</code>, <code>verify</code>, optional <code>audit</code>).
+P0 remainder = packed serializer + full reentrancy (+ aarch64 run). P2
+(RingCT value model) = the largest single chunk; P5 (audit) = external +
+the schedule driver. The PoC already removed the
+<em>integration-plumbing</em> risk (tx format, serialization,
+double-spend set, stealth, wallet send/receive, deposits, messages,
+constant-time discipline, the swappable slot) — so this plan is "drop
+the engine into a proven chassis + go RingCT", not "build the car".</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

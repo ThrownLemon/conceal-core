@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ML-KEM messages (design) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class="active"><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1
+id="pq-for-conceal-encrypted-on-chain-messages--ml-kem-768-kem-blueprint">PQ
+for Conceal Encrypted On-Chain Messages — ML-KEM-768 KEM Blueprint</h1>
+<p>Status: DESIGN / advisory (read-only analysis). Targets the working
+PoC on <code>pqc/testnet-poc</code>. Scope: replace the
+Curve25519-ECDH-derived symmetric key that protects Conceal's encrypted
+tx-extra messages with an ML-KEM-768 (Kyber) KEM, reusing the
+already-wired <code>ccx_pq_kem_derive_output</code> /
+<code>ccx_pq_kem_scan</code> FFI. Gate behind testnet + a new
+<code>TX_EXTRA_PQ_MESSAGE_TAG</code>, do not touch the legacy
+<code>0x04</code> path.</p>
+<hr />
+<h2 id="1-what-exists-today-grounded-in-code">1. What exists today
+(grounded in code)</h2>
+<h3 id="11-the-message-field-and-its-crypto">1.1 The message field and
+its crypto</h3>
+<p><code>src/CryptoNoteCore/TransactionExtra.h:51-58</code> — the
+on-chain field:</p>
+<pre class="cpp"><code>struct tx_extra_message {
+  std::string data;                  // ciphertext (msg || 4 zero-byte checksum), chacha8
+  bool encrypt(std::size_t index, const std::string &amp;message,
+               const AccountPublicAddress* recipient, const KeyPair &amp;txkey);
+  bool decrypt(std::size_t index, const crypto::PublicKey &amp;txkey,
+               const crypto::SecretKey *recepient_secret_key, std::string &amp;message) const;
+  bool serialize(ISerializer&amp; serializer);
+};</code></pre>
+<p>Tag <code>TX_EXTRA_MESSAGE_TAG = 0x04</code>
+(<code>TransactionExtra.h:25</code>), parsed at
+<code>TransactionExtra.cpp:94-100</code> (reads
+<code>message.data</code> as a length-prefixed blob), written via
+<code>append_message_to_extra</code>
+(<code>TransactionExtra.cpp:242-255</code>).</p>
+<p>The crypto that Shor breaks lives in
+<code>TransactionExtra.cpp:369-443</code>:</p>
+<pre class="cpp"><code>struct message_key_data { KeyDerivation derivation; uint8_t magic1, magic2; }; // 34 bytes
+
+// encrypt (sender):
+generate_key_derivation(recipient-&gt;spendPublicKey, txkey.secretKey, key_data.derivation);
+key_data.magic1 = 0x80; key_data.magic2 = 0;
+Hash h = cn_fast_hash(&amp;key_data, sizeof(message_key_data));   // 32-byte chacha8 key
+uint64_t nonce = SWAP64LE(index);                             // chacha8 IV (8 bytes)
+chacha8(buf, mlen, &amp;h, &amp;nonce, buf);                          // mlen = msg + 4-byte checksum
+
+// decrypt (recipient):
+generate_key_derivation(txkey /*tx pubkey*/, *recepient_secret_key /*spendSecretKey*/, ...);
+// same h, same chacha8, then verify the 4 trailing zero bytes (auth/owner test)</code></pre>
+<p>Key facts that drive the design:</p>
+<ul>
+<li>The <strong>symmetric layer is already exactly what we
+want</strong>: chacha8 over <code>msg || 0x00000000</code>, keyed by a
+32-byte hash, IV = the message <code>index</code>. The 4 zero bytes are
+a weak checksum/owner-test (decrypt succeeds iff the trailing 4 bytes
+decrypt to zero). The ML-KEM variant keeps this construction verbatim
+and only swaps how the 32-byte key <code>h</code> is produced.</li>
+<li>The <strong>quantum-broken part is solely the key
+agreement</strong>:
+<code>generate_key_derivation(spendPublicKey, txkey.secretKey)</code> is
+X25519-style ECDH (<code>8 * txSecret * spendPublic</code>). Shor
+recovers <code>txkey.secretKey</code> from the on-chain tx pubkey
+(<code>TX_EXTRA_TAG_PUBKEY</code>,
+<code>getTransactionPublicKeyFromExtra</code>), then re-derives
+<code>h</code> and decrypts every message addressed with that tx key.
+Confidentiality only; integrity here is informal.</li>
+<li>Recipient identification is via the <strong>spend key</strong>
+(sender uses <code>recipient-&gt;spendPublicKey</code>, recipient uses
+its <code>spendSecretKey</code>). This is deliberate: messages go to the
+spend address. It is NOT the view-key channel used for output
+scanning.</li>
+</ul>
+<h3 id="12-callers-the-full-surface-we-must-extend">1.2 Callers (the
+full surface we must extend)</h3>
+<p>Send path:</p>
+<ul>
+<li><code>src/CryptoNoteCore/CryptoNoteFormatUtils.cpp:205-213</code> —
+<code>constructTransaction</code> loops <code>messages</code>
+(<code>std::vector&lt;tx_message_entry&gt;</code>), calls
+<code>tag.encrypt(i, msg.message, msg.encrypt ? &amp;msg.addr : NULL, txkey)</code>
+then <code>append_message_to_extra</code>. <code>txkey</code> is the
+transaction keypair (deterministic,
+<code>generateDeterministicTransactionKeys</code>).</li>
+<li><code>tx_message_entry { std::string message; bool encrypt; AccountPublicAddress addr; }</code>
+(<code>CryptoNoteFormatUtils.h:44-49</code>).</li>
+<li><code>src/WalletLegacy/WalletTransactionSender.cpp:239-248</code>
+builds <code>tx_message_entry</code> from
+<code>TransactionMessage { message; address; }</code>
+(<code>include/IWalletLegacy.h:51-54</code>) by parsing the destination
+address string into an <code>AccountPublicAddress</code>.</li>
+</ul>
+<p>Receive/scan path:</p>
+<ul>
+<li><code>src/Transfers/TransfersConsumer.cpp:574-575</code> —
+<code>get_messages_from_extra(tx.getExtra(), tx.getTransactionPublicKey(), &amp;sub.getKeys().spendSecretKey)</code>
+for each subscribed account.</li>
+<li><code>get_messages_from_extra</code>
+(<code>TransactionExtra.cpp:257-280</code>) iterates extra fields, calls
+<code>decrypt(i, txkey, recipientSpendSecret, res)</code>, keeps the
+ones whose checksum validates.</li>
+</ul>
+<p>RPC / wallet glue (string-level, no crypto):
+<code>src/PaymentGate/WalletService.cpp</code>,
+<code>src/Wallet/WalletRpcServer.cpp</code>,
+<code>src/Wallet/WalletGreen.cpp</code>,
+<code>src/WalletLegacy/WalletUserTransactionsCache.cpp</code>,
+<code>WalletLegacy.cpp</code>. These pass message strings through and
+need no change beyond optionally selecting the PQ path.</p>
+<h3 id="13-the-ml-kem-ffi-we-will-reuse-already-linked">1.3 The ML-KEM
+FFI we will reuse (already linked)</h3>
+<p><code>pqc/include/pq_ring_sig.h:25-33</code> +
+<code>pqc/ccx-pqc/src/lib.rs:170-231</code>:</p>
+<pre class="c"><code>size_t  ccx_pq_kem_pubkey_bytes(void);   // 1184  (ML-KEM-768 PK)
+size_t  ccx_pq_kem_seckey_bytes(void);   // 2400  (ML-KEM-768 SK)
+size_t  ccx_pq_kem_ct_bytes(void);       // 1088  (ML-KEM-768 ciphertext)
+int32_t ccx_pq_kem_keypair(pk_out, pk_cap, sk_out, sk_cap);
+int32_t ccx_pq_kem_derive_output(kem_pk, kem_pk_len, ct_out, ct_cap, seed_out/*32B*/, seed_cap);
+int32_t ccx_pq_kem_scan(kem_sk, kem_sk_len, ct, ct_len, seed_out/*32B*/, seed_cap);</code></pre>
+<p><code>derive_output</code> =
+<code>encapsulate(pk) -&gt; (ss, ct)</code> then
+<code>SHAKE256("ccx-stealth-otk" || ss) -&gt; 32B seed</code>.
+<code>scan</code> = <code>decapsulate(ct, sk)</code> then the same SHAKE
+→ same 32B seed. This is exactly a KEM-derived 32-byte symmetric secret
++ a published ciphertext. <strong>The seed is currently domain-separated
+for stealth one-time keys (<code>"ccx-stealth-otk"</code>), so for
+messages we need a distinct derivation (see §3.1) to avoid cross-purpose
+key reuse.</strong></p>
+<p>CMake wiring already links <code>${CCX_PQC_LIB}</code> into every
+executable (<code>src/CMakeLists.txt:74-92</code>);
+<code>CryptoNoteCore</code> already includes
+<code>${CCX_PQC_INCLUDE}</code> and depends on <code>ccx_pqc</code>.
+<strong>No new build wiring is required</strong> —
+<code>TransactionExtra.cpp</code> lives in <code>CryptoNoteCore</code>,
+which already sees <code>pq_ring_sig.h</code>.</p>
+<p>Existing serialization precedent for variable PQ blobs:
+<code>CryptoNoteSerialization.cpp:295-298</code> uses
+<code>serializeAsBinary(out.kemCt, "kem", serializer)</code> for the
+1088-byte Kyber ciphertext on <code>PqKeyOutput</code>. We mirror
+that.</p>
+<hr />
+<h2 id="2-design-overview">2. Design overview</h2>
+<p>Add a <strong>new, additive</strong> tx-extra field
+<code>tx_extra_pq_message</code> under a new tag
+<code>TX_EXTRA_PQ_MESSAGE_TAG = 0x06</code>. Each PQ message carries its
+own ML-KEM ciphertext (<code>kemCt</code>, 1088 B) plus the chacha8
+ciphertext <code>data</code> (unchanged construction). The legacy
+<code>0x04</code> field stays byte-for-byte as is for backward
+compatibility and is never emitted on PQ-message transactions when the
+recipient is PQ-capable.</p>
+<p>Why per-message ciphertext (not one tx-wide encapsulation): the
+existing field is per-recipient
+(<code>recipient-&gt;spendPublicKey</code>) and a tx can address
+different messages to different recipients (the loop in
+<code>CryptoNoteFormatUtils.cpp</code> re-keys per entry). One
+<code>kemCt</code> per message keeps that property and keeps the change
+strictly local to the field. Cost: +1088 B per PQ message (acceptable;
+messages are an opt-in feature, and <code>TX_EXTRA</code> is not
+consensus-size-limited the way outputs are — but see Risk R4 on tx size
+/ relay).</p>
+<pre><code>Sender (has recipient PQ-address -&gt; kemPub 1184B):
+  ccx_pq_kem_derive_output(kemPub) -&gt; (kemCt 1088B, ss-seed 32B)
+  h = SHAKE256(&quot;ccx-msg-v1&quot; || ss-seed || LE64(index))            # 32-byte chacha8 key
+  data = chacha8(msg || 0x00000000, key=h, iv=LE64(index))
+  emit tx_extra_pq_message{ kemCt, data }
+
+Recipient (has kemSec 2400B):
+  for each pq-message field i:
+     ccx_pq_kem_scan(kemSec, kemCt) -&gt; ss-seed 32B
+     h = SHAKE256(&quot;ccx-msg-v1&quot; || ss-seed || LE64(i))
+     plain = chacha8(data, key=h, iv=LE64(i)); check 4 trailing zero bytes</code></pre>
+<p>The 32-byte seed already includes a SHAKE step in Rust; we add a
+second C++-side derivation binding the message <code>index</code> and a
+message-specific domain tag (§3.1) so the chacha8 key is not the raw
+stealth seed.</p>
+<hr />
+<h2 id="3-concrete-changes-files--steps">3. Concrete changes (files /
+steps)</h2>
+<h3 id="31-ffi-add-a-message-domain-kem-derivation-rust">3.1 FFI: add a
+message-domain KEM derivation (Rust)</h3>
+<p>File: <code>pqc/ccx-pqc/src/lib.rs</code>. The current
+<code>derive_output</code>/<code>scan</code> hardcode the stealth domain
+<code>"ccx-stealth-otk"</code>. Add a thin message-domain pair
+(preferred — keeps domain separation inside the audited crypto module
+and returns the <strong>same <code>ss</code>-derived secret</strong>
+regardless of <code>index</code>, with <code>index</code> mixed in C++
+side per message):</p>
+<pre class="rust"><code>// Messages KEM: identical to derive_output/scan but domain &quot;ccx-msg-kem-v1&quot;.
+#[no_mangle] pub extern &quot;C&quot; fn ccx_pq_msg_kem_encap(
+    kem_pk: *const u8, kem_pk_len: usize,
+    ct_out: *mut u8, ct_cap: usize, key_out: *mut u8, key_cap: usize) -&gt; i32 { /* shake &quot;ccx-msg-kem-v1&quot; */ }
+#[no_mangle] pub extern &quot;C&quot; fn ccx_pq_msg_kem_decap(
+    kem_sk: *const u8, kem_sk_len: usize,
+    ct: *const u8, ct_len: usize, key_out: *mut u8, key_cap: usize) -&gt; i32 { /* shake &quot;ccx-msg-kem-v1&quot; */ }</code></pre>
+<p>Declare both in <code>pqc/include/pq_ring_sig.h</code> (alongside
+<code>ccx_pq_kem_*</code>). Add a selftest
+<code>ccx_pq_msg_kem_selftest()</code> (encap→decap round-trip +
+wrong-key-fails) following <code>ccx_pq_kem_stealth_selftest</code>
+(<code>lib.rs:236-258</code>).</p>
+<p>Acceptable alternative (zero Rust change): reuse
+<code>ccx_pq_kem_derive_output</code>/<code>scan</code> as-is and do ALL
+domain separation + index binding in C++:
+<code>h = cn_fast_hash("ccx-msg-v1" || seed32 || LE64(index))</code>.
+This is simpler to land but mixes the stealth-domain seed into messages;
+if outputs and messages ever target the same KEM key this reuses one
+<code>ss</code> across two purposes (still safe because the SHAKE inputs
+differ, but it is cleaner to domain-separate inside Rust).
+<strong>Recommend the explicit Rust pair.</strong></p>
+<h3 id="32-new-tag--struct-transactionextrah">3.2 New tag + struct
+(TransactionExtra.h)</h3>
+<pre class="cpp"><code>#define TX_EXTRA_PQ_MESSAGE_TAG 0x06   // after TX_EXTRA_TTL = 0x05
+
+struct tx_extra_pq_message {
+  std::vector&lt;uint8_t&gt; kemCt;   // ML-KEM-768 ciphertext (1088 B)
+  std::string data;             // chacha8(msg || 4x00), same construction as tx_extra_message
+
+  bool encrypt(std::size_t index, const std::string&amp; message,
+               const std::vector&lt;uint8_t&gt;&amp; recipientKemPub);
+  bool decrypt(std::size_t index, const std::vector&lt;uint8_t&gt;&amp; recipientKemSec,
+               std::string&amp; message) const;
+  bool serialize(ISerializer&amp; serializer);
+};</code></pre>
+<p>Add <code>tx_extra_pq_message</code> to the
+<code>TransactionExtraField</code> boost::variant
+(<code>TransactionExtra.h:68</code>). Add declarations for
+<code>append_pq_message_to_extra</code> and
+<code>get_pq_messages_from_extra(extra, recipientKemSec)</code> (note:
+<strong>no tx pubkey argument</strong> — the KEM ciphertext is
+self-contained; the recipient only needs its own KEM secret).</p>
+<h3 id="33-parse--write--encrypt--decrypt-transactionextracpp">3.3 Parse
+/ write / encrypt / decrypt (TransactionExtra.cpp)</h3>
+<ul>
+<li>Parser (<code>TransactionExtra.cpp:42</code> switch): add
+<pre class="cpp"><code>case TX_EXTRA_PQ_MESSAGE_TAG: {
+  tx_extra_pq_message m;
+  ar(m.kemCt, &quot;kem&quot;);   // BinaryArray length-prefixed
+  ar(m.data,  &quot;data&quot;);
+  transactionExtraFields.push_back(m);
+  break;
+}</code></pre>
+Guard <code>kemCt.size() == ccx_pq_kem_ct_bytes()</code> and bound
+<code>data.size()</code> (reject oversize early; see R4). Reuse the
+existing <code>try/catch</code> that already makes the parser
+fail-closed.</li>
+<li><code>ExtraSerializerVisitor</code>
+(<code>TransactionExtra.cpp:122-164</code>): add
+<code>bool operator()(const tx_extra_pq_message&amp; t){ return append_pq_message_to_extra(extra, t); }</code>.</li>
+<li><code>append_pq_message_to_extra</code>: mirror
+<code>append_message_to_extra</code> (<code>:242-255</code>) — push tag,
+then <code>toBinaryArray(message_struct)</code>.</li>
+<li><code>serialize</code>: <code>s(kemCt,"kem"); s(data,"data");</code>
+— but <code>kemCt</code> is <code>vector&lt;uint8_t&gt;</code>, use the
+same <code>serializeAsBinary</code> style as
+<code>PqKeyOutput::kemCt</code> for compactness/consistency.</li>
+<li><code>encrypt</code>:
+<pre class="cpp"><code>bool tx_extra_pq_message::encrypt(size_t index, const std::string&amp; message,
+                                  const std::vector&lt;uint8_t&gt;&amp; recipientKemPub) {
+  size_t mlen = message.size();
+  std::vector&lt;char&gt; buf(mlen + TX_EXTRA_MESSAGE_CHECKSUM_SIZE, 0);
+  memcpy(buf.data(), message.data(), mlen);
+  mlen += TX_EXTRA_MESSAGE_CHECKSUM_SIZE;
+  kemCt.assign(ccx_pq_kem_ct_bytes(), 0);
+  uint8_t seed[32];
+  if (ccx_pq_msg_kem_encap(recipientKemPub.data(), recipientKemPub.size(),
+                           kemCt.data(), kemCt.size(), seed, sizeof(seed)) != 0) return false;
+  Hash h = deriveMsgKey(seed, index);          // SHAKE/cn_fast_hash(&quot;ccx-msg-v1&quot;||seed||LE64(index))
+  uint64_t nonce = SWAP64LE(index);
+  chacha8(buf.data(), mlen, reinterpret_cast&lt;uint8_t*&gt;(&amp;h),
+          reinterpret_cast&lt;uint8_t*&gt;(&amp;nonce), buf.data());
+  data.assign(buf.data(), mlen);
+  return true;
+}</code></pre></li>
+<li><code>decrypt</code>: symmetric —
+<code>ccx_pq_msg_kem_decap(recipientKemSec, kemCt, seed)</code>, same
+<code>deriveMsgKey</code>, chacha8, then the 4 trailing-zero checksum
+test (the owner test). On any FFI error or short buffer return false (so
+non-recipients silently skip).</li>
+<li><code>get_pq_messages_from_extra</code>: same shape as
+<code>get_messages_from_extra</code> (<code>:257-280</code>) but iterate
+<code>typeid(tx_extra_pq_message)</code> and call the new
+<code>decrypt</code>.</li>
+</ul>
+<p>Keep <code>TX_EXTRA_MESSAGE_CHECKSUM_SIZE</code> (4) and the chacha8
+construction identical so the symmetric layer is unchanged and
+independently reviewable.</p>
+<h3 id="34-address-carries-a-kem-public-key-key-distribution">3.4
+Address carries a KEM public key (key distribution)</h3>
+<p>This is the substantive consensus/format surface. A recipient must
+publish a 1184-byte ML-KEM public key. Options, recommended order:</p>
+<p><strong>Option A (recommended, additive): a separate "PQ message key"
+sub-address / appendix.</strong> Do NOT widen
+<code>AccountPublicAddress</code>
+(<code>include/CryptoNote.h:91-94</code>) on mainnet — it is serialized
+into the Base58 address and into many on-disk/wire structures
+(<code>getAccountAddressAsStr</code>,
+<code>CryptoNoteBasicImpl.cpp:54-82</code>). Instead introduce a
+parallel optional structure:</p>
+<ul>
+<li><code>struct AccountPublicAddressPq { AccountPublicAddress base; std::vector&lt;uint8_t&gt; kemPub; };</code></li>
+<li>Encode with a <strong>new Base58 prefix</strong>
+(<code>TESTNET_*</code> first) so old wallets cleanly reject it and new
+wallets recognize "this is a PQ-message-capable address." Add e.g.
+<code>CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX</code> +
+<code>TESTNET_*</code> in <code>CryptoNoteConfig.h</code>.</li>
+<li>Extend <code>AccountKeys</code> storage
+(<code>include/CryptoNote.h:96-100</code>) with an optional
+<code>kemSecretKey</code>/<code>kemPublicKey</code> (2400 B / 1184 B),
+persisted in the wallet file. Generate it in
+<code>AccountBase</code>/<code>generate</code>
+(<code>src/CryptoNoteCore/Account.cpp</code>) via
+<code>ccx_pq_kem_keypair</code>. <strong>Wallet file is a compatibility
+surface</strong> — add the KEM keypair as a new optional serialized
+member guarded by a wallet-format version bump, never mutate existing
+fields.</li>
+</ul>
+<p><strong>Option B (PoC-only shortcut, what the current testnet already
+does):</strong> a single hardcoded testnet recipient KEM key
+(<code>pqc/include/pq_testnet_kem_keypair.h</code>,
+<code>PQ_TESTNET_KEM_PK</code>). For the message PoC, the sender can
+encapsulate to <code>PQ_TESTNET_KEM_PK</code> and the injector/recipient
+decapsulates with <code>PQ_TESTNET_KEM_SK</code>. This proves the
+end-to-end message path with <strong>zero address-format work</strong>
+and is the fastest route to a working demo. Production needs Option
+A.</p>
+<p><strong>Derivation alternative (no new key material):</strong> derive
+the recipient KEM keypair deterministically from the existing wallet
+seed (e.g. <code>ccx_pq_keygen</code>-style seed =
+<code>SHAKE("ccx-msg-kem-id" || spendSecretKey)</code>), and publish
+only the resulting <code>kemPub</code> in the address. This avoids
+storing a second independent secret but ties message confidentiality to
+the spend key (acceptable — that matches today's spend-key-addressed
+semantics). Recommended if the team wants to minimize wallet-format
+churn. Document the binding clearly: whoever holds the spend secret can
+read messages, exactly as today.</p>
+<h3 id="35-sendscan-glue">3.5 Send/scan glue</h3>
+<ul>
+<li><code>tx_message_entry</code>
+(<code>CryptoNoteFormatUtils.h:44-49</code>): add
+<code>std::vector&lt;uint8_t&gt; kemPub;</code> and a
+<code>bool pq;</code> flag. In <code>constructTransaction</code>
+(<code>CryptoNoteFormatUtils.cpp:205-213</code>), if
+<code>msg.pq &amp;&amp; !msg.kemPub.empty()</code>, build a
+<code>tx_extra_pq_message</code> and
+<code>append_pq_message_to_extra</code>; else keep the legacy
+branch.</li>
+<li><code>WalletTransactionSender.cpp:239-248</code>: when the parsed
+destination is a PQ address (Option A prefix), set
+<code>kemPub</code>/<code>pq</code> on the
+<code>tx_message_entry</code>.</li>
+<li><code>TransfersConsumer.cpp:574-575</code>: additionally call
+<code>get_pq_messages_from_extra(tx.getExtra(), sub.getKeys().kemSecretKey)</code>
+and merge with the legacy result before
+<code>sub.addTransaction(...)</code>. The scan needs the account's KEM
+secret, which Option A/derivation makes available on
+<code>AccountKeys</code>.</li>
+</ul>
+<h3 id="36-testnet-gating-consensus-posture">3.6 Testnet gating
+(consensus posture)</h3>
+<p>Per CLAUDE.md, anything affecting accepted tx format is
+consensus-sensitive. The PQ message field is <strong>inside
+<code>TX_EXTRA</code>, which is opaque to validation</strong> (the
+daemon does not parse message semantics during block validation — it
+only relays/stores <code>extra</code>). So adding <code>0x06</code> does
+not by itself change block acceptance; old daemons will store and relay
+the field as opaque extra bytes and simply fail to parse the new tag
+(the parser switch falls through unknown tags... — verify: the current
+parser has <strong>no default case</strong>, so an unknown tag byte is
+consumed as the next field's tag, which can desync parsing).
+<strong>Important correctness note:</strong> the existing
+<code>parseTransactionExtra</code> loop (<code>:39-112</code>) has no
+<code>default:</code> and treats every byte as a known tag; an
+unrecognized <code>0x06</code> on an old node makes the following bytes
+mis-parse and the whole <code>parseTransactionExtra</code> likely
+returns the partial/garbled set or throws → fields after it are lost,
+but <code>parse</code> returning <code>false</code> only drops message
+extraction, not block validation. Confirm that <code>extra</code> is NOT
+re-serialized canonically during validation (it is stored as the raw
+byte vector <code>tx.extra</code>), so consensus/tx-hash is over the raw
+bytes and is unaffected. Gate emission behind <code>m_testnet</code>
+(and a config flag) so mainnet never produces <code>0x06</code> until a
+coordinated upgrade height.</p>
+<hr />
+<h2 id="4-wire-format">4. Wire format</h2>
+<pre><code>tx_extra_pq_message (after tag byte 0x06):
+  [varint len_kemCt][kemCt bytes (1088)]
+  [varint len_data ][data  bytes (mlen = |msg| + 4)]</code></pre>
+<p>Use <code>serializeAsBinary</code> for both members
+(length-prefixed), matching <code>PqKeyOutput</code>
+(<code>CryptoNoteSerialization.cpp:295-298</code>). Fixed
+<code>kemCt</code> size is enforced on parse, not on the wire (defense
+in depth: reject <code>len_kemCt != 1088</code>).</p>
+<hr />
+<h2 id="5-security-analysis">5. Security analysis</h2>
+<ul>
+<li><strong>Confidentiality (the goal):</strong> message key is
+<code>KDF(ML-KEM-768 shared secret, index)</code>. Recovering it
+requires breaking ML-KEM-768 (NIST level 3, IND-CCA2) — Shor-resistant.
+The on-chain tx pubkey no longer participates in the message key,
+closing the X25519 break for messages.</li>
+<li><strong>No transcript downgrade:</strong> the legacy
+<code>0x04</code> field and the PQ <code>0x06</code> field are
+independent. A PQ-addressed message must be sent ONLY as
+<code>0x06</code>; never emit a parallel <code>0x04</code> copy (that
+would leak the plaintext under the quantum-broken channel). Enforce in
+<code>constructTransaction</code>.</li>
+<li><strong>Integrity:</strong> unchanged from today — the 4-byte zero
+checksum is a weak owner-test, not a MAC. ML-KEM is IND-CCA2 so
+ciphertext malleability of <code>kemCt</code> is bounded, but
+<code>data</code> (chacha8) has no MAC. This matches existing behavior;
+flag as a known limitation. A clean future step: replace chacha8 +
+4-zero-byte check with an AEAD (ChaCha20-Poly1305) keyed by the KEM
+secret. Out of scope for "drop-in KEM replacement" but worth noting in
+the spec.</li>
+<li><strong>Domain separation:</strong> the message KDF MUST use a
+distinct domain string from stealth outputs
+(<code>"ccx-msg-kem-v1"</code> vs <code>"ccx-stealth-otk"</code>) so a
+KEM key reused for both purposes never yields the same secret. §3.1
+handles this.</li>
+<li><strong>Metadata:</strong> a <code>0x06</code> field is publicly
+visible (reveals "this tx carries a PQ message" and its ~1088+N byte
+size). Same observability class as today's <code>0x04</code>. Optional
+<code>TX_EXTRA_TAG_PADDING</code> can normalize sizes.</li>
+<li><strong>No nullifier/replay concern:</strong> messages are not
+spends; no double-spend surface.</li>
+</ul>
+<hr />
+<h2 id="6-risks">6. Risks</h2>
+<ul>
+<li><strong>R1 (consensus/format, HIGH):</strong>
+<code>parseTransactionExtra</code> has no <code>default:</code> case
+(<code>TransactionExtra.cpp:42-111</code>); an unknown <code>0x06</code>
+on an un-upgraded node mis-frames subsequent extra fields. Mitigation:
+gate to testnet; for mainnet, ship the parser-side <code>0x06</code>
+handler to ALL nodes (a quiet, non-consensus client update) BEFORE any
+wallet emits the tag, OR place PQ messages last in <code>extra</code> so
+mis-framing only affects the PQ field itself. Verify tx-hash is over raw
+<code>tx.extra</code> bytes (it is — <code>extra</code> is
+<code>std::vector&lt;uint8_t&gt;</code> carried verbatim) so block
+validity is unaffected regardless.</li>
+<li><strong>R2 (wallet-format compatibility, MED):</strong> storing the
+2400-byte KEM secret in the wallet file changes the wallet format. Bump
+wallet version, make the field optional, and provide migration
+(generate-on-first-load). Old wallets opening a PQ wallet must fail
+cleanly, not corrupt.</li>
+<li><strong>R3 (address format / UX, MED):</strong> new Base58 prefix
+means PQ addresses are visibly different and ~1.5 KB longer (1184 B
+encoded). Wallets/exchanges/explorers must recognize the prefix. The
+derive-from-seed variant (§3.4) lets a single address optionally expose
+a <code>kemPub</code>.</li>
+<li><strong>R4 (tx size / relay, MED):</strong> +1088 B per PQ message.
+Confirm against any
+<code>MAX_TX_EXTRA</code>/<code>max blob size</code>/fee-per-byte rules.
+Add an explicit upper bound on <code>data</code> length in the parser.
+Multiple messages multiply the cost.</li>
+<li><strong>R5 (FFI/ABI, LOW-MED):</strong> new Rust exports must be
+rebuilt (<code>cargo build --release</code>) and the <code>.a</code>
+relinked. The <code>ss</code>→seed SHAKE is inside Rust; ensure the C++
+<code>deriveMsgKey</code> uses a hash/XOF consistent across platforms
+(prefer SHAKE256 in Rust to avoid a second hash impl in C++; or reuse
+<code>cn_fast_hash</code> which is already used at
+<code>:396</code>).</li>
+<li><strong>R6 (key reuse, LOW):</strong> if the KEM key is derived from
+the spend secret, message confidentiality == spend-key secrecy. This
+matches current semantics (spend-key-addressed messages) but should be
+stated explicitly so users don't assume a separate compromise
+boundary.</li>
+<li><strong>R7 (timing/oracle, LOW):</strong> the 4-zero-byte owner-test
+runs per candidate message per subscribed account; ML-KEM decaps is
+constant-time in the Rust lib. Avoid leaking via early-return
+differences beyond what the legacy path already does.</li>
+</ul>
+<hr />
+<h2 id="7-test-plan">7. Test plan</h2>
+<p>Rust (<code>pqc/ccx-pqc</code>, <code>cargo build --release</code> +
+<code>cargo test</code>):</p>
+<ul>
+<li><code>ccx_pq_msg_kem_selftest</code>: encap→decap round-trip yields
+equal 32-byte secret; wrong KEM secret yields a different secret. Mirror
+<code>ccx_pq_kem_stealth_selftest</code>
+(<code>lib.rs:236-258</code>).</li>
+<li>Property: secret independent of <code>index</code> (index is mixed
+C++-side), ciphertext is 1088 B.</li>
+</ul>
+<p>C++ unit (add to <code>tests/</code>, build with
+<code>-DBUILD_TESTS=ON</code>, run <code>ctest -R UnitTests</code>):</p>
+<ul>
+<li><code>tx_extra_pq_message</code> round-trip:
+<code>encrypt(index, msg, kemPub)</code> →
+<code>parseTransactionExtra(writeTransactionExtra(...))</code> →
+<code>decrypt(index, kemSec)</code> == <code>msg</code>, for empty /
+short / multi-KB messages and indices 0..N.</li>
+<li>Wrong recipient: <code>decrypt</code> with a different KEM secret
+returns false (checksum fails), no crash.</li>
+<li>Mixed extra: a tx with
+<code>[pubkey, 0x04 legacy msg, 0x06 pq msg, TTL]</code> parses all
+fields and <code>get_pq_messages_from_extra</code> returns only the PQ
+ones; <code>get_messages_from_extra</code> only the legacy.</li>
+<li>Tamper: flip a byte in <code>kemCt</code> or <code>data</code> →
+<code>decrypt</code> returns false (no panic across the FFI).</li>
+<li>Bounds: oversize <code>len_kemCt</code>/<code>len_data</code>
+rejected by the parser (returns false, no OOM).</li>
+<li>Old-parser framing: feed a <code>0x06</code> field to a parser
+without the new case (simulate old node) and assert block-level tx-hash
+over <code>tx.extra</code> is unchanged (raw-bytes invariant).</li>
+</ul>
+<p>Integration (2-node testnet,
+<code>pqc/run-poc-testnet.sh ~/conceal-core/build/src</code>):</p>
+<ul>
+<li>Send a PQ message to <code>PQ_TESTNET_KEM_PK</code> (Option B),
+confirm <code>TransfersConsumer</code>'s
+<code>get_pq_messages_from_extra</code> surfaces it with the matching
+<code>PQ_TESTNET_KEM_SK</code>, and a wrong key does not. Measure tx
+size delta and relay/accept across both nodes.</li>
+</ul>
+<p>Build/measure host: <code>ssh 100.100.90.103</code>;
+<code>cd ~/conceal-core/build &amp;&amp; make -j16 CryptoNoteCore Daemon ConcealWallet</code>;
+Rust:
+<code>cd ~/conceal-core/pqc/ccx-pqc &amp;&amp; ~/.cargo/bin/cargo build --release</code>.</p>
+<hr />
+<h2 id="8-recommended-landing-order-smallest-reviewable-steps">8.
+Recommended landing order (smallest reviewable steps)</h2>
+<ol type="1">
+<li>Rust: add <code>ccx_pq_msg_kem_encap/decap</code> + selftest;
+declare in <code>pq_ring_sig.h</code>; rebuild <code>.a</code>.</li>
+<li>C++: add <code>TX_EXTRA_PQ_MESSAGE_TAG</code>,
+<code>tx_extra_pq_message</code> (struct, variant, parse/write,
+encrypt/decrypt, get_/append_), with unit tests. <strong>No
+address/wallet changes yet</strong> — test with a literal KEM keypair in
+the unit test. This is the self-contained, low-risk core.</li>
+<li>Wire send/scan glue (<code>tx_message_entry</code>,
+<code>constructTransaction</code>, <code>TransfersConsumer</code>)
+behind a testnet flag, using Option B's hardcoded testnet KEM key for
+the first end-to-end demo.</li>
+<li>Address/wallet key distribution (Option A or derive-from-seed) +
+wallet-format version bump. This is the larger consensus/compat surface
+and should be its own reviewed PR.</li>
+</ol>
+<p>Steps 1–2 are a clean, isolated, well-testable unit; steps 3–4 are
+the compatibility-heavy work.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

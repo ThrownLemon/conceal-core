@@ -1,0 +1,605 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crypto modernization — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class="active"><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="q2--modernize-the-crypto-stack-beyond-pq">Q2 — Modernize the
+Crypto Stack (beyond PQ)</h1>
+<p><strong>Status:</strong> analysis only — no source edited.
+<strong>Scope:</strong> audit the <em>current</em> cryptographic
+primitives in conceal-core as they actually exist in the code, name
+better modern alternatives, and rate the migration risk for each. This
+is the "clean up the crypto we already have" question, distinct from
+"add post-quantum" (Q1) and "should we rewrite in Rust / total redesign"
+(Q3). PQ is referenced only where the two intersect.</p>
+<p>The governing distinction throughout: <strong>non-consensus
+swaps</strong> (wallet file, message encryption, local KDF — change them
+and only <em>new</em> artifacts differ; old wallets/peers keep working)
+vs. <strong>consensus swaps</strong> (signatures, PoW, the wire/disk
+serialization, address format — change them and you fork the chain or
+break every peer/wallet, so they are hard-fork + audit-gated).</p>
+<hr />
+<h2 id="0-what-the-code-actually-uses-today-grounded-inventory">0. What
+the code actually uses today (grounded inventory)</h2>
+<table>
+<thead>
+<tr>
+<th>Primitive</th>
+<th>Where</th>
+<th>What it is</th>
+<th>Modern status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>KV binary serialization</strong></td>
+<td><code>src/Serialization/KVBinary*</code>,
+<code>BinaryInput/OutputStreamSerializer</code></td>
+<td>Homemade tag-length-value KV format (CryptoNote "portable storage"),
+hand-written <code>serialize()</code> per struct via
+<code>ISerializer</code></td>
+<td>No schema, no versioned IDL; fine but fragile</td>
+</tr>
+<tr>
+<td><strong>chacha8</strong></td>
+<td><code>src/crypto/chacha8.{c,h}</code></td>
+<td>ChaCha <strong>8-round</strong> stream cipher (reduced from standard
+20), used for (a) wallet file encryption, (b) legacy 0x04 message
+field</td>
+<td>Non-standard round count; no AEAD/MAC</td>
+</tr>
+<tr>
+<td><strong>0x04 encrypted message</strong></td>
+<td><code>src/CryptoNoteCore/TransactionExtra.cpp</code> ~L445–510</td>
+<td>chacha8 keystream over <code>derivation</code>-derived key +
+<strong>4 trailing zero bytes as an "owner check"</strong></td>
+<td>Unauthenticated (malleable); the 4-zero check is <em>not</em> a
+MAC</td>
+</tr>
+<tr>
+<td><strong>Wallet-file KDF</strong></td>
+<td><code>crypto/chacha8.h:generate_chacha8_key</code>,
+<code>WalletLegacySerializer.cpp</code>,
+<code>WalletSerializationV1.h</code></td>
+<td><code>cn_slow_hash_v0(password)</code> → 32-byte chacha8 key.
+<strong>No salt, no iteration count, single pass.</strong></td>
+<td>Weak password KDF; not Argon2/scrypt</td>
+</tr>
+<tr>
+<td><strong>Ed25519 / Curve25519</strong></td>
+<td><code>src/crypto/crypto.cpp</code>, <code>crypto-ops.c</code>,
+<code>ge_*</code>, <code>sc_*</code></td>
+<td>Edwards25519 for one-time keys, ECDH
+(<code>generate_key_derivation</code>), LSAG-style ring signatures, key
+images</td>
+<td>Classically strong; <strong>Shor-broken</strong> under a CRQC</td>
+</tr>
+<tr>
+<td><strong>CryptoNight v0 PoW</strong></td>
+<td><code>CryptoNoteFormatUtils.cpp:624</code>
+<code>cn_slow_hash_v0</code>; backends in
+<code>src/crypto/pow_hash/</code></td>
+<td>The <strong>original</strong> CryptoNight (2 MB scratchpad, AES
+round); v0 variant</td>
+<td>ASIC-saturated; superseded everywhere by RandomX</td>
+</tr>
+<tr>
+<td><strong>Address checksum</strong></td>
+<td><code>src/Common/Base58.cpp</code></td>
+<td>Base58 + <strong>4-byte <code>cn_fast_hash</code> (Keccak)
+checksum</strong></td>
+<td>Keccak is fine; 4 bytes is a typo-guard, not security</td>
+</tr>
+<tr>
+<td><strong>Key derivation (scalars)</strong></td>
+<td><code>crypto.cpp</code> <code>hash_to_scalar</code> = Keccak →
+<code>sc_reduce32</code></td>
+<td>Standard CryptoNote scalar derivation</td>
+<td>Fine; the <code>hash_to_ec</code>/<code>hash_to_point</code> is the
+legacy non-Elligator map (a known minor footgun, not exploited
+here)</td>
+</tr>
+<tr>
+<td><strong>PQ keypair RNG (gap)</strong></td>
+<td><code>pqc/ccx-pqc/src/lib.rs:173,183</code>
+<code>kyber768::keypair()</code> /
+<code>dilithium3::keypair()</code></td>
+<td>Library-internal <code>OsRng</code>; <strong>not</strong> derived
+from a seed</td>
+<td>Can't regenerate PQ keys from a wallet mnemonic → backup/HD-wallet
+gap</td>
+</tr>
+</tbody>
+</table>
+<p>Two of these (the lattice ring sig already swapped to a real
+construction, and the 0x06 message field already on ChaCha20-Poly1305
+AEAD) are PQ work-in-progress and out of Q2 scope except as precedent —
+the 0x06 AEAD swap is exactly the template the legacy items below should
+follow.</p>
+<hr />
+<h2 id="1-chacha8--the-4-zero-byte-owner-check-the-aead-question">1.
+chacha8 + the 4-zero-byte owner-check (the AEAD question)</h2>
+<p>This is the most clear-cut item and it splits into three independent
+surfaces. <strong>You already proved the right answer once</strong> —
+the new PQ 0x06 message field uses ChaCha20-Poly1305
+(<code>ccx_pq_msg_seal</code>, SHAKE256-derived key+nonce, 16-byte
+Poly1305 tag), and the in-code comment at
+<code>TransactionExtra.cpp:521</code> explicitly contrasts it with "the
+legacy 0x04 chacha8 + 4-zero-byte owner-test (which has no MAC and is
+left untouched)." The legacy items should follow that template where
+they can.</p>
+<h3
+id="1a-legacy-0x04-message-encryption--replace-the-construction-but-its-already-obsoleted-not-fixed-in-place">1a.
+Legacy 0x04 message encryption — <strong>REPLACE the construction, but
+it's already obsoleted, not "fixed in place"</strong></h3>
+<p>What's wrong (real, in the code):</p>
+<ul>
+<li><strong>chacha8</strong> = ChaCha reduced to 8 rounds. Not
+catastrophically broken, but it is a non-standard, reduced-round variant
+chosen ~2014 for speed; there is no reason to keep it for <em>new</em>
+ciphertext.</li>
+<li><strong>No authentication.</strong> The construction is
+keystream-only. The "4 trailing zero bytes, check they decrypt to zero"
+is a <em>probabilistic owner test</em> (1-in-2³² that a wrong key
+passes), <strong>not</strong> a MAC. An attacker who can flip ciphertext
+bytes flips plaintext bytes 1:1 (stream-cipher malleability); the
+zero-check only catches it if a flip lands in the last 4 bytes. On-chain
+messages are immutable once mined, so the practical attack surface is
+limited, but it is genuinely unauthenticated encryption and should not
+be presented as private+integrity-protected.</li>
+<li>Nonce = <code>SWAP64LE(index)</code> (the output index), key =
+<code>cn_fast_hash(derivation‖0x80)</code>. Deterministic nonce is
+acceptable here <em>only because</em> the key is unique per (tx,
+recipient); it's not a reusable-nonce bug, but it's brittle.</li>
+</ul>
+<p><strong>Recommendation:</strong> Don't retrofit a MAC onto 0x04. The
+PQ 0x06 AEAD field already supersedes it functionally. The clean
+path:</p>
+<ol type="1">
+<li>Treat 0x04 as <strong>frozen legacy</strong> — keep decrypt-only
+support forever (old txs must stay readable); stop <em>emitting</em> it
+for new messages.</li>
+<li>For the classical (non-PQ) path, if you still want a pre-fork
+message format, introduce a new tx-extra tag (e.g. 0x07) that is
+<strong>ChaCha20-Poly1305 (or XChaCha20-Poly1305) AEAD</strong> with the
+same ECDH-derived key — mirror exactly what <code>ccx_pq_msg_seal</code>
+does, minus the KEM. This is a clean reuse of code you already wrote and
+tested.</li>
+<li>Long-term, the PQ 0x06 field is the real successor (it fixes both
+the cipher <em>and</em> the Shor-broken ECDH).</li>
+</ol>
+<p><strong>Risk: LOW / non-consensus-ish.</strong> Messages are tx-extra
+payload, not validated by consensus (nodes don't decrypt them). Emitting
+a new tag is backward-compatible: old wallets ignore unknown tags. The
+only "compatibility" concern is wallet UX (an old wallet can't
+<em>read</em> a new-format message), which is a normal feature-gating
+problem, not a fork. <strong>Do this now.</strong></p>
+<h3
+id="1b-wallet-file-encryption-chacha8--cn_slow_hash_v0-kdf--replace-highest-value-easy-win">1b.
+Wallet-file encryption (chacha8 + cn_slow_hash_v0 KDF) —
+<strong>REPLACE, highest-value easy win</strong></h3>
+<p>Two weaknesses stack here, and both are local-only (the wallet file
+never touches consensus):</p>
+<ul>
+<li><strong>Cipher:</strong> chacha8, again unauthenticated. A
+corrupted/truncated wallet file decrypts to garbage with no integrity
+signal beyond downstream parse failure.</li>
+<li><strong>KDF (the bigger problem):</strong>
+<code>generate_chacha8_key</code> does <strong>one pass of
+<code>cn_slow_hash_v0</code> over the raw password, no salt, no
+iteration/cost parameter.</strong> CryptoNight v0 is memory-hard (~2 MB)
+so it's not <em>trivially</em> brute-forced, but: (i) no salt →
+identical passwords → identical keys, and rainbow tables are feasible;
+(ii) no tunable cost → can't raise the bar as hardware improves; (iii)
+it's a PoW hash repurposed as a password KDF, which is not what it was
+designed or analyzed for.</li>
+</ul>
+<p><strong>Recommendation:</strong> New wallet-file format version:</p>
+<ul>
+<li><strong>KDF → Argon2id</strong> (RFC 9106; the modern default for
+password→key) with a random per-wallet salt stored in the header and
+tunable memory/time cost. scrypt is an acceptable fallback if an Argon2
+dependency is unwelcome, but Argon2id is the right answer in 2026.</li>
+<li><strong>Cipher → XChaCha20-Poly1305 AEAD</strong> (24-byte random
+nonce avoids nonce-management entirely; you already have a
+ChaCha20-Poly1305 impl in the Rust module / via the AEAD you adopted).
+Authenticated → tamper/corruption detection for free.</li>
+<li>Bump the wallet serialization version; <strong>keep load-only
+support for the old chacha8 format</strong> and transparently re-encrypt
+on next save (migrate-on-open). Zero user friction, no data loss.</li>
+</ul>
+<p><strong>Risk: LOW / non-consensus.</strong> Wallet file is purely
+client-side. The only care needed: a clean versioned header and an
+unambiguous migration path so existing wallets open. This is the
+<strong>single highest value-to-risk item in the whole audit</strong> —
+it directly protects user funds at rest and touches nothing the network
+sees. <strong>Do this now</strong>, ideally bundled with the
+deterministic-keygen fix (§5) since both change the wallet format.</p>
+<h3 id="1c-the-chacha8-primitive-itself">1c. The chacha8 primitive
+itself</h3>
+<p>Once 1a and 1b move off it, chacha8 survives only as decrypt-only
+legacy. Leave the file in place (needed to read old wallets/messages);
+do not build anything new on it.</p>
+<hr />
+<h2 id="2-homemade-kv-binary-serialization-vs-a-schemad-format">2.
+Homemade KV binary serialization vs. a schema'd format</h2>
+<p><code>src/Serialization</code> is a hand-rolled tag-length-value
+"portable storage" (the CryptoNote/epee lineage) plus per-struct
+hand-written <code>serialize(ISerializer&amp;)</code>. It is the
+<strong>single most dangerous thing to touch</strong> in this whole
+document, and the recommendation is mostly "don't, but harden."</p>
+<p>What it is and why it's risky to change:</p>
+<ul>
+<li>It is simultaneously the <strong>P2P wire format</strong>, the
+<strong>on-disk blockchain format</strong>, and the
+<strong>wallet/tx-extra format</strong>. The exact byte layout is
+consensus-observable: the hash of a tx/block is computed over the
+serialized bytes (<code>get_block_longhash</code>,
+<code>getObjectHash</code>). <strong>Any change to how a consensus
+object serializes changes its hash → changes block/tx IDs → forks the
+chain and breaks every checkpoint and every stored block.</strong></li>
+<li>There is <strong>no schema, no IDL, no field-name/wire-compat
+checking.</strong> Correctness is "the hand-written
+<code>serialize()</code> matches on both sides," verified only by
+it-still-syncs. New fields are added by hand (you did exactly this for
+<code>PqKeyInput</code>/<code>PqKeyOutput</code>), which is error-prone
+— a mis-ordered field or wrong length is a silent fork.</li>
+</ul>
+<p>Modern alternatives and the honest verdict:</p>
+<ul>
+<li><strong>Protobuf / Cap'n Proto / FlatBuffers / SSZ (Ethereum) /
+Borsh (Solana/Rust)</strong> give you a schema, generated codecs,
+canonical encoding, and forward/backward-compat rules. For a
+<em>greenfield</em> coin any of these (SSZ or Borsh for
+determinism-critical consensus data) would be the right call.</li>
+<li><strong>For this chain:</strong> you <strong>cannot swap the
+consensus serialization without a hard fork and a full re-hash of
+history</strong>, and even then you'd have to bit-for-bit reproduce
+existing hashes for all historical blocks (impossible) or accept that
+all checkpoints/IDs change (a chain reset, not a fork). So a wholesale
+format swap is effectively "launch a new chain," which belongs to the Q3
+redesign conversation, not Q2 modernization.</li>
+</ul>
+<p><strong>What is worth doing now (non-consensus,
+high-value):</strong></p>
+<ol type="1">
+<li><strong>A schema-as-documentation + golden-vector test
+harness.</strong> Write down the canonical byte layout of every
+consensus-serialized struct and add round-trip + fixed-golden-vector
+tests (serialize → known bytes → hash → known hash). This catches the
+exact class of silent-fork bug the hand-written serializers invite, and
+is <em>especially</em> needed because you are actively adding PQ fields.
+<strong>This is the real action item for §2.</strong> Low risk, high
+payoff.</li>
+<li><strong>A canonicalization audit:</strong> confirm there is exactly
+one valid encoding per object (no length-prefix ambiguity, no
+optional-field ordering slack) — non-canonical encodings are a classic
+malleability/double-relay bug. Document, don't rewrite.</li>
+<li><strong>Isolate non-consensus serialization</strong> (RPC JSON
+responses, config, internal IPC) where you <em>can</em> freely adopt a
+schema'd format with no fork. The JSON serializers
+(<code>JsonOutput/Input*</code>) are already separate; if any new
+external API surface is added, use a schema'd format there.</li>
+</ol>
+<p><strong>Risk of touching the consensus codec: CRITICAL (chain
+fork).</strong> <strong>Risk of the test/schema-doc harness: LOW and
+it's protective.</strong> Recommendation: <strong>freeze the consensus
+codec, add golden-vector tests around it, never refactor it for
+aesthetics.</strong></p>
+<hr />
+<h2 id="3-ed25519--curve25519--classically-fine-shor-broken">3. Ed25519
+/ Curve25519 — classically fine, Shor-broken</h2>
+<p>This is the Q1 (PQ) story, included here for completeness of the
+audit. Curve25519/Ed25519 are excellent classical primitives (no
+classical weakness in the way they're used here — one-time keys, ECDH
+derivations, LSAG ring signatures, key images). The
+<strong>only</strong> problem is a cryptographically-relevant quantum
+computer: Shor's algorithm breaks the discrete log, which would let an
+attacker recover spend keys from public keys and forge signatures / link
+outputs.</p>
+<ul>
+<li><strong>Consensus-critical, hard-fork-gated, audit-gated.</strong>
+The spend signature and key-image are the core consensus rule. The PQ
+branch already replaces them with the experimental lattice anonymous
+linkable ring signature (<code>ringsig.rs</code>) and ML-KEM-768 stealth
+— that <em>is</em> the migration. The blocker is the maturity of the
+ring-sig (demo-grade params, not constant-time, unaudited), which is the
+Q1 hard wall, not a Q2 "swap a primitive" task.</li>
+<li><strong>No Q2 action distinct from Q1.</strong> There is no "better
+classical curve" worth migrating to (P-256/secp256k1 are not
+improvements; ristretto255 would be a marginal hygiene win but a
+consensus fork for no real benefit). The right move is PQ, height-gated,
+per the existing blueprints. Don't churn the curve layer for its own
+sake.</li>
+</ul>
+<p><strong>Risk: CRITICAL (consensus, fork, audit).</strong> Already
+owned by the PQ track.</p>
+<hr />
+<h2 id="4-cryptonight-v0-pow--the-randomx-precedent">4. CryptoNight v0
+PoW — the RandomX precedent</h2>
+<p>The daemon hashes blocks with <code>cn_slow_hash_v0</code>
+(<code>CryptoNoteFormatUtils.cpp:624</code>) — the
+<strong>original</strong> CryptoNight, v0 variant. Real-world precedent
+is unambiguous here:</p>
+<ul>
+<li>CryptoNight v0 is <strong>fully ASIC-dominated.</strong> Monero
+(CryptoNight's origin) went through CN v1 → v2 → v4/R specifically to
+brick ASICs, then <strong>abandoned the whole family for
+RandomX</strong> (Nov 2019) precisely because the tweak-treadmill was
+unwinnable. v0 is the <em>oldest, most ASIC-friendly</em> point on that
+curve. Any ASIC built for early Monero/other CN coins hashes CCX.</li>
+<li>The PQ angle is a <strong>non-issue</strong>: Grover only
+quadratically speeds up hash preimage search, which just halves
+effective PoW security (a 256-bit hash → 128-bit), and difficulty
+already absorbs hashrate changes. Your own
+<code>pow-grover-widening.md</code> correctly concludes "no change
+needed." <strong>PoW does not need PQ.</strong> The CryptoNight problem
+is purely a classical ASIC-centralization / fair-mining concern.</li>
+</ul>
+<p>Modern alternatives:</p>
+<ul>
+<li><strong>RandomX</strong> (Monero, also used by Wownero,
+Arweave-adjacent, etc.) — the de-facto standard for ASIC-resistant CPU
+PoW. Battle-tested, audited, with a maintained reference implementation.
+This is the obvious target if PoW modernization is desired.</li>
+<li>Others (ProgPoW = GPU-leaning and effectively dead
+post-Ethereum-merge; Autolykos/Equihash = GPU/memory variants) are not
+better fits than RandomX for a CPU-fair CryptoNote descendant.</li>
+</ul>
+<p><strong>The hard part — this is a CONSENSUS change:</strong></p>
+<ul>
+<li>The PoW hash is <em>the</em> block-validity rule. Switching to
+RandomX is a <strong>hard fork</strong> gated behind a new
+<code>UPGRADE_HEIGHT_V*</code> + block major version (exactly the
+mechanism <code>CryptoNoteConfig.h</code> already uses for V3–V8).</li>
+<li>It is <strong>disruptive to miners</strong> (everyone re-tools;
+existing CN ASICs become worthless — which is the point but also a
+political event), changes difficulty calibration, needs new
+mining-software/pool support, and RandomX brings a heavy verification
+cost / large dataset (~2+ GB fast mode) that affects node resource
+profiles.</li>
+<li>It needs its own testing campaign (testnet fork, difficulty retarget
+tuning — you already saw LWMA overshoot stalls on the PQ testnet).</li>
+</ul>
+<p><strong>Risk: HIGH (consensus, hard fork, miner ecosystem).</strong>
+Worth doing <strong>only if</strong> ASIC centralization is an actual
+observed problem for CCX and the community wants it — it is a
+<em>policy/economics</em> decision, not a security bug. It is
+independent of PQ and should not be bundled with the PQ fork (two large
+consensus changes at once multiplies risk). <strong>Defer unless there's
+a mining-fairness mandate; if pursued, RandomX is the answer and it's a
+standalone height-gated hard fork.</strong></p>
+<hr />
+<h2 id="5-deterministic-keygen-gap-kyberdilithium-rng-keypairs">5.
+Deterministic-keygen gap (Kyber/Dilithium RNG keypairs)</h2>
+<p>Real gap in the current PoC: <code>kyber768::keypair()</code> and
+<code>dilithium3::keypair()</code>
+(<code>pqc/ccx-pqc/src/lib.rs:173,183</code>) use the pqcrypto library's
+<strong>internal OS RNG</strong>. They are <strong>not</strong> derived
+from a seed. By contrast the <em>classical</em> CryptoNote keys and the
+lattice ring-sig seed (<code>ccx_pq_keygen</code> takes a
+<code>seed</code> and does <code>seed32(seed)</code>) are
+deterministic.</p>
+<p>Why this matters:</p>
+<ul>
+<li>CryptoNote wallets are <strong>deterministic /
+mnemonic-restorable</strong> — your whole spend key is recovered from a
+seed phrase. If PQ KEM/signature keys are RNG-generated and <em>not</em>
+seed-derivable, then a mnemonic backup <strong>cannot</strong> restore
+the PQ half of the wallet. You'd have to back up raw PQ secret keys
+separately (large, error-prone) — a serious UX/funds-loss regression for
+the wallet-v2 work.</li>
+<li>It also blocks any HD-wallet / sub-address derivation for PQ
+outputs.</li>
+</ul>
+<p>The fix (well-defined, not research):</p>
+<ul>
+<li><strong>FIPS 203 (ML-KEM) and FIPS 204 (ML-DSA) both specify
+deterministic keygen from a seed</strong> (ML-KEM: <code>(d,z)</code>
+64-byte seed; ML-DSA: 32-byte <code>ξ</code> seed). The standardized
+"keygen from seed" / "derand" APIs exist precisely for this. The
+pqcrypto crate's <code>keypair()</code> wraps the randomized variant;
+you need the <strong>deterministic/derand keygen</strong> entry point
+(or a library that exposes it — e.g. the RustCrypto
+<code>ml-kem</code>/<code>ml-dsa</code> crates expose seed-based
+keygen). Derive the PQ seed from the wallet master seed via a
+domain-separated SHAKE/HKDF, exactly as <code>ccx-stealth-otk</code>
+already does.</li>
+<li>This makes PQ keys mnemonic-restorable and HD-derivable, closing the
+gap.</li>
+</ul>
+<p><strong>Risk: LOW-to-MEDIUM, non-consensus <em>if done
+right</em>.</strong> Keygen happens wallet-side; the <em>public</em>
+keys and on-chain artifacts are unchanged in format, so it is not a
+consensus fork. The MEDIUM caveat: it must be done
+<strong>before</strong> any PQ wallet ships with real funds, because
+changing the keygen derivation later would orphan already-created keys.
+Get the seed-derivation domain separation and the FIPS-compliant derand
+path right the first time, with test vectors. <strong>Do this as part of
+the wallet-v2 / wallet-file-format work (bundle with §1b).</strong></p>
+<hr />
+<h2 id="6-address-checksum--scalar-key-derivation">6. Address checksum
+&amp; scalar key derivation</h2>
+<p>Minor / mostly-fine items, audited for completeness:</p>
+<ul>
+<li><strong>Address checksum</strong> (<code>Base58.cpp</code>, 4-byte
+<code>cn_fast_hash</code>/Keccak): this is a <strong>typo
+guard</strong>, not a security control — it stops fat-fingered
+addresses, nothing more. Keccak is fine; 4 bytes is conventional.
+<strong>No change needed.</strong> (It is also consensus-adjacent in the
+sense that the address format is a compatibility surface; don't touch it
+without a reason.) When the PQ wallet-address-v2 format lands (PQ keys
+are large), it'll need its own versioned address prefix + checksum —
+that's new format design, not a fix to the existing one.</li>
+<li><strong><code>hash_to_scalar</code> = Keccak →
+<code>sc_reduce32</code>:</strong> standard CryptoNote, fine.</li>
+<li><strong><code>hash_to_point</code> /
+<code>hash_to_ec</code>:</strong> the legacy CryptoNote map-to-curve
+(not Elligator2). It's a known minor wart across the CryptoNote family
+but is consensus-frozen (key images depend on it) and not exploitable as
+used here. <strong>Do not touch — consensus.</strong></li>
+</ul>
+<hr />
+<h2 id="7-prioritized-recommendation">7. Prioritized recommendation</h2>
+<p><strong>Tier 1 — do now (non-consensus, high value, low
+risk):</strong></p>
+<ol type="1">
+<li><strong>Wallet-file format v2: Argon2id KDF (salt + tunable cost) +
+XChaCha20-Poly1305 AEAD</strong>, with load-only legacy support and
+migrate-on-open. (§1b) — <em>highest value-to-risk item; protects funds
+at rest.</em></li>
+<li><strong>Deterministic FIPS-203/204 PQ keygen from the wallet
+seed</strong> (so PQ keys are mnemonic-restorable), bundled into the
+same wallet-format change. (§5) — <em>must land before any PQ wallet
+holds real funds.</em></li>
+<li><strong>Golden-vector + round-trip test harness around the consensus
+serializer</strong>, and a written canonical-layout spec —
+<em>protective, urgent because PQ fields are actively being added by
+hand.</em> (§2)</li>
+<li><strong>New AEAD message tag (ChaCha20-Poly1305) for classical
+messages</strong>, freeze 0x04 to decrypt-only. Reuses the PQ AEAD code
+you already wrote/tested. (§1a)</li>
+</ol>
+<p><strong>Tier 2 — policy/community decision, standalone hard fork (do
+NOT bundle with the PQ fork):</strong> 5. <strong>RandomX PoW</strong> —
+only if ASIC centralization is an actual problem for CCX and the
+community wants it. Height-gated <code>UPGRADE_HEIGHT_V*</code>, its own
+testnet + difficulty-retune + pool-software campaign. (§4)</p>
+<p><strong>Tier 3 — already owned by the PQ track / do not
+churn:</strong> 6. Ed25519/Curve25519 → PQ: this <em>is</em> the Q1
+lattice-ring-sig + ML-KEM migration; consensus, audit-gated, blocked on
+ring-sig maturity. No separate Q2 action. (§3) 7. Consensus serializer
+wholesale swap to a schema'd format: effectively "launch a new chain" —
+belongs to Q3 (total redesign), not Q2. (§2) 8. Address checksum,
+<code>hash_to_scalar</code>, <code>hash_to_point</code>: leave alone.
+(§6)</p>
+<p><strong>The through-line:</strong> every genuinely <em>easy and
+safe</em> modernization here is wallet-side / client-side (items 1, 2,
+4) — and you already built the reference implementation for the cipher
+half when you swapped the PQ message field to ChaCha20-Poly1305 AEAD.
+The genuinely <em>valuable but hard</em> items (PoW, the consensus
+serializer, the signature layer) are all hard precisely because they're
+consensus — they fork the chain, demand audits, and should each be
+isolated height-gated events, not combined. Modernize the wallet now;
+gate everything consensus behind the existing
+<code>UPGRADE_HEIGHT_*</code> mechanism, one change at a time.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

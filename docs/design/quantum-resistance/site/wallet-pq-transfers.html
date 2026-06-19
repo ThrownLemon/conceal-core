@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wallet PQ transfers — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class="active"><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="wallet--wallet-pq-transfers-testnet-poc">Wallet ↔︎ Wallet PQ
+transfers (testnet PoC)</h1>
+<p>Extends the wallet-native post-quantum (PQ) spend from
+self-spend-of-coinbase to <strong>wallet-to-wallet</strong> transfers.
+Builds on <code>pqc/testnet-poc</code>. Testnet only / experimental: the
+lattice ring signature is unaudited and the bootstrap relies on a fixed
+testnet KEM keypair. <strong>Not for mainnet funds.</strong></p>
+<h2 id="what-changed">What changed</h2>
+<p>All work is in the wallet/RPC front-end layer. The shared builder
+(<code>cn::buildPqSpendTransaction</code>,
+<code>src/CryptoNoteCore/PqSpendBuilder.*</code>), consensus,
+serialization, and <code>pq_injector</code> are
+<strong>unchanged</strong> — no crypto was touched.</p>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>src/Rpc/PqSpendClient.{h,cpp}</code></td>
+<td><code>pqSpendViaDaemon</code> now takes a <strong>list</strong> of
+candidate KEM secret keys and an explicit recipient KEM pubkey.</td>
+</tr>
+<tr>
+<td><code>src/ConcealWallet/ConcealWallet.{h,cpp}</code></td>
+<td>New <code>pq_address</code>, <code>pq_receive</code>; generalized
+<code>pq_transfer</code>; <code>pq_balance [mine]</code>.</td>
+</tr>
+<tr>
+<td><code>src/PaymentGate/WalletService.cpp</code></td>
+<td>Updated to the new <code>pqSpendViaDaemon</code> signature (passes
+<code>{PQ_TESTNET_KEM_SK}</code> as before).</td>
+</tr>
+</tbody>
+</table>
+<h2 id="wallet-pq-kem-key-derivation-mnemonic-restorable">Wallet PQ KEM
+key derivation (mnemonic-restorable)</h2>
+<p>A wallet's PQ KEM keypair is the <strong>address-bearing receive
+key</strong>. It is derived deterministically from the wallet's legacy
+spend secret key so the same mnemonic always reproduces the same PQ
+address:</p>
+<pre><code>masterSeed   = m_wallet-&gt;getAddressSpendKey(0).secretKey   // 32-byte legacy spend secret
+kemSeed      = cn_fast_hash(&quot;ccx-pq-kem-acct&quot; || masterSeed) // domain-separated (cn::PqAccount)
+(kemPk,kemSk)= ccx_pq_kem_keygen_det(kemSeed)                // FIPS-203 ML-KEM-768, deterministic</code></pre>
+<p>The wallet reuses <code>cn::PqAccount::generateFromSeed</code>
+verbatim (it owns the domain discipline), so the wallet's derived
+address is byte-identical to what <code>PqAccount</code> produces.
+Concentrated in <code>conceal_wallet::getPqAccountKeys()</code>.</p>
+<p>The fixed testnet KEM keypair (<code>cn::PQ_TESTNET_KEM_SK/PK</code>)
+owns the <strong>coinbase</strong> outputs ("Option B" bootstrap); a
+wallet's <strong>own</strong> seed-derived KEM secret owns outputs sent
+to its PQ address.</p>
+<h2 id="generalized-pqspendviadaemon">Generalized
+<code>pqSpendViaDaemon</code></h2>
+<pre class="cpp"><code>bool pqSpendViaDaemon(platform_system::Dispatcher&amp; dispatcher,
+                      const std::string&amp; daemonHost,
+                      uint16_t daemonPort,
+                      uint64_t amount,
+                      uint64_t fee,
+                      uint32_t ringSize,
+                      const std::vector&lt;std::vector&lt;uint8_t&gt;&gt;&amp; candidateKemSecretKeys, // NEW
+                      const std::vector&lt;uint8_t&gt;&amp; recipientKemPubKey,                  // now explicit
+                      std::string&amp; outTxHashHex,
+                      std::string&amp; outStatus,
+                      std::string&amp; err);</code></pre>
+<ul>
+<li><strong><code>candidateKemSecretKeys</code></strong> — a list of
+ML-KEM-768 secret keys that may own a spendable signer output. Empty
+entries are filtered out; an all-empty list is an error. In the
+random-signer attempt loop, for each chosen signer the ring is assembled
+once and then each candidate secret is handed to the builder in turn. A
+wrong secret makes the builder's KEM scan fail
+(<code>output not ours</code>) and the next candidate is tried; if none
+own the signer, the loop moves to a different signer. This lets one
+wallet spend <strong>both</strong> the fixed-key coinbase outputs
+<strong>and</strong> outputs received to its own address. The
+random-signer + decoy + retry + relay-status-check logic is otherwise
+unchanged.</li>
+<li><strong><code>recipientKemPubKey</code></strong> — the real
+recipient's ML-KEM-768 public key. Non-empty = real scannable stealth
+output. Empty would burn the funds (injector-only A/B path); the wallet
+front-ends never pass empty.</li>
+</ul>
+<p><code>PqSpendClient.cpp</code> no longer references
+<code>pq_testnet_kem_keypair.h</code>; the caller now owns the candidate
+list.</p>
+<h2 id="new--changed-cli-commands">New / changed CLI commands</h2>
+<ul>
+<li><strong><code>pq_address</code></strong> — derive and print the
+wallet's deterministic <code>ctp…</code> PQ address (carries its
+seed-derived KEM pubkey). Same wallet → same address.</li>
+<li><strong><code>pq_transfer &lt;pq_address | self&gt; [ringSize] [fee]</code></strong>
+— parse the recipient address → KEM pubkey, then
+<code>pqSpendViaDaemon</code> with candidate secrets
+<code>{ own KEM secret, fixed testnet KEM secret }</code>.
+<code>self</code> sends back to the wallet's own PQ pubkey. Accepts
+testnet (<code>ctp</code>/<code>cth</code>) and mainnet
+(<code>ccxp</code>/<code>ccxh</code>) PQ/hybrid prefixes;
+<code>parsePqAccountAddressString</code> pins version + scheme ids +
+KEM-key length. Defaults: <code>ringSize=4</code>,
+<code>fee=1000</code>.</li>
+<li><strong><code>pq_receive</code></strong> — fetch
+<code>get_pq_outputs</code> for the candidate amounts, scan each entry's
+<code>kemCt</code> with the wallet's own KEM secret (and the fixed
+testnet secret), and list the outputs that belong to this wallet (global
+index, amount, lock state). Scan reuses the builder's path:
+<code>ccx_pq_kem_scan</code> → <code>ccx_pq_keygen</code> → compare the
+recovered one-time pubkey to the on-chain output key. Read-only;
+recovered secret material is wiped immediately.</li>
+<li><strong><code>pq_balance [mine]</code></strong> — unchanged default
+(all unlocked PQ outputs); <code>mine</code> counts only outputs this
+wallet can scan (best-effort).</li>
+</ul>
+<h3 id="candidate-amounts">Candidate amounts</h3>
+<p><code>get_pq_outputs</code> enumerates per amount, so
+<code>pq_balance</code> / <code>pq_receive</code> query
+<code>PQ_TESTNET_COINBASE_AMOUNT</code> plus the post-fee denominations
+a default-fee spend produces (<code>coinbase − {1000,100,10}</code>).
+Amounts with no outputs return empty and are harmless.</p>
+<h2 id="deferred--notes">Deferred / notes</h2>
+<ul>
+<li><code>pq_receive</code> / <code>pq_balance mine</code> only see the
+<strong>post-fee denominations</strong> for the default fees baked into
+<code>pqCandidateAmounts()</code>. A spend with an unusual fee produces
+an output amount not in that list and would not be enumerated. A fully
+general view would need the daemon to report the set of distinct PQ
+amounts it holds; deferred.</li>
+<li>No end-to-end testnet run was performed here (per request);
+wallet↔︎wallet is to be verified separately.</li>
+</ul>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

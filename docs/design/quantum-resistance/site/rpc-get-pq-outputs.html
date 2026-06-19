@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RPC: get_pq_outputs — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class="active"><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="rpc-get_pq_outputs--pq-output-enumeration">RPC:
+<code>get_pq_outputs</code> — PQ output enumeration</h1>
+<p><strong>Status:</strong> testnet PoC (CIP-0001). Branch
+<code>pqc/get-pq-outputs-rpc</code> off
+<code>pqc/testnet-poc</code>.</p>
+<h2 id="purpose">Purpose</h2>
+<p>A read-only JSON-RPC method that enumerates the spendable
+post-quantum (<code>PqKeyOutput</code>) outputs the daemon has indexed
+for a given set of amounts, so a wallet can assemble a PQ ring (the ring
+members for a <code>PqKeyInput</code>).</p>
+<p>It is a faithful read-only projection of the in-memory
+<code>m_pqOutputs</code> index (<code>Blockchain</code>), the same index
+that <code>check_pq_tx_input</code> resolves ring members against.
+<strong>It changes no consensus, validation, builder, or serialization
+logic.</strong> It only walks an existing index and reports it.</p>
+<h2 id="transport">Transport</h2>
+<ul>
+<li>JSON-RPC 2.0 method registered in <code>RpcServer</code>'s
+<code>jsonRpcHandlers</code> map.</li>
+<li>Registered method name (the string clients call):
+<strong><code>get_pq_outputs</code></strong>.</li>
+<li><code>allowBusyCore = false</code> (the index is only meaningful
+once the core is synced), matching the other output-enumeration
+handlers.</li>
+</ul>
+<h2 id="request">Request</h2>
+<pre class="json"><code>{ &quot;amounts&quot;: [&lt;uint64&gt;, ...] }</code></pre>
+<p><code>amounts</code> is the list of denominations to enumerate. For
+each amount the daemon returns every indexed PQ output (not a random
+subset), because the wallet needs the full candidate set to choose ring
+members and locate its own output's global index.</p>
+<h2 id="response">Response</h2>
+<pre class="json"><code>{
+  &quot;outs&quot;: [
+    {
+      &quot;amount&quot;: &lt;uint64&gt;,
+      &quot;outs&quot;: [
+        {
+          &quot;global_index&quot;: &lt;uint32&gt;,   // position in m_pqOutputs[amount]
+          &quot;key&quot;:      &quot;&lt;hex&gt;&quot;,        // PqKeyOutput.key  (PQ one-time public key)
+          &quot;kem&quot;:      &quot;&lt;hex&gt;&quot;,        // PqKeyOutput.kemCt (ML-KEM ciphertext)
+          &quot;tx_hash&quot;:  &quot;&lt;hex&gt;&quot;,        // hash of the containing transaction
+          &quot;height&quot;:   &lt;uint32&gt;,       // block height of that transaction
+          &quot;spendable&quot;: &lt;bool&gt;         // is_tx_spendtime_unlocked(unlockTime)
+        }
+      ]
+    }
+  ],
+  &quot;status&quot;: &quot;OK&quot;
+}</code></pre>
+<ul>
+<li><code>global_index</code> is the vector position inside
+<code>m_pqOutputs[amount]</code>; it is the absolute offset a
+<code>PqKeyInput.outputIndexes</code> (relative-encoded) ring member
+resolves to. This is the value the wallet uses to reference a ring
+member.</li>
+<li><code>key</code> / <code>kem</code> are hex of the raw
+<code>std::vector&lt;uint8_t&gt;</code> fields, via
+<code>common::toHex</code>.</li>
+<li><code>tx_hash</code> is hex of <code>crypto::Hash</code> via
+<code>common::podToHex</code>.</li>
+<li><code>spendable</code> reflects only the unlock-time gate; the
+caller still applies its own ring-selection policy. An amount with no
+indexed PQ outputs yields an empty <code>outs</code> list (not an
+error).</li>
+</ul>
+<h2 id="plumbing">Plumbing</h2>
+<p>Mirrors the existing <code>getOutByMSigGIndex</code> path, top to
+bottom:</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Symbol</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Command def</td>
+<td><code>COMMAND_RPC_GET_PQ_OUTPUTS</code>
+(<code>src/Rpc/CoreRpcServerCommandsDefinitions.h</code>)</td>
+</tr>
+<tr>
+<td>Shared POD</td>
+<td><code>cn::PqOutputEntry</code>
+(<code>src/CryptoNoteCore/ICore.h</code>)</td>
+</tr>
+<tr>
+<td>Interface</td>
+<td><code>ICore::getPqOutputs(uint64_t, std::vector&lt;PqOutputEntry&gt;&amp;)</code></td>
+</tr>
+<tr>
+<td>Core</td>
+<td><code>core::getPqOutputs</code> →
+<code>m_blockchain.getPqOutputs</code></td>
+</tr>
+<tr>
+<td>Blockchain</td>
+<td><code>Blockchain::getPqOutputs</code> — locks
+<code>m_blockchain_lock</code>, walks <code>m_pqOutputs[amount]</code>,
+extracts each <code>PqKeyOutput</code> via
+<code>transactionByIndex(...).tx.outputs[outInTx].target</code></td>
+</tr>
+<tr>
+<td>RPC handler</td>
+<td><code>RpcServer::on_get_pq_outputs</code> — hex-encodes and fills
+the response</td>
+</tr>
+</tbody>
+</table>
+<p><code>PqOutputEntry</code> carries raw bytes
+(<code>std::vector&lt;uint8_t&gt;</code> key/kemCt,
+<code>crypto::Hash</code> txHash); hex encoding happens only at the RPC
+boundary, keeping the core interface byte-exact.</p>
+<h2 id="notes--limits">Notes / limits</h2>
+<ul>
+<li>The index is the PoC in-memory, forward-only
+<code>m_pqOutputs</code> (no reorg rewind of the PQ index beyond what
+the surrounding PoC already does); this RPC inherits those PoC
+properties unchanged.</li>
+<li>Read-only and non-<code>const</code> only because it reuses
+<code>is_tx_spendtime_unlocked</code>, which is a non-<code>const</code>
+member; it performs no mutation.</li>
+<li>Unbounded by design for the PoC: it returns the full per-amount set.
+A production version would page or cap results.</li>
+</ul>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

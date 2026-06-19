@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Strategy summary — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class="active"><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1
+id="conceal-post-quantum-strategy--synthesis--recommendation">Conceal
+Post-Quantum Strategy — Synthesis &amp; Recommendation</h1>
+<p><strong>Status:</strong> Decision brief. Synthesizes four
+sub-analyses (Rust port, crypto modernization, greenfield design, the
+strategic decision) into one recommendation answering the three
+questions the team asked before continuing to bolt PQ fixes onto
+<code>pqc/testnet-poc</code>.</p>
+<p><strong>Date:</strong> 2026-06. <strong>Scope:</strong> analysis only
+— no source changes.</p>
+<p>Companion documents (read for detail):</p>
+<ul>
+<li><code>strategy-rust-port.md</code> — Q1, port to Rust</li>
+<li><code>strategy-crypto-modernization.md</code> — Q2, modern crypto
+options</li>
+<li><code>strategy-greenfield-design.md</code> — Q3, ideal from-scratch
+design</li>
+<li><code>strategy-decision.md</code> — incremental vs. new-chain vs.
+sidechain</li>
+</ul>
+<hr />
+<h2 id="tldr">TL;DR</h2>
+<ol type="1">
+<li><p><strong>Port the daemon to Rust? No.</strong> Keep growing the
+small Rust crypto island you already run behind C-ABI FFI. This is
+exactly what Zcash (<code>librustzcash</code> behind
+<code>zcashd</code>) and Monero (FCMP++/Carrot Rust libs over
+<code>monerod</code>) did — <strong>neither rewrote its C++
+daemon.</strong> A rewrite delivers zero quantum resistance and buys
+chain-fork risk.</p></li>
+<li><p><strong>Adopt better modern crypto? Yes — and you already
+started.</strong> The ChaCha20-Poly1305 AEAD you swapped into the PQ
+<code>0x06</code> message field is the right call; reuse it. Then do the
+cheap, high-value, <strong>non-consensus</strong> wallet fixes now
+(Argon2id KDF, deterministic seed-based PQ keygen, an AEAD tag for
+legacy messages, golden-vector tests around the serializer).</p></li>
+<li><p><strong>Ideal greenfield redesign? It hits the same
+wall.</strong> A from-scratch Rust PQ privacy coin lands on the <em>same
+cryptographic core</em> the PoC already targets, because the ceiling is
+cryptographic, not architectural. Greenfield buys safety and
+maintainability, <strong>not more privacy.</strong></p></li>
+</ol>
+<p><strong>The one hard truth, true under every option:</strong> there
+is <strong>no mature, small-proof, audited post-quantum linkable ring
+signature or PQ zero-knowledge proof</strong> as of mid-2026. Our
+experimental <code>ringsig.rs</code> is unaudited, non-constant-time,
+demo-grade — <em>by necessity, not by neglect.</em> Even better-funded
+peers confirm this: Zcash's full PQ protocol (Project Tachyon) is only
+<strong>targeted for 2027</strong>; Monero's FCMP++ (live Q1 2026) is
+explicitly <strong>not post-quantum</strong>; the only shipping
+lattice-PQ privacy chain, <strong>Abelian/pqringct</strong>, pays for it
+with kilobyte-to-tens-of-kilobyte transactions and a dedicated
+cryptography team.</p>
+<p><strong>Recommended posture:</strong> <em>Incremental on-ramp now,
+planned new-chain off-ramp later.</em> Ship the standardized PQ surfaces
+(stealth, deposits, messages) on the existing chain via height-gated
+hard forks this year; treat a v2 chain as the honest eventual
+destination, not the first move. The single deliverable that gates "real
+PQ privacy" under <strong>all</strong> options is an <strong>audited
+anonymity layer</strong> — fund that, and strongly prefer porting a
+published scheme over shipping the home-grown ring sig.</p>
+<hr />
+<h2 id="the-four-analyses-agreed-more-than-they-disagreed">The four
+analyses agreed more than they disagreed</h2>
+<p>All four independently converged on the same load-bearing fact:
+<strong>the blocker is cryptographic, not linguistic and not
+architectural.</strong> Rust does not solve it (Q1). Modern AEAD/KDF do
+not touch it (Q2). Starting over does not conjure it (Q3). Every path
+routes through the same gate — an anonymous + linkable + constant-time +
+calibrated + <strong>audited</strong> lattice ring signature — and that
+gate, not lines of code, dominates the timeline.</p>
+<h3 id="the-two-apparent-disagreements-resolved">The two apparent
+disagreements, resolved</h3>
+<p><strong>(a) "do-it-incrementally" (Q1, Q2, decision) vs. "depends"
+(Q3 greenfield).</strong> Not a real conflict. Q3's "depends" is
+conditional: greenfield is justified <em>only if the legacy
+C++/serialization/FFI debt is itself the dominant pain</em> — and even
+then it does not improve privacy. The decision analysis already absorbs
+this as the <strong>planned off-ramp</strong>: incremental now
+<em>because</em> it ships protection this year, new chain later
+<em>because</em> it is the only path that can also fix plaintext amounts
+and a stronger anonymity model. Resolution: <strong>incremental first,
+v2 as a deliberate, de-risked destination — not either/or.</strong></p>
+<p><strong>(b) "harden the ring sig in Rust" (Q1) vs. "port a published
+scheme" (decision).</strong> Q1 says make the ring sig production-grade
+in Rust as the high-value work; the decision analysis says <em>prefer
+porting a published, peer-reviewed scheme (pqringct/MatRiCT family) over
+the home-grown <code>ringsig.rs</code>.</em> These are the same
+conclusion at different resolution. Resolution: <strong>the venue is
+Rust; the source should be a published scheme, not our hand-rolled
+one.</strong> The crypto review found a CRITICAL universal-forgery class
+in the home-grown construction — that settles it. <em>Do not</em>
+self-certify a novel lattice ring sig.</p>
+<hr />
+<h2 id="q1--should-we-port-conceal-core-to-rust">Q1 — Should we port
+conceal-core to Rust?</h2>
+<p><strong>Answer: No daemon rewrite. Grow the island.</strong></p>
+<p>The ratio is the whole argument: <strong>~92,400 LOC of C++</strong>
+across 19+ libs vs. a <strong>~1,022 LOC Rust island</strong>
+(<code>pqc/ccx-pqc</code>) behind <strong>33 hardened
+<code>extern "C"</code> entry points</strong>. The new, attacker-facing,
+quantum-relevant crypto is already tiny and isolated in Rust. The large,
+battle-tested, <strong>consensus-byte-defining</strong> C++ should stay
+put.</p>
+<ul>
+<li><strong>Precedent is unanimous.</strong> <code>librustzcash</code>
+behind <code>zcashd</code>; Monero's FCMP++/Carrot Rust libs over C++
+<code>monerod</code>. Neither rewrote the node. The island model the PoC
+already built (staticlib, <code>#[no_mangle]</code>,
+<code>catch_unwind</code>, <code>panic=unwind</code> pinned) matches
+them.</li>
+<li><strong>A full rewrite is a Zebra-scale, multi-year,
+fork-risk-dominated program</strong> (Zebra took ~3+ years with a
+<em>funded foundation team</em>) and delivers <strong>zero</strong>
+quantum resistance. Reaching byte-parity on just the consensus subset
+(crypto + CryptoNoteCore + Serialization + P2p, ~37k LOC) is ~15–40
+engineer-months / 2–4 calendar years at this team's staffing.</li>
+<li><strong>Fork risk, not LOC, is the real cost.</strong> Any one-byte
+divergence in the homemade KV serializer, CryptoNight, LWMA difficulty,
+or a hard-fork height gate splits the chain. A rewrite needs a full
+historical-chain differential-replay harness as its own major
+deliverable.</li>
+<li><strong>Where C++ MUST remain the source of truth:</strong>
+<code>src/Serialization</code> (wire+disk byte format),
+<code>CryptoNoteConfig.h</code> + <code>CryptoNoteCore</code> validation
+(what blocks the network accepts), <code>crypto/</code> PoW + ed25519
+ops, P2p/protocol framing. <strong>Rule: if changing the output by one
+byte forks the chain, C++ owns it.</strong></li>
+</ul>
+<p><strong>What this does NOT solve:</strong> memory safety for the 92k
+LOC of C++ block validation / mempool / P2P-RPC parsing / serialization
+— the classic CVE surface stays in C++. Each new FFI seam is a
+hand-audited <code>unsafe</code> boundary (we already hit ABI-shape and
+panic-boundary bugs). And <strong>no amount of Rust solves the quantum
+blocker.</strong></p>
+<hr />
+<h2 id="q2--are-there-better-modern-crypto-options-to-adopt">Q2 — Are
+there better modern crypto options to adopt?</h2>
+<p><strong>Answer: Yes — and the AEAD swap you just did was the right
+instinct. Do the non-consensus Tier-1 fixes now; gate everything
+consensus behind hard fork + audit.</strong></p>
+<p>The stack splits cleanly into safe wallet/message fixes and dangerous
+consensus changes.</p>
+<h3
+id="tier-1--do-now-non-consensus-client-side-24-weeks--targeted-review">Tier
+1 — do now (non-consensus, client-side, ~2–4 weeks + targeted
+review)</h3>
+<ul>
+<li><strong>Wallet file KDF/cipher (highest value-to-risk).</strong>
+Confirmed in code: wallet is encrypted with <strong>chacha8 (8-round,
+unauthenticated)</strong> keyed by a <strong>single unsalted pass of
+<code>cn_slow_hash_v0</code></strong> over the raw password — a
+genuinely weak KDF protecting funds at rest. Replace with
+<strong>Argon2id (salt + tunable cost) + XChaCha20-Poly1305
+AEAD</strong>; load-only legacy support + migrate-on-open. No fork.</li>
+<li><strong>Deterministic, seed-based PQ keygen (must precede PQ
+funds).</strong> <code>kyber768::keypair()</code> /
+<code>dilithium3::keypair()</code> currently use the <strong>library
+RNG, not the wallet seed</strong> → <strong>PQ keys are not
+mnemonic-restorable</strong>, a funds-loss regression. FIPS 203/204
+specify deterministic seed-based keygen; derive a PQ seed from the
+master seed via domain-separated SHAKE. Bundle with the wallet-format
+change.</li>
+<li><strong>Legacy <code>0x04</code> message field.</strong> chacha8 + a
+4-zero-byte "owner check" that is <strong>not a MAC</strong>
+(unauthenticated/malleable). Freeze <code>0x04</code> to decrypt-only;
+add a ChaCha20-Poly1305 AEAD tag for classical messages — <strong>reuse
+the PQ <code>0x06</code> AEAD code already written and tested.</strong>
+Tx-extra is not consensus-validated, so this is
+backward-compatible.</li>
+<li><strong>Golden-vector tests around the KV serializer
+(urgent).</strong> It is simultaneously the wire, disk, and tx-extra
+format and is consensus-hash-observable. <strong>Do NOT refactor
+it</strong> — that forks the chain and resets all checkpoints. Add
+golden-vector + round-trip tests + a canonical- layout spec. Urgent
+<em>because PQ fields are being added to it by hand</em> (silent- fork
+risk).</li>
+</ul>
+<h3
+id="tier-2--policyeconomics-decision-not-a-bug-consensus-hard-fork">Tier
+2 — policy/economics decision, NOT a bug (consensus hard fork)</h3>
+<ul>
+<li><strong>PoW is CryptoNight v0</strong> — the oldest, most
+ASIC-saturated variant. <strong>RandomX</strong> is the proven successor
+(Monero abandoned the whole CN family for it), but it is a disruptive
+consensus hard fork (new <code>UPGRADE_HEIGHT_V*</code>, ~2 GB dataset,
+pool/miner coordination, its own audit). <strong>PoW needs no PQ
+change</strong> — Grover only halves hash security and difficulty
+absorbs it. Do this <em>only</em> if ASIC centralization is a real CCX
+problem, and <strong>never combine it with the PQ fork</strong> (two
+large consensus changes at once multiplies fork risk).</li>
+</ul>
+<h3 id="tier-3--owned-by-the-pq-track--a-greenfield-concern">Tier 3 —
+owned by the PQ track / a greenfield concern</h3>
+<ul>
+<li><strong>Ed25519/Curve25519</strong> are classically strong and
+Shor-broken; their replacement <em>is</em> the lattice ring-sig + ML-KEM
+migration. No separate action; do not churn the curve layer. The
+<strong>wholesale serializer swap</strong> to a schema'd format
+(Protobuf/SSZ/Borsh) = effectively launching a new chain → belongs to
+Q3, not a fix.</li>
+</ul>
+<p><strong>What this does NOT solve:</strong> none of Tier 1 touches
+<strong>amount confidentiality</strong> (amounts stay plaintext — no
+RingCT/Bulletproofs) or the <strong>PQ-ring-sig maturity</strong>
+problem. It hardens the wallet and messages; it does not modernize the
+consensus serializer (stays schema-less forever unless you launch a new
+chain).</p>
+<hr />
+<h2
+id="q3--what-would-an-ideal-from-scratch-pq-privacy-coin-look-like">Q3 —
+What would an ideal from-scratch PQ privacy coin look like?</h2>
+<p><strong>Answer: It looks like the PoC's target architecture — minus
+the legacy C++ chassis, FFI seam, and CryptoNote per-amount tables; plus
+a clean codec and a global commitment tree. Same cryptographic ambition,
+because the ceiling is the same.</strong></p>
+<ul>
+<li><strong>Ledger:</strong> UTXO is unambiguously correct (natural
+privacy, local nullifiers, parallel validation). One refinement
+CryptoNote lacks: a <strong>single global output-commitment tree +
+nullifier accumulator</strong> (Zcash-shaped), which future-proofs for
+an eventual zk one-of-many proof.</li>
+<li><strong>The wall (most important):</strong> every privacy coin needs
+sender-ambiguity + recipient-stealth + amount-hiding
+<strong>simultaneously with small artifacts.</strong> PQ replaces
+recipient-stealth (ML-KEM) and auth (ML-DSA) <strong>cleanly and
+small.</strong> It <strong>cannot</strong> replace sender-ambiguity
+proofs or amount-range proofs small — lattice ZK is 1–2 orders of
+magnitude larger, and <strong>there is no production small PQ
+zk-SNARK.</strong> Greenfield does not touch this.</li>
+<li><strong>Sender-privacy options, rated:</strong> (a) PQ lattice
+linkable ring sig — buildable but research-to-bespoke; Abelian/pqringct
+is the only production instance; the PoC's ring-of-4 is ~24.7 KB and
+demo-grade. (b) PQ zk shielded pool — <strong>not mature</strong>; even
+Zcash leads with quantum-<em>recoverable</em> (not
+quantum-<em>resistant</em>) wallets and schedules the real PQ proof for
+~2027. (c) Decoy/CoinJoin — mature crypto, weaker operational privacy.
+(d) FHE — research-grade, too slow for an L1 base layer.</li>
+<li><strong>Amounts:</strong> <strong>plaintext is the honest
+best-achievable-2026 choice</strong> (Monero ran plaintext 2014–2017).
+Lattice confidential amounts cost tens of KB and only make sense if
+you've already paid for the full heavy lattice-RingCT core.
+<strong>Pedersen + Bulletproofs (Monero/Grin/Beam) are Shor-broken —
+must NOT be used in a PQ design.</strong></li>
+<li><strong>Settled/easy primitives (validates Q2):</strong> ML-DSA-65
+workhorse signatures; Falcon/FN-DSA only where its 0.65 KB sig dominates
+<em>and</em> a constant-time impl exists; SLH-DSA/SPHINCS+ for
+long-lived genesis/governance keys; <strong>ML-KEM-768 +
+ChaCha20-Poly1305 AEAD</strong> for key agreement and messages — <em>the
+PoC's choices here are already ideal.</em></li>
+<li><strong>Consensus &amp; language:</strong> PoW is the lower-risk PQ
+choice (256-bit hash stays ~128-bit under Grover, no nonce widening).
+Rust end-to-end is the strongest greenfield decision (memory safety in
+money code, no FFI seam) but does <strong>not</strong> retire the audit
+requirement on the novel lattice crypto.</li>
+</ul>
+<p><strong>Verdict:</strong> do not greenfield to chase better PQ
+privacy — the cryptographic ceiling is identical. Greenfield only if the
+legacy chassis debt is the dominant pain. It buys
+safety/maintainability, not privacy.</p>
+<hr />
+<h2 id="the-decisive-conceal-specific-fact-spend-key-harvest-now">The
+decisive Conceal-specific fact: spend-key harvest-now</h2>
+<p>For Conceal the dominant force is that <strong>every unspent output's
+one-time public key is already on-chain.</strong> A future
+cryptographically-relevant quantum computer (CRQC) does not merely
+<em>deanonymize</em> — it lets an attacker <strong>spend everyone's
+coins</strong>, whether or not they ever move. This <strong>spend-key
+HNDL urgency</strong> strongly favors <em>speed</em>: get a usable PQ
+receive/spend path live and give users a migration window. <strong>Only
+the incremental path delivers that this year.</strong></p>
+<p>Corollary for any eventual v2 migration: use checkpoint-snapshot +
+genesis allocation with <strong>PQ-pre-registered claim keys</strong>
+(registered via the incremental PQ output path <em>before</em> the
+snapshot), so claims are quantum-authenticated, not
+Ed25519-authenticated. <strong>Never make migration depend on legacy
+signatures being valid at claim time</strong> — that is the single
+strongest reason to do incremental first.</p>
+<p><strong>Sidechain/L2 is rejected:</strong> it protects nothing left
+on the legacy chain, adds a bridge pegged behind CRQC-breakable Ed25519,
+doubles ops burden, and still needs the same unsolved PQ anonymity
+primitive. Near-zero quantum benefit.</p>
+<hr />
+<h2 id="the-one-hard-truth-and-what-it-means-for-all-options">The one
+hard truth, and what it means for ALL options</h2>
+<blockquote>
+<p><strong>There is no mature, small-proof, audited post-quantum
+linkable ring signature or PQ zk-proof anywhere as of
+mid-2026.</strong></p>
+</blockquote>
+<p>This is <em>the</em> constraint. It means:</p>
+<ul>
+<li><strong>Patching conceal-core</strong> can ship the standardized 80%
+(ML-KEM stealth, ML-DSA deposits, AEAD messages) <strong>on audited
+primitives</strong> — but PQ anonymous <em>spend</em> stays
+testnet-grade until the ring sig is audited.</li>
+<li><strong>Rewriting in Rust</strong> changes none of this. (Q1)</li>
+<li><strong>Greenfield</strong> changes none of this — the ceiling is
+identical. (Q3)</li>
+<li><strong>A sidechain</strong> changes none of this and protects
+nothing already on-chain.</li>
+<li><strong>Better-funded peers confirm it:</strong> Zcash full-PQ →
+<strong>2027 target</strong>; Monero FCMP++ (Q1 2026) →
+<strong>explicitly not post-quantum</strong>; Abelian/pqringct → the
+lone production lattice-privacy precedent, at <strong>kilobyte-scale
+transactions.</strong></li>
+</ul>
+<p>Therefore the <strong>audit of the anonymity layer is the
+schedule</strong> under every option (6–12 months + real money), and the
+home-grown <code>ringsig.rs</code> (CRITICAL forgery class found in
+review, non-constant-time, ~10× slower / ~80× larger than EC) should be
+<strong>replaced by a ported, published, peer-reviewed scheme</strong>,
+not shipped as-is. <strong>If that audit budget is not real, PQ
+anonymous spend stays testnet-only and scope shrinks to the standardized
+surfaces</strong> — which is still a genuine, shippable improvement and
+the correct fallback.</p>
+<p><strong>What nothing protects:</strong> already-exposed historical
+data. Past plaintext amounts and past ECDH-encrypted messages are
+harvest-now-decrypt-later-lost the day a CRQC exists, under every
+option. Only <em>future</em> traffic and <em>unspent, migrated</em>
+funds can be protected — which again argues for shipping the incremental
+receive/spend path and migration window <strong>soon.</strong></p>
+<hr />
+<h2 id="staged-plan-for-conceal">Staged plan for Conceal</h2>
+<h3
+id="next-3-months--land-the-cheap-wins-choose-the-ring-sig-sourcing-communicate">Next
+3 months — land the cheap wins, choose the ring-sig sourcing,
+communicate</h3>
+<ul>
+<li><strong>Tier-1 crypto modernization (non-consensus, no
+fork):</strong> wallet Argon2id + XChaCha20-Poly1305 (migrate-on-open);
+deterministic seed-based PQ keygen (FIPS 203/204) <strong>before any PQ
+funds exist</strong>; AEAD tag for legacy <code>0x04</code> messages
+reusing the <code>0x06</code> code; <strong>golden-vector + round-trip
+tests around the KV serializer</strong> (urgent — PQ fields added by
+hand).</li>
+<li><strong>Harden the FFI island:</strong> audit the 33
+<code>extern "C"</code> boundaries; fix the open review items
+(null-deref, output-sum overflow bypass, heap/uninit crash, sig-index,
+DoS/money-conservation).</li>
+<li><strong>Decision gate — ring-sig sourcing:</strong> commit to
+<strong>porting a published lattice scheme (pqringct/MatRiCT family)
+into the Rust island</strong>, or formally scope PQ anonymous spend
+<em>out</em> of mainnet until funded. <strong>Do not ship
+<code>ringsig.rs</code>.</strong></li>
+<li><strong>Communicate the threat honestly</strong> to the community
+(spend-key HNDL, what is and isn't protected).</li>
+</ul>
+<h3
+id="next-12-months--incremental-pq-hard-fork-for-the-standardized-surfaces">Next
+12 months — incremental PQ hard fork for the standardized surfaces</h3>
+<ul>
+<li><strong>Hard-fork, opt-in PQ stealth + deposits + messages +
+wallet-v2</strong> onto mainnet, height-gated behind a new
+<code>UPGRADE_HEIGHT_V*</code> and length-bounded exactly as the PoC
+does — on <strong>audited standardized primitives</strong> (ML-KEM-768,
+ML-DSA-65, ChaCha20-Poly1305, SLH-DSA fallback). This gives users a PQ
+receive/spend path and a <strong>migration window</strong> addressing
+spend-key HNDL.</li>
+<li><strong>Fund and run the anonymity-layer audit</strong> of the
+ported ring sig (the real critical path). PQ anonymous <em>spend</em>
+reaches mainnet <strong>only if/when audited;</strong> otherwise it
+stays on <code>pqc/testnet-poc</code>.</li>
+<li><strong>Run v2 (new-chain) feasibility in parallel</strong> —
+Rust-everywhere, clean codec, global commitment tree,
+plaintext-or-confidential-amounts decision, PQ-pre- registered claim-key
+migration design. Feasibility only; no commitment yet.</li>
+<li><strong>Keep RandomX (if pursued at all) as a separate fork</strong>
+— never bundled with the PQ fork.</li>
+</ul>
+<h3
+id="next-36-months--decide-keep-iterating-or-execute-the-v2-off-ramp">Next
+36 months — decide: keep iterating, or execute the v2 off-ramp</h3>
+<ul>
+<li>With the anonymity layer audited (or definitively shown immature),
+<strong>decide between continuing to iterate the existing chain vs.
+executing the v2 migration</strong> — now de-risked by 12 months of
+pre-registered PQ claim keys.</li>
+<li>The v2 chain is the only path that can <em>also</em> fix
+<strong>plaintext amounts</strong> (lattice confidential amounts,
+Abelian-class) and a <strong>stronger anonymity model</strong> — but it
+is a 24–36+ month, existential-migration-risk effort (stranded funds,
+double- issuance, exchange coordination, chain-split). Execute
+<strong>only</strong> when the PQ privacy primitive is proven and a
+migration with PQ-pre-registered, quantum- authenticated claim keys is
+ready.</li>
+<li><strong>Migration mechanics if chosen:</strong> checkpoint-snapshot
++ genesis allocation to PQ-pre-registered claim keys; burn-and-mint as a
+straggler relay; atomic swaps only supplementary (HTLCs lean on
+CRQC-broken Ed25519). <strong>Never</strong> depend on legacy signatures
+being valid at claim time.</li>
+</ul>
+<hr />
+<h2 id="bottom-line">Bottom line</h2>
+<p>Stop debating Rust-rewrite vs. greenfield as if either unlocks PQ
+privacy — <strong>neither does.</strong> Do the cheap, high-value,
+non-consensus wallet/message modernization now (you already started,
+correctly, with the AEAD swap). Keep the new crypto in the small audited
+Rust island behind FFI, exactly like Zcash and Monero. Ship the
+standardized PQ surfaces incrementally this year to open a migration
+window against the <strong>spend-key harvest-now</strong> threat that is
+uniquely urgent for Conceal. And recognize that the <strong>single
+deliverable gating real PQ privacy under every option — patch, rewrite,
+or greenfield — is an audited anonymity layer.</strong> Fund that audit
+and port a published scheme; if you cannot, scope PQ anonymous spend to
+testnet and ship the standardized surfaces anyway. Treat the v2 chain as
+a deliberate, de-risked off-ramp — the honest destination, not the first
+move.</p>
+<hr />
+<h2 id="sources-peer-timeline-verification-mid-2026">Sources
+(peer-timeline verification, mid-2026)</h2>
+<ul>
+<li><a
+href="https://www.coindesk.com/tech/2026/05/08/zcash-to-roll-out-quantum-recoverable-wallets-within-a-month-go-quantum-proof-by-2027">Zcash
+to roll out quantum-recoverable wallets within a month, go quantum-proof
+by 2027 — CoinDesk</a></li>
+<li><a
+href="https://decrypt.co/367250/zcash-targeting-post-quantum-crypto-milestone-by-2027">Zcash
+Targeting Post-Quantum Crypto Milestone by 2027 — Decrypt</a></li>
+<li><a href="https://xgram.io/blog/is-my-monero-quantum-proof">Is My
+Monero Quantum-Proof? — xgram.io</a> (FCMP++ live Q1 2026, explicitly
+not a complete PQ solution)</li>
+<li><a
+href="https://baltex.io/blog/ecosystem/monero-fcmp-plus-plus-upgrade-explained-xmr-users">Monero
+FCMP++ Upgrade Explained — baltex.io</a></li>
+<li><a
+href="https://download.pqabelian.io/release/docs/whitepaper.pdf">Abelian
+(ABEL) Whitepaper — lattice RingCT, LWE-based</a></li>
+<li><a href="https://arxiv.org/pdf/2409.01358">A Survey and Comparison
+of Post-quantum and Quantum Blockchains — arXiv:2409.01358</a></li>
+</ul>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

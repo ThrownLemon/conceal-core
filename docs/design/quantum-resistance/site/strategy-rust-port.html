@@ -1,0 +1,541 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rust port — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class="active"><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="strategy-q1--port-conceal-core-to-rust">Strategy Q1 — Port
+conceal-core to Rust?</h1>
+<p>Status: analysis only (no code changes). Author: Claude (Opus)
+subagent, 2026-06-18. Scope: whether/how to move conceal-core from C++11
+to Rust, in the context of the ongoing post-quantum work on
+<code>pqc/testnet-poc</code>.</p>
+<p>Bottom line up front: <strong>Do NOT rewrite the daemon. Keep the
+C++11 consensus core and grow the existing Rust island
+(<code>pqc/ccx-pqc</code>) behind the C-ABI FFI.</strong> A full rewrite
+is a multi-year, multi-engineer effort with catastrophic fork risk and
+near-zero PQ payoff; the island model already gives us the memory-safety
+win exactly where new, attacker-facing, parsing-heavy crypto code lives.
+This is the same architecture Zcash (librustzcash) and Monero
+(FCMP++/Carrot Rust libs over C++) chose, and for the same reasons.</p>
+<hr />
+<h2 id="0-the-facts-on-the-ground-measured-not-assumed">0. The facts on
+the ground (measured, not assumed)</h2>
+<table>
+<thead>
+<tr>
+<th>Thing</th>
+<th>Measurement</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Total C++ source</td>
+<td><strong>~92,400 LOC</strong> across <code>src/</code>
+(<code>.cpp</code>+<code>.h</code>), 19+ libs</td>
+</tr>
+<tr>
+<td><code>crypto/</code> (CN primitives, PoW, keccak, ed25519 ops)</td>
+<td>13,580 LOC / 19 files</td>
+</tr>
+<tr>
+<td><code>CryptoNoteCore</code> (blockchain, validation, mempool,
+difficulty)</td>
+<td>16,953 LOC / 69 files</td>
+</tr>
+<tr>
+<td><code>Serialization</code> (KV-binary wire/disk format)</td>
+<td>2,169 LOC / 23 files</td>
+</tr>
+<tr>
+<td><code>P2p</code> + <code>CryptoNoteProtocol</code></td>
+<td>6,489 LOC / 34 files</td>
+</tr>
+<tr>
+<td>Existing Rust island <code>pqc/ccx-pqc</code></td>
+<td><strong>1,022 LOC</strong> (<code>lib.rs</code> 712 +
+<code>ringsig.rs</code> 310)</td>
+</tr>
+<tr>
+<td>FFI entry points (<code>pub extern "C"</code>) already live</td>
+<td><strong>33</strong></td>
+</tr>
+</tbody>
+</table>
+<p>So the Rust footprint we already maintain is ~1k LOC behind 33 C-ABI
+functions, against a 92k-LOC C++ daemon. That ratio is the whole
+argument in one line: the new, dangerous, quantum-relevant code is tiny
+and isolated; the legacy mass is large, battle-tested, and
+consensus-load-bearing.</p>
+<hr />
+<h2 id="a-the-rust-island-via-c-abi-model-vs-a-full-daemon-rewrite">(a)
+The Rust-island-via-C-ABI model vs. a full daemon rewrite</h2>
+<h3 id="what-the-island-already-buys-us">What the island already buys
+us</h3>
+<p>We are <em>already running</em> the island pattern.
+<code>pqc/ccx-pqc</code> is a <code>crate-type = ["staticlib"]</code>
+linked into <code>conceald</code>, exposing 33
+<code>#[no_mangle] extern "C"</code> functions: ML-KEM-768
+keygen/encap/decap and KEM-stealth (<code>ccx_pq_kem_*</code>),
+ML-DSA-65 deposits/multisig (<code>ccx_pq_multisig_*</code>),
+ChaCha20-Poly1305 AEAD message seal/open (<code>ccx_pq_msg_*</code>),
+and the experimental lattice ring signature (<code>ccx_pqr_*</code>).
+Every entry point is wrapped in <code>catch_unwind</code> (with
+<code>panic = "unwind"</code> pinned in <code>Cargo.toml</code>) so a
+Rust panic becomes a C error code instead of UB across the FFI boundary.
+This is a textbook, correctly-built FFI island.</p>
+<p>This is precisely the model used in production by the projects the
+user named:</p>
+<ul>
+<li><strong>librustzcash</strong> — Zcash's <code>zcashd</code> (C++)
+called into Rust (<code>librustzcash</code>) for all the new,
+security-critical Sapling/Orchard cryptography (Halo2 proving/verifying,
+note encryption, commitment trees) over an FFI boundary, for
+<em>years</em>, while the C++ node kept driving consensus. The Rust
+island carried the hard crypto; the C++ shell carried the chain.
+(<code>zcash.readthedocs.io/.../librustzcash_arch.html</code>.)</li>
+<li><strong>Monero FCMP++/Carrot</strong> — the new
+full-chain-membership-proof crypto and the Carrot addressing protocol
+are <strong>Rust libraries</strong> integrated into the
+<strong>C++</strong> Monero daemon via FFI; 2025 dev updates explicitly
+describe "cleaning up the FFI (removing asserts/unwraps, returning
+errors correctly)" — i.e. the same boundary-hardening we did with
+<code>catch_unwind</code>. Monero did <em>not</em> rewrite
+<code>monerod</code>; it bolted a Rust crypto island onto it. (CCS
+jeffro256/j-berman 2025 proposals; Monero Observer Jul 2025.)</li>
+</ul>
+<p>So our instinct is already aligned with the two most relevant
+precedents on the planet: privacy-coin C++ daemons adopt Rust <em>as a
+crypto island</em>, not as a rewrite.</p>
+<h3 id="what-the-island-does-not-buy-us">What the island does NOT buy
+us</h3>
+<ul>
+<li><strong>No memory safety for the 92k LOC of C++</strong> that does
+block validation, mempool, P2P parsing, RPC, serialization. The
+CVE-relevant attack surface (untrusted P2P/RPC bytes hitting C++
+parsers) stays in C++.</li>
+<li><strong>No help for the consensus byte-format</strong>, which must
+remain bit-exact (see (e)).</li>
+<li><strong>FFI has its own footguns</strong>: pointer/length contracts,
+ownership, the panic boundary. We have already hit and fixed several
+(struct-of-pointers vs flat-stride ABI mismatch on the ring-sig keys;
+the <code>catch_unwind</code> requirement). Every new island function
+adds a hand-audited <code>unsafe</code> boundary. The island is safer
+<em>inside</em>, but the seam is not free.</li>
+</ul>
+<h3 id="a-full-daemon-rewrite--what-it-would-actually-mean">A full
+daemon rewrite — what it would actually mean</h3>
+<p>"Port conceal-core to Rust" in the maximal sense = reimplement
+<code>CryptoNoteCore</code> + <code>Serialization</code> +
+<code>P2p</code>/<code>CryptoNoteProtocol</code> + <code>Rpc</code> +
+<code>Wallet</code> in Rust such that it produces and accepts
+<strong>byte-identical</strong> blocks, transactions, P2P messages and
+disk format. That is not a translation; it is a
+<strong>consensus-compatible re-implementation</strong> — the hardest
+class of blockchain engineering there is, because every off-by-one in
+the homemade KV-binary serializer, every quirk of CryptoNight, every
+difficulty-LWMA edge case, every hard-fork height gate in
+<code>CryptoNoteConfig.h</code> must be reproduced exactly or the Rust
+node forks off the network. (See (c) for the cost.)</p>
+<hr />
+<h2 id="b-memory-safety-value-for-money-on-moneyconsensus-code">(b)
+Memory-safety value-for-money on money/consensus code</h2>
+<p>The case for Rust on <em>new</em> crypto code is genuinely strong,
+and we should keep banking it. The case for <em>retroactively</em>
+rewriting the existing C++ for safety is weak on ROI. Both are true at
+once.</p>
+<h3
+id="why-the-cryptonotebytecoin-lineage-is-a-real-memory-safety-liability">Why
+the CryptoNote/Bytecoin lineage is a real memory-safety liability</h3>
+<p>conceal-core is a fork of the CryptoNote/Bytecoin codebase. That
+lineage has a documented history of memory-safety and parsing bugs in
+exactly the surfaces a rewrite would target:</p>
+<ul>
+<li><strong>CVE-2017-12564 (Monero/CryptoNote lineage)</strong> — heap
+corruption / DoS via crafted P2P data in the <code>cryptonote</code>
+deserialization path. Untrusted bytes → C++ parser → memory bug. This is
+the canonical CryptoNote-family memory-safety CVE and it lives in the
+serialization/protocol layer we still run.</li>
+<li><strong>The "burning bug" / amount-aliasing and key-image
+classes</strong> — logic, not memory, but they show that the
+<em>validation</em> surface is where money is lost, and that surface is
+dense C++.</li>
+<li>Our own PQ review found <strong>C/C++-class hazards</strong> even in
+the new path: a pre-existing <strong>null-deref in
+<code>gettransactions</code> on a malformed hash</strong>, an
+<strong>output-sum overflow bypass</strong> in the v3 money-conservation
+check, and a heap/uninit crash when serializing a reloaded PQ block
+(masked under gdb, needs ASAN). These are precisely the bug classes
+Rust's type system (no null, checked arithmetic in debug / explicit
+<code>checked_*</code>, ownership) tends to eliminate by
+construction.</li>
+</ul>
+<p>So: the C++ surface <em>does</em> leak memory-safety and
+integer-overflow bugs, and on money-critical paths. The value of memory
+safety here is real, not theoretical.</p>
+<h3 id="but-value-for-money-is-about-where-you-spend-the-rewrite">But:
+value-for-money is about <em>where</em> you spend the rewrite</h3>
+<ul>
+<li><strong>Highest ROI:</strong> new code that parses untrusted bytes
+and does crypto — i.e. exactly the PQ island. Already in Rust.
+Done.</li>
+<li><strong>Medium ROI:</strong> the serialization parsers and P2P
+message decoders (untrusted-input parsing) — these <em>could</em> move
+to Rust behind FFI and would meaningfully shrink the memory-unsafe
+attack surface. But they are also the <strong>consensus
+byte-format</strong>, so a port must be byte-exact and is risk-heavy
+(see (e)).</li>
+<li><strong>Low ROI:</strong> difficulty math, block-template assembly,
+RPC business logic, wallet bookkeeping. Rewriting these in Rust buys
+little safety (they're not the classic memory-corruption surface) and
+re-introduces consensus risk for no PQ benefit.</li>
+<li><strong>Negative ROI:</strong> CryptoNight PoW and the
+ed25519/<code>crypto-ops</code> primitives. These are performance-tuned,
+well-exercised, and a rewrite invites subtle divergence with zero upside
+(the hash layer is already Grover-adequate; nothing here is
+quantum-relevant).</li>
+</ul>
+<p>Memory safety is worth paying for <strong>at the boundary where
+untrusted bytes first meet parsing logic</strong> and <strong>in new
+crypto</strong>. It is <em>not</em> worth a from-scratch
+reimplementation of 16k LOC of consensus validation whose bugs are
+mostly logic bugs a rewrite would have to re-derive (and could get newly
+wrong).</p>
+<hr />
+<h2 id="c-realistic-cost-of-a-full-rewrite">(c) Realistic cost of a full
+rewrite</h2>
+<p>The empirical precedents are unambiguous and they are large.</p>
+<ul>
+<li><strong>Zebra (Zcash, Rust)</strong> — a
+<em>consensus-compatible</em> Zcash node written from scratch in Rust by
+the <strong>Zcash Foundation</strong>. It took <strong>~3+
+years</strong> of work by a <strong>funded, dedicated team</strong> to
+reach production-readiness, and the goal was explicitly "reimplement the
+consensus rules in a modular Rust architecture," with multiple external
+audits along the way and a long testnet/mainnet shadowing period before
+it could be trusted. Even with a foundation behind it, this was a
+multi-year program, not a port.</li>
+<li><strong>Grin / Beam (Mimblewimble)</strong> — these are sometimes
+cited as "Rust privacy coins," but they were <strong>greenfield</strong>
+(Grin in Rust, Beam in C++) — designed from day one with a clean
+protocol. They had <strong>no legacy byte-format to stay compatible
+with</strong>, which is the single biggest cost driver we <em>do</em>
+have. They are evidence that <em>new</em> chains can be built in Rust
+efficiently, not that <em>existing</em> chains can be ported
+cheaply.</li>
+<li><strong>Monero</strong> chose <strong>not</strong> to rewrite
+<code>monerod</code>; after years and a large contributor base it still
+adds Rust as crypto libraries over the C++ core. If the Monero project,
+with its resources, won't rewrite its daemon, a fork the size of
+conceal-core should not either.</li>
+</ul>
+<h3 id="concrete-estimate-for-conceal-core">Concrete estimate for
+conceal-core</h3>
+<p>A faithful, byte-compatible Rust reimplementation of the
+consensus-bearing subset (<code>crypto</code> +
+<code>CryptoNoteCore</code> + <code>Serialization</code> +
+<code>P2p</code>/<code>CryptoNoteProtocol</code>, ~37k LOC) plus parity
+testing against the existing chain:</p>
+<ul>
+<li><strong>Effort:</strong> order of <strong>15–40
+engineer-months</strong> for an experienced Rust+blockchain team
+<em>just to reach byte-parity and pass a long shadow-sync against
+mainnet</em>; more to also port <code>Rpc</code> +
+<code>Wallet</code>/<code>WalletLegacy</code> (~14k LOC) for feature
+parity. Realistically a <strong>2–4 year calendar program</strong> at
+the staffing levels this project actually has (a small
+volunteer/contributor team), if it ever finishes.</li>
+<li><strong>Risk:</strong> <strong>chain-fork risk is the dominant cost,
+not LOC.</strong> Any divergence in the homemade KV-binary serializer,
+CryptoNight, LWMA difficulty, or a hard-fork height gate makes the Rust
+node reject/produce blocks the C++ network doesn't agree with — a
+consensus split. This must be caught by exhaustive differential testing
+(replay the entire historical chain through both implementations and
+assert identical accept/reject + hashes) before the Rust node touches
+mainnet. That test harness is itself a major deliverable.</li>
+<li><strong>Opportunity cost:</strong> every month on a rewrite is a
+month not spent on the <em>actual</em> PQ blocker — a production-grade,
+audited, constant-time PQ linkable ring signature (the one thing no
+rewrite gives you, because it doesn't exist in any language yet).</li>
+</ul>
+<p>The rewrite's cost is enormous and its PQ payoff is
+<strong>zero</strong>: Rust does not solve the quantum problem. The
+quantum problem is a <em>cryptography</em> problem (no mature
+small-proof audited PQ ring sig / PQ zk-proof), and that is
+language-independent.</p>
+<hr />
+<h2 id="d-incremental-roadmap--what-to-move-to-rust-in-order">(d)
+Incremental roadmap — what to move to Rust, in order</h2>
+<p>Principle: <strong>move into Rust only code that is (1) new, or (2) a
+pure, byte-defined function that can be differentially tested to
+bit-exactness against the C++, and never move the code that
+<em>defines</em> consensus byte-format unless you can prove
+byte-parity.</strong> Each step is behind the existing C-ABI and leaves
+the C++ daemon driving consensus.</p>
+<p><strong>Phase 0 — Harden the island we have (now).</strong></p>
+<ul>
+<li>This is the realistic "Rust port": keep going on
+<code>ccx-pqc</code>. It already holds all the PQ-relevant,
+attacker-facing crypto.</li>
+<li>Finish the boundary hygiene: confirm every <code>extern "C"</code>
+validates pointer/length, returns error codes (not panics), and has a
+fuzz/property test. Treat the FFI seam as a security boundary, document
+the ownership contract per function.</li>
+<li>Make the ring sig production-grade <em>in Rust</em> (constant-time,
+calibrated params, NTT, audit) — this is CIP-0001 C1 and is the single
+highest-value Rust work available.</li>
+</ul>
+<p><strong>Phase 1 — PQ crypto consolidation (next, low
+risk).</strong></p>
+<ul>
+<li>Move any remaining hand-rolled PQ glue (e.g. deterministic ML-KEM
+<code>KeyGen(d,z)</code> for the wallet, currently blocked on an
+RNG-based <code>keypair()</code>) into the island. New code, no legacy
+byte-format constraint, pure win.</li>
+<li>Add deterministic test vectors (FIPS 203/204/205 KATs) inside the
+crate so the island is self-verifying.</li>
+</ul>
+<p><strong>Phase 2 — Optional: untrusted-input parsers behind FFI
+(medium risk, real safety ROI).</strong></p>
+<ul>
+<li>Candidate: a Rust <strong>decoder</strong> for the PQ-extended
+transaction/<code>tx-extra</code> fields and the new
+<code>PqKeyInput</code>/<code>PqKeyOutput</code> variants — the
+<em>parsing</em> of untrusted bytes for the new types, where a malformed
+P2P/RPC payload could currently hit a C++ bug (we already found one
+uninit/heap issue on the reloaded-PQ-block serialize path).</li>
+<li><strong>Hard rule:</strong> the Rust decoder must produce
+byte-identical output to the C++ KV-binary serializer for the same
+struct, verified by a round-trip differential test on a large corpus,
+<em>before</em> it is allowed on the validation path. If it can't be
+proven byte-exact, it does not ship — it stays a defense-in-depth
+pre-validator, not the source of truth.</li>
+</ul>
+<p><strong>Phase 3 — Optional, much later: networking I/O (high effort,
+low PQ relevance).</strong></p>
+<ul>
+<li>P2P transport <em>could</em> move to a Rust async stack, but
+conceal-core's networking is written against the custom
+<code>src/System</code> dispatcher (green-thread runtime), not asio.
+Replacing that is a large, invasive change with no PQ payoff.
+<strong>Defer indefinitely</strong> unless a separate networking-rewrite
+project is funded.</li>
+</ul>
+<p><strong>Never in scope for the PQ effort:</strong>
+<code>crypto/</code> PoW + ed25519 ops (Grover-adequate, no quantum
+relevance, high divergence risk), difficulty math, RPC business logic,
+wallet bookkeeping. Leave them in C++.</p>
+<p>This roadmap is strictly additive: at every phase the C++ daemon
+remains the consensus authority and the network stays compatible. There
+is no flag day, no fork.</p>
+<hr />
+<h2 id="e-where-c-must-stay--the-consensus-byte-format">(e) Where C++
+must stay — the consensus byte-format</h2>
+<p>Some code cannot move without becoming a consensus change, and these
+are exactly the parts a naive "rewrite in Rust" would touch first:</p>
+<ol type="1">
+<li><strong><code>src/Serialization</code> (KV-binary + the
+<code>ISerializer</code> overloads).</strong> This <em>is</em> the wire
+and on-disk format. The byte layout of blocks, transactions, P2P
+messages, and the blockchain/wallet DB is <em>defined by this code's
+behavior</em>, quirks included. Rust may <em>mirror</em> it (Phase 2,
+byte-exact, differentially tested) but the C++ remains the canonical
+definition; you cannot "improve" it without a hard fork.</li>
+<li><strong><code>CryptoNoteConfig.h</code> + the validation in
+<code>CryptoNoteCore</code>.</strong> Hard-fork heights
+(<code>UPGRADE_HEIGHT_V3..V9</code>), block major versions,
+<code>MONEY_SUPPLY</code>, <code>DIFFICULTY_TARGET</code>, LWMA
+difficulty, money-conservation checks. These define <em>what blocks the
+network accepts</em>. They stay in C++ (the running network's reference)
+until and unless a fully differential- tested Rust validator is proven
+identical over the entire historical chain — a Zebra-scale undertaking,
+out of scope for PQ.</li>
+<li><strong><code>crypto/</code> CryptoNight PoW +
+<code>crypto-ops</code> (ed25519 group ops, key images, ring
+math).</strong> The PoW hash and the legacy signature/key-image math are
+consensus-defining and performance-tuned. The hash layer is already
+Grover-adequate; there is zero quantum reason to touch it and every
+reason (divergence risk) not to.</li>
+<li><strong><code>CryptoNoteProtocol</code>/<code>P2p</code> handshake +
+message framing.</strong> Changing these breaks wire compatibility with
+the existing network. Mirror, don't move.</li>
+</ol>
+<p>Rule of thumb: <strong>if changing the code's output by one byte
+would fork the chain, the C++ is the source of truth.</strong> Rust may
+stand beside it as a byte-exact mirror or a defense-in-depth validator,
+but the C++ keeps defining consensus until a funded, audited,
+differentially- tested reimplementation exists — which is a separate
+strategic project, not a PQ task.</p>
+<hr />
+<h2 id="recommendation">Recommendation</h2>
+<ol type="1">
+<li><strong>Reject the full rewrite.</strong> Multi-year,
+fork-risk-dominated, and it delivers <em>no</em> quantum resistance (the
+PQ blocker is cryptographic, not linguistic). Zebra (~3 yr, funded
+foundation) and Monero's refusal to rewrite <code>monerod</code> are the
+proof.</li>
+<li><strong>Double down on the Rust island we already run.</strong> It
+is the correct, precedented architecture (librustzcash, Monero
+FCMP++/Carrot). Keep all <em>new</em> PQ crypto in <code>ccx-pqc</code>,
+harden the FFI seam, and spend the engineering budget on the one thing
+that actually matters: a constant-time, calibrated-parameter,
+<strong>audited</strong> PQ ring signature.</li>
+<li><strong>Allow Rust to grow only by the byte-exact rule.</strong> New
+PQ code → Rust freely. Existing consensus byte-format code → stays C++
+as the source of truth; Rust may mirror it only under exhaustive
+differential testing, and only as defense-in-depth, never as a silent
+replacement.</li>
+<li><strong>Keep C++ as the consensus authority</strong> for
+serialization, validation, PoW, and P2P framing indefinitely, absent a
+separately-funded Zebra-style reimplementation program.</li>
+</ol>
+<p>The honest framing for the partner: "porting to Rust" is two
+different questions wearing one name. <em>Growing the Rust crypto
+island</em> is already happening, is correct, and is cheap. <em>A full
+daemon rewrite</em> is a 2–4-year, fork-risk-heavy program that does not
+solve the quantum problem and that even Monero won't undertake. Do the
+first; don't do the second.</p>
+<hr />
+<h3 id="sources--precedents">Sources / precedents</h3>
+<ul>
+<li>Zebra (Zcash Foundation, Rust consensus-compatible node, ~3+ yr
+funded build): <a
+href="https://github.com/ZcashFoundation/zebra">https://github.com/ZcashFoundation/zebra</a>
+, <a href="https://zfnd.org/zebra/">https://zfnd.org/zebra/</a></li>
+<li>librustzcash architecture (Rust crypto island behind C++
+<code>zcashd</code> via FFI): <a
+href="https://zcash.readthedocs.io/en/master/rtd_pages/librustzcash_arch.html">https://zcash.readthedocs.io/en/master/rtd_pages/librustzcash_arch.html</a></li>
+<li>Monero FCMP++/Carrot Rust libraries over C++ daemon, FFI cleanup
+(2025): <a
+href="https://ccs.getmonero.org/proposals/jeffro256-full-time-2025Q4.html">https://ccs.getmonero.org/proposals/jeffro256-full-time-2025Q4.html</a>
+, <a
+href="https://monero.observer/jeffro256-posts-july-2025-monero-carrot-dev-update/">https://monero.observer/jeffro256-posts-july-2025-monero-carrot-dev-update/</a></li>
+<li>Grin (Rust) / Beam (C++) — greenfield Mimblewimble, no legacy
+byte-format (contrast case).</li>
+<li>CVE-2017-12564 — CryptoNote/Monero lineage P2P deserialization heap
+corruption (memory- safety precedent in the surface a rewrite would
+target).</li>
+<li>Internal: <code>pqc/POC-RESULTS.md</code>,
+<code>docs/reviews/pq-security-review.md</code>,
+<code>docs/design/quantum-resistance/REMAINING-WORK.md</code>; measured
+LOC from <code>src/</code>.</li>
+</ul>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

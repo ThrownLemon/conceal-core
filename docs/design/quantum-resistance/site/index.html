@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decisions for the team — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class="active"><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="post-quantum-migration--decisions-for-the-team">Post-quantum
+migration — decisions for the team</h1>
+<p><em>A single dashboard of the open strategic choices for Conceal's
+post-quantum (CIP-0001) work. Each decision links to the detailed doc
+that backs it. Status legend: <strong>OPEN</strong> (team must choose) ·
+<strong>PROVISIONAL</strong> (a lean exists, needs ratification) ·
+<strong>DECIDED</strong> (this session). Numbers are live/measured where
+marked — see <a
+href="measured-numbers.md"><code>measured-numbers.md</code></a>.</em></p>
+<blockquote>
+<p><strong>One framing for all of these:</strong> the PoC has removed
+the <em>integration</em> risk (tx format, serialization, double-spend
+set, stealth, wallet send/receive, deposits, messages, the swappable
+backend slot). What remains is <strong>policy + the production crypto +
+an audit</strong>. Treat every "OPEN" below as a thing to settle
+<em>before</em> <code>UPGRADE_HEIGHT_V9</code> is lowered to a real
+height — they converge on that one fork.</p>
+</blockquote>
+<hr />
+<h2
+id="d1--production-privacy-scheme--provisional-lean-keep-privacy--matrict-au">D1
+— Production privacy scheme · <strong>PROVISIONAL (lean: keep privacy /
+MatRiCT-Au)</strong></h2>
+<p><strong>The choice.</strong> What signs a <em>spend</em> on mainnet.
+Three families, measured/cited in <a
+href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
+§3:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Privacy</th>
+<th>Spend size</th>
+<th>Verify</th>
+<th>Storage/yr</th>
+<th>Maturity</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A — MatRiCT-Au</strong> (lattice RingCT, log-size)</td>
+<td><strong>full ring + confidential amounts</strong></td>
+<td>~58 KB</td>
+<td>~45 ms</td>
+<td>~18 GB</td>
+<td>research code, builds; <strong>library-ized this session</strong>
+(<code>~/matrict-lib</code>)</td>
+<td>the privacy-preserving production target</td>
+</tr>
+<tr>
+<td>B — keep the lattice <strong>stand-in</strong></td>
+<td>full ring, plaintext amounts</td>
+<td>25–61 KB (ring 2–8)</td>
+<td>~1 ms</td>
+<td>~13 GB</td>
+<td><strong>experimental, unaudited, demo-grade</strong></td>
+<td>the current PoC engine; <strong>not mainnet-safe</strong></td>
+</tr>
+<tr>
+<td>C — <strong>Falcon, no ring</strong> (stealth only)</td>
+<td><strong>no sender anonymity</strong></td>
+<td>6.4 KB</td>
+<td>0.2 ms</td>
+<td>~1.9 GB</td>
+<td>NIST-standardized</td>
+<td>smallest/fastest, but drops Conceal's core privacy</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Recommendation: A (MatRiCT-Au), keep privacy.</strong> It's
+the only option that preserves Conceal's ring + confidential-amount
+privacy on a (to-be-audited) lattice construction. Cost is real — a PQ
+spend is <strong>~68×</strong> a classical spend (542 B → ~37 KB
+measured for the stand-in; MatRiCT-Au ~58 KB team-measured) — but C
+forfeits the chain's reason to exist and B can't ship unaudited. The
+swappable backend (<code>pq_ring_sig.h</code> C-ABI) lets the stand-in
+(B) stay the <strong>testnet</strong> engine while A is integrated +
+audited; see <a
+href="matrict-integration-plan.md"><code>matrict-integration-plan.md</code></a>.</p>
+<p><strong>Depends on / unblocks:</strong> the audit
+(<strong>D7</strong>), tx-size + fusion (<strong>D3</strong>).
+<strong>Who decides:</strong> core team — this is the headline strategic
+call.</p>
+<hr />
+<h2 id="d2--upgrade_height_v9-fork-timing--height--open">D2 —
+<code>UPGRADE_HEIGHT_V9</code> fork timing &amp; height ·
+<strong>OPEN</strong></h2>
+<p><strong>The choice.</strong> V9 is the single block on which PQ
+deposits <strong>open</strong> and (under Option 3, <strong>D5</strong>)
+classical deposit creation <strong>freezes</strong> — an atomic swap.
+Mainnet <code>UPGRADE_HEIGHT_V9 = 5000000</code> is a far-future,
+audit-gated <strong>sentinel</strong>; testnet is <code>80</code>.
+Lowering it to a real height <em>is</em> the fork.</p>
+<ul>
+<li><strong>No voting safety net.</strong> Unlike the upgrade-voting
+path (<code>UPGRADE_VOTING_THRESHOLD = 90%</code>), a hardcoded height
+past the last checkpoint has no soft-fork grace — a
+botched/uncoordinated height is an <strong>unrecoverable chain
+split</strong>. Set it with checkpoint-grade coordination.</li>
+<li><strong>It cannot precede its preconditions</strong> (see
+<strong>D7</strong>): the PQ deposit integration audit-cleared,
+chain-level CoreTests passing, and a working PQ deposit wallet
+path.</li>
+</ul>
+<p><strong>Recommendation:</strong> keep the sentinel until D7's gates
+clear; then set V9 to a specific height announced with the same
+discipline as a checkpoint, activating PQ deposits + the Option-3 freeze
+together. <strong>Who decides:</strong> core team + node operators
+(coordination). Backs: <a
+href="deposit-term-policy-decision.md"><code>deposit-term-policy-decision.md</code></a>
+§"Hard dependency sequencing", <a
+href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a>.</p>
+<hr />
+<h2 id="d3--tx-size-limit-fusion-redesign--denominations--open">D3 —
+Tx-size limit, fusion redesign &amp; denominations ·
+<strong>OPEN</strong></h2>
+<p><strong>The choice.</strong> PQ txs are tens of KB; the current
+limits don't fit them.</p>
+<ul>
+<li><strong><code>CRYPTONOTE_MAX_TX_SIZE_LIMIT</code> (~99 KB)</strong>
+— a MatRiCT-Au multi-input tx approaches it; must be raised (size budget
+depends on <strong>D1</strong>).</li>
+<li><strong><code>FUSION_TX_MAX_SIZE</code> (~30 KB)</strong> —
+<strong>every</strong> PQ scheme blows it, so dust consolidation breaks.
+Needs a new size budget <em>and</em> likely a <strong>denomination
+scheme</strong> (PQ output keys are ~1–4 KB; many small outputs are
+costly to fuse).</li>
+<li><strong>Free-reward zone</strong> (100 KB) holds ~184 classical
+spends but only ~2 PQ ring-4 spends — fee/throughput model shifts (see
+<a href="measured-numbers.md"><code>measured-numbers.md</code></a>
+§E).</li>
+</ul>
+<p><strong>Recommendation:</strong> treat as a bundle gated on
+<strong>D1</strong> (the scheme sets the sizes); design the fusion +
+denomination scheme before any mainnet PQ spend. <strong>Who
+decides:</strong> core team (consensus sizing). <strong>Note:</strong>
+the Option-3 <em>deposit</em> path is cheaper (ML-DSA-65, ~2.1 KB, ~10×)
+and less affected than the <em>spend</em> path.</p>
+<hr />
+<h2
+id="d4--retire-the-fixed-testnet-kem-option-b-for-per-recipient-keys--open-mostly-done">D4
+— Retire the fixed testnet KEM ("Option B") for per-recipient keys ·
+<strong>OPEN (mostly done)</strong></h2>
+<p><strong>The choice.</strong> The PoC's coinbase/stealth path uses a
+<strong>fixed</strong> <code>PQ_TESTNET_KEM</code> so any wallet can
+scan testnet PQ coinbase. Mainnet must use
+<strong>per-recipient</strong> ML-KEM keys (real unlinkability). The
+wallet↔︎wallet PQ send path <strong>already</strong> does per-recipient
+encapsulation; coinbase/stealth must follow on mainnet.</p>
+<p><strong>Recommendation:</strong> confirm per-recipient keys
+everywhere for mainnet; the fixed KEM is a testnet-only convenience and
+must not ship. Low controversy — mostly an implementation cleanup.
+<strong>Who decides:</strong> core team (confirm). Backs: <a
+href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
+§"ecosystem changes".</p>
+<hr />
+<h2
+id="d5--classical-deposit-term-policy--decided--option-3-this-session">D5
+— Classical deposit-term policy · <strong>DECIDED — Option 3 (this
+session)</strong></h2>
+<p>PQ-only deposits after the fork: classical deposit <em>creation</em>
+is frozen at V9; existing deposits stay withdrawable.
+<strong>Implemented + verified e2e</strong> (<a
+href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a>,
+<a
+href="deposit-term-policy-decision.md"><code>deposit-term-policy-decision.md</code></a>).
+Listed here for completeness — its only open piece is the activation
+timing, which is <strong>D2</strong>.</p>
+<hr />
+<h2 id="d6--pq-deposit-key-privacy-account-key-vs-per-deposit--open">D6
+— PQ deposit key privacy: account-key vs per-deposit ·
+<strong>OPEN</strong></h2>
+<p><strong>The choice.</strong> ML-DSA has no stealth-derivation
+analogue, so a PQ deposit must name a fixed public key.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Privacy</th>
+<th>Restore</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>D6a — single account ML-DSA key</strong></td>
+<td>deposits to one wallet are <strong>linkable</strong> by the shared
+key</td>
+<td>trivial (re-derive from seed)</td>
+<td>the PoC wallet default</td>
+</tr>
+<tr>
+<td><strong>D6b — per-deposit indexed keys</strong></td>
+<td>unlinkable</td>
+<td>re-derive indices <code>0..N</code> + gap-limit scan on restore</td>
+<td>mainnet target</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Recommendation:</strong> D6a is acceptable for the
+<strong>testnet PoC</strong> (flag the linkability); adopt <strong>D6b
+for mainnet</strong> to preserve deposit privacy. <strong>Who
+decides:</strong> core team. Backs: <a
+href="pq-deposit-wallet-blueprint.md"><code>pq-deposit-wallet-blueprint.md</code></a>
+§3.</p>
+<hr />
+<h2 id="d7--audit-scope--sequencing-the-hard-mainnet-gate--open">D7 —
+Audit scope &amp; sequencing (the hard mainnet gate) ·
+<strong>OPEN</strong></h2>
+<p><strong>The choice.</strong> What must be professionally audited, and
+in what order, before mainnet. The non-negotiable gate. Scope at
+minimum:</p>
+<ul>
+<li>the production ring-sig/RingCT construction
+(<strong>MatRiCT-Au</strong> per <strong>D1</strong>) + its
+integration;</li>
+<li>the <strong>ML-DSA-65 deposit</strong> money paths
+(interest/lock/reorg) + the consensus PQ-input validators;</li>
+<li><strong>constant-time / side-channel</strong> review of the lattice
+code;</li>
+<li>the wallet money-path scanning (the output-index alignment fixed
+this session is wallet-side, but the whole scan surface should be in
+scope).</li>
+</ul>
+<p><strong>Recommendation:</strong> the external audit is
+<strong>the</strong> mainnet gate — nothing PQ activates on mainnet
+before it. Sequence it after the MatRiCT-Au integration stabilizes (so
+the audited artifact is the shipping one), but commission the auditor
+selection early (lead time). <strong>Who decides:</strong> core team +
+funding. Backs: <a
+href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
+§6, <a href="STATUS.md"><code>STATUS.md</code></a> "Deferred /
+gates".</p>
+<hr />
+<h2 id="d8--pq-dependency-maturity--open">D8 — PQ dependency maturity ·
+<strong>OPEN</strong></h2>
+<p><strong>The choice.</strong> The Rust PQ primitives (ML-KEM/ML-DSA
+via RustCrypto) are pre-1.0. Gate mainnet on <strong>FIPS-validated /
+1.0</strong> crates? <strong>Recommendation:</strong> yes — require
+FIPS-validated (or equivalently audited) PQ crate versions before
+mainnet activation; track upstream. Low-effort to state, real to honor.
+<strong>Who decides:</strong> core team.</p>
+<hr />
+<h2 id="at-a-glance">At-a-glance</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Decision</th>
+<th>Status</th>
+<th>Recommendation</th>
+<th>Gates mainnet?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D1</td>
+<td>Production privacy scheme</td>
+<td>PROVISIONAL</td>
+<td><strong>A — MatRiCT-Au (keep privacy)</strong></td>
+<td>yes (via audit)</td>
+</tr>
+<tr>
+<td>D2</td>
+<td>V9 fork timing/height</td>
+<td>OPEN</td>
+<td>set after D7 clears; checkpoint-grade coordination</td>
+<td><strong>is</strong> the fork</td>
+</tr>
+<tr>
+<td>D3</td>
+<td>Tx-size / fusion / denominations</td>
+<td>OPEN</td>
+<td>bundle, gated on D1</td>
+<td>yes (for spends)</td>
+</tr>
+<tr>
+<td>D4</td>
+<td>Retire fixed testnet KEM</td>
+<td>OPEN (mostly done)</td>
+<td>per-recipient everywhere on mainnet</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>D5</td>
+<td>Deposit-term policy</td>
+<td><strong>DECIDED (Option 3)</strong></td>
+<td>—</td>
+<td>timing = D2</td>
+</tr>
+<tr>
+<td>D6</td>
+<td>PQ deposit key privacy</td>
+<td>OPEN</td>
+<td>D6a testnet, <strong>D6b mainnet</strong></td>
+<td>no (privacy)</td>
+</tr>
+<tr>
+<td>D7</td>
+<td>Audit scope &amp; sequencing</td>
+<td>OPEN</td>
+<td>external audit = the gate</td>
+<td><strong>the</strong> gate</td>
+</tr>
+<tr>
+<td>D8</td>
+<td>PQ dependency maturity</td>
+<td>OPEN</td>
+<td>require FIPS-validated/1.0 crates</td>
+<td>yes</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The critical path:</strong> D1 (scheme) → integrate + D3
+(sizing) → <strong>D7 (audit)</strong> → D2 (set V9 height) →
+coordinated fork. D4/D6/D8 ride alongside. D5 is done and waits only on
+D2.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

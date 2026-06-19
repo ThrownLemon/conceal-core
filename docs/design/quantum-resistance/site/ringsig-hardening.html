@@ -1,0 +1,844 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ring-sig hardening — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class="active"><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="lattice-linkable-ring-signature--hardening-pass">Lattice
+linkable ring signature — hardening pass</h1>
+<p>Status: <strong>EXPERIMENTAL / TESTNET-ONLY / UNAUDITED.</strong>
+This document records a hardening pass over
+<code>pqc/ccx-pqc/src/ringsig.rs</code> (CIP-0001 §5.3): a soundness
+re-verification, an NTT performance rewrite, a heuristic parameter bump,
+and a <strong>constant-time rewrite of the modular-arithmetic hot
+paths</strong> (§5 — one of the documented mainnet activation gates).
+<strong>Nothing here makes the scheme audited or mainnet-ready.</strong>
+The remaining gate (professional cryptographic audit;
+estimator-calibrated parameters; constant-time <em>sampling/challenge
+handling</em> and a decision on the rejection-loop residual — see §5 —
+or a decision to port a published scheme) is stated explicitly at the
+end.</p>
+<p>The construction is an AOS/LSAG hash-chained ring of
+Fiat-Shamir-with-aborts (Dilithium-style) Sigma proofs over Module-SIS
+<code>t = A·s</code> (<code>s</code> short, <code>‖s‖∞ ≤ η</code>), with
+a linking tag <code>I = A2·s</code> bound into every branch's
+verification. <code>verify</code> walks a symmetric ring chain and never
+learns which member signed (anonymity is structural); the real branch
+forces <code>I = A2·s_signer</code>, so the tag is deterministic in the
+signer's secret (linkable; a malicious signer cannot swap it). The
+nullifier the daemon stores is <code>SHAKE256(I)</code>.</p>
+<hr />
+<h2 id="1-soundness-re-verification-task-2a">1. Soundness
+re-verification (Task 2a)</h2>
+<h3 id="11-the-refuted-universal-forgery">1.1 The refuted "universal
+forgery"</h3>
+<p>An earlier adversarial crypto review
+(<code>docs/reviews/pq-ringsig-crypto-review.md</code>, finding §1)
+claimed a <strong>CRITICAL universal forgery</strong>: simulate all
+<code>n</code> branches with no secret, walk the chain forward, then
+"publish <code>seed0 := seed_n</code>", and the ring closes for any ring
+and any tag <code>I</code>. We implemented that exact attack
+(<code>ringsig::forge_no_secret</code>, exposed as
+<code>ccx_pqr_forgery_test</code>) and <code>verify</code>
+<strong>rejects it</strong> (<code>forgery_test = 0</code>).</p>
+<p><strong>Why the attack fails — the AOS/CDS soundness argument holds
+here.</strong> The only acceptance condition is
+<code>seed_n == seed0</code>, <em>and <code>seed0</code> is the seed
+that produces branch 0's challenge</em>
+<code>c_0 = SampleInBall(seed0)</code>. The forger's forward walk
+computed every <code>w_i = A·z_i − c_i·t_i</code> using
+<code>c_0 = SampleInBall(seed_start)</code> for some arbitrary
+<code>seed_start</code>. To "close the loop" they set the
+<em>published</em> <code>seed0 := seed_n</code>. But <code>verify</code>
+then recomputes branch 0 with
+<code>c_0' = SampleInBall(seed_n) ≠ SampleInBall(seed_start)</code>, so
+the recomputed <code>w_0</code> differs from the committed one,
+<code>seed_1' ≠ seed_1</code>, and the chain diverges — it does
+<strong>not</strong> close.</p>
+<p>Closing the loop therefore requires either:</p>
+<ul>
+<li>a hash preimage/fixed point of the whole walk (H = SHAKE256 modelled
+as a random oracle ⇒ infeasible), or</li>
+<li>a branch where the prover commits <code>w_j = A·y</code>
+<em>before</em> learning <code>c_j</code> and can answer the derived
+<code>c_j</code> with a short <code>z_j = y + c_j·s</code> — i.e.
+<strong>knowledge of a witness <code>s</code></strong> with
+<code>A·s = t_j</code> for a ring member <code>j</code> (Module-SIS hard
+otherwise).</li>
+</ul>
+<p>This is exactly the standard AOS/CDS one-out-of-many soundness
+invariant: there is exactly one branch that cannot be simulated without
+a witness. The review conflated "the verifier only checks
+<code>seed_n == seed0</code>" (true) with "the prover may freely choose
+<code>seed0</code>" (false — <code>seed0</code> feeds <code>c_0</code>,
+which determines the entire walk). <strong>Verdict: the
+universal-forgery claim is refuted; the construction is sound against it
+in the random-oracle model, at the demo's modelling level.</strong></p>
+<h3 id="12-new-adversarial-test-vectors">1.2 New adversarial test
+vectors</h3>
+<p><code>ringsig::adversarial_soundness_ok</code> (exposed as
+<code>ccx_pqr_soundness_test</code>, expected <code>= 1</code>) adds the
+vectors the task requested, each asserting <code>verify</code>
+<strong>rejects</strong> the forgery and that an honest signature still
+verifies:</p>
+<table>
+<thead>
+<tr>
+<th>Vector</th>
+<th>What it forges</th>
+<th>Why it must fail</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>no-secret universal forgery</td>
+<td>the review's §1 attack</td>
+<td>no witness branch ⇒ chain can't close (see 1.1)</td>
+</tr>
+<tr>
+<td><strong>chosen-tag forgery</strong></td>
+<td>splice an attacker-chosen tag <code>I</code> (all-zero) into a
+<em>valid</em> sig</td>
+<td><code>I</code> is hashed into every <code>seed_{i+1}</code>;
+changing it desynchronises the chain</td>
+</tr>
+<tr>
+<td><strong>non-member ring</strong></td>
+<td>sign with a real secret whose <code>t ∉ ring</code></td>
+<td>the witness branch needs <code>A·s = t_j</code> for a
+<em>member</em> <code>t_j</code></td>
+</tr>
+<tr>
+<td><strong>cross-ring replay</strong></td>
+<td>verify a valid sig for ring <code>R'</code> against a different ring
+<code>R</code></td>
+<td>ring blob is hashed into every seed; the chain is ring-bound</td>
+</tr>
+<tr>
+<td><strong>malleation</strong></td>
+<td>flip a byte in <code>seed0</code> / a <code>z_i</code> / the tag;
+swap two <code>z_i</code></td>
+<td>Fiat-Shamir binds every serialized field into the chain</td>
+</tr>
+</tbody>
+</table>
+<p>All pass (<code>soundness_test = 1</code>). These are
+<strong>HEURISTIC empirical checks</strong>, not a proof. They exercise
+the failure modes a deployment most fears (forged nullifier, outsider
+spend, replay, malleability), but they do not bound the adversary's
+success probability.</p>
+<h3 id="13-linkability-binding">1.3 Linkability binding</h3>
+<p>The tag <code>I</code> is recomputed by <code>verify</code> only as
+the published bytes and is hashed into the chain, while the
+<em>real</em> branch in <code>sign</code> is the only place
+<code>I = A2·s</code> is enforced (via <code>w2_j = A2·y</code>,
+answered by <code>z_j = y + c_j·s</code> so that
+<code>A2·z_j − c_j·I = A2·y</code>). A malicious signer who publishes an
+<em>algebraically</em> different <code>I' ≠ A2·s</code> cannot produce a
+valid witness branch for <code>I'</code> (that would require a second
+secret <code>s'</code> with <code>A2·s' = I'</code> <em>and</em>
+<code>A·s' = t_j</code>), so the linkable tag is bound to the spending
+secret. Honest double-spends therefore collide (<code>SHAKE256(I)</code>
+equal); distinct outputs produce distinct nullifiers. The chosen-tag
+vector above is the empirical witness for this.</p>
+<h4 id="131-non-canonical-tag-break--found-in-review-and-fixed">1.3.1
+Non-canonical tag break — FOUND in review and FIXED</h4>
+<p>A fresh <code>codex</code> review of this pass found a <strong>real
+malicious-signer linkability break</strong> that the prior review and
+the initial soundness vectors missed: <code>verify</code> deserialized
+the tag <code>I</code> coefficients as raw <code>i32</code> with
+<strong>no canonical-range check</strong>, while the arithmetic reduces
+coefficients mod <code>q</code>. A malicious signer could therefore
+encode the <em>same algebraic tag</em> with one coefficient as
+<code>I + q</code>: the arithmetic still accepts (same residue), but the
+nullifier <code>SHAKE256(tag_bytes)</code> hashes the raw bytes, so it
+<strong>changes</strong> — letting the same output be spent twice under
+two different nullifiers (a double-spend).</p>
+<p><strong>Fix:</strong> <code>verify</code> now rejects any
+non-canonically-encoded coefficient in the tag (and, defensively, in the
+responses <code>z</code>) before hashing — a coefficient is canonical
+iff <code>c == cmod(c)</code>. The wire format already serializes
+<code>cmod</code>'d values, so honest signatures are unaffected
+(verified: honest sigs still verify and are byte-deterministic after the
+fix). An empty ring (<code>n == 0</code>, which would close trivially)
+is now rejected in <code>verify</code> as well (it was already rejected
+at the C ABI, but the Rust <code>verify</code> was unsound). Regression
+vectors <code>forge_noncanonical_tag_rejected</code> and the empty-ring
+check are added to <code>adversarial_soundness_ok</code>
+(<code>ccx_pqr_soundness_test</code>), which still returns
+<code>1</code>. This is exactly why the construction needs a
+professional audit before mainnet: a subtle encoding-vs-arithmetic gap,
+invisible to the algebraic soundness argument, was a live funds
+break.</p>
+<h4
+id="132-four-reviewer-hardening-pass-codex--gemini--glm--coderabbit">1.3.2
+Four-reviewer hardening pass (Codex + Gemini + GLM + CodeRabbit)</h4>
+<p>A second round of four independent reviews strongly corroborated each
+other and surfaced further fixes, applied here. The most-corroborated
+(CodeRabbit ×2 + Codex + Gemini + GLM) is the <strong>ring-member key
+validation</strong>, the root cause behind two distinct losses:</p>
+<ul>
+<li><strong>Algebraic key aliasing → loss of funds (Gemini).</strong>
+The same non-canonical encoding gap as the tag also applied to
+ring-member public keys <code>t</code>: an output key <code>t</code> and
+<code>t+q</code> are algebraically equal (one secret, one nullifier) but
+bytewise different, so only one of the two outputs is ever spendable
+while both can be accepted on-chain.</li>
+<li><strong>Consensus split (Codex + GLM).</strong> A non-canonical
+<code>t_i</code> lands differently in the hashed <code>ring_blob</code>,
+so two honest nodes derive different <code>seed_{i+1}</code> from the
+<em>same</em> on-chain ring → they disagree on validity → the chain
+forks.</li>
+<li><strong>DoS (CodeRabbit).</strong> A ring member <code>Vec</code>
+shorter than <code>PK_BYTES</code> made <code>get_veck</code> read out
+of bounds.</li>
+</ul>
+<p><strong>Fix (defence in depth, three layers):</strong></p>
+<ol type="1">
+<li><code>ringsig::sign</code>/<code>verify</code> now decode every ring
+member through <code>decode_ring_member</code>, which checks
+<code>p.len() &gt;= PK_BYTES</code> (DoS) <strong>and</strong>
+<code>veck_is_canonical(t)</code> (aliasing/split) before use; either
+failure aborts with <code>None</code>.</li>
+<li>A new C ABI
+<code>ccx_pq_pubkey_is_canonical(pk, len) -&gt; i32</code> is called in
+the daemon's <code>check_outs_valid</code> (<code>PqKeyOutput</code>
+case), so a non-canonical PQ output key is <strong>rejected at
+output-acceptance</strong> — kept out of the chain index entirely (the
+root fix).</li>
+<li>The <code>adversarial_soundness_ok</code> vectors now include a
+non-canonical ring-member check, and run across ring sizes 2, 4, 8.</li>
+</ol>
+<p>Other corroborated fixes in this pass:</p>
+<ul>
+<li><strong>Integer-overflow guard (Codex HIGH + Gemini + GLM).</strong>
+<code>ccx_pq_sign</code>/<code>ccx_pq_verify</code> computed
+<code>ring_count * member_stride</code> (fed to
+<code>from_raw_parts</code>) with no overflow guard — a wrapped product
+yields a tiny slice and an OOB read in <code>split_ring</code>. Now
+bounded by <code>MAX_RING_COUNT = 32</code> (a superset of the consensus
+<code>PQ_MAX_RING_SIZE = 16</code>) and computed with
+<code>checked_mul</code>, returning <code>-4</code> on
+overflow/over-max.</li>
+<li><strong>NTT-equivalence is now CI-verifiable (GLM HIGH).</strong>
+The deleted schoolbook <code>poly_mul</code> left the pure-speedup claim
+untested in-tree. A reference <code>poly_mul_schoolbook</code> is
+restored and <code>ccx_pqr_ntt_equiv_test(iters)</code> asserts NTT ==
+schoolbook over the scheme's real input distributions (z masks, sparse
+±1 challenges, uniform <code>t</code>, secret-range) plus edge cases —
+exercised by the daemon build, <strong>0 mismatches</strong>.</li>
+<li><strong>Crate pinning + committed lockfile (GLM HIGH + Gemini
+HIGH).</strong> <code>detkeygen</code>'s
+<code>#[allow(deprecated)]</code> rides <code>ml-kem 0.3</code> /
+<code>ml-dsa 0.1</code> encoding entry points that upstream will change;
+a <code>cargo update</code> could silently alter the wallet-key byte
+encoding → mnemonics unrestorable → funds loss. <code>Cargo.toml</code>
+now pins <strong>exact</strong> <code>=0.3.2</code> /
+<code>=0.1.1</code> / <code>hybrid-array =0.4.12</code>, and
+<code>pqc/ccx-pqc/Cargo.lock</code> is committed (gitignore exception).
+The detkeygen-through-pqcrypto interop selftest stays the runtime
+net.</li>
+</ul>
+<h3 id="14-honest-residual-soundness-caveats">1.4 Honest residual
+soundness caveats</h3>
+<ul>
+<li><strong>Random-oracle / Fiat-Shamir-with-aborts model.</strong>
+Soundness is argued in the ROM; there is no machine-checked or
+reduction-level proof. The abort distribution and the simulator's decoy
+<code>z</code> distribution are argued uniform (the accept region equals
+the decoy support), not proven indistinguishable to a calibrated
+bound.</li>
+<li><strong>Side-channels: hot paths now constant-time, residual
+remains</strong> (see §5). The modular-arithmetic hot paths are
+constant-time; sampling/challenge handling and the secret-dependent
+rejection-loop abort count are not yet addressed. Soundness ≠
+side-channel resistance.</li>
+<li><strong>Parameters are heuristic</strong> (see §3) — soundness
+arguments assume Module-SIS/LWE are hard <em>at the chosen
+dimension</em>, which is not yet estimator-calibrated.</li>
+</ul>
+<hr />
+<h2 id="2-performance-schoolbook--ntt-task-2b">2. Performance:
+schoolbook → NTT (Task 2b)</h2>
+<p>The hot operation is polynomial multiplication in
+<code>R_q = Z_q[X]/(X²⁵⁶+1)</code>. The old <code>poly_mul</code> was
+<code>O(N²)</code> negacyclic schoolbook. <code>q = 8380417</code> is
+the Dilithium prime and <code>ζ = 1753</code> is a primitive 512-th root
+of unity (<code>ζ²⁵⁶ ≡ −1</code>, <code>ζ⁵¹² ≡ 1 mod q</code>), so a
+length-256 <strong>negacyclic NTT</strong> diagonalises the convolution.
+We replaced schoolbook with an in-place Cooley-Tukey forward /
+Gentleman-Sande inverse NTT.</p>
+<p><strong>This is a PURE speedup — signature bytes are
+unchanged.</strong> The NTT computes the same residue mod <code>q</code>
+and the result is canonicalised with the identical <code>cmod</code>
+(centered representative in <code>(−q/2, q/2]</code>), so
+<code>poly_mul</code> returns byte-identical polynomials for every
+input. We verified this two ways:</p>
+<ol type="1">
+<li>NTT vs schoolbook over thousands of random vectors across the input
+ranges the scheme uses (<code>z</code>-range masks, sparse
+<code>±1</code> challenges, uniform <code>t ∈ [0,q)</code>) → <strong>0
+mismatches</strong>.</li>
+<li>Deterministic signatures (fixed seed/ring/message) hashed and
+compared between the NTT build and the pre-NTT (schoolbook) build →
+<strong>identical fingerprints for all four signers</strong>.</li>
+</ol>
+<p>Further mechanical speedups, all bit-identical:</p>
+<ul>
+<li><strong>Cached matrices.</strong> <code>A</code>, <code>A2</code>
+and their NTT-domain forms are generated once (<code>OnceLock</code>)
+instead of re-deriving via SHAKE on every sign/verify.</li>
+<li><strong>Shared forward transform.</strong> <code>mat_vec2_ntt</code>
+forward-transforms <code>z</code> once and applies both <code>A</code>
+and <code>A2</code> (the loop always needs <code>A·z</code> and
+<code>A2·z</code>).</li>
+<li><strong>Pre-transformed operands.</strong> Each ring member's
+<code>t_i</code> and the tag <code>I</code> are forward-transformed once
+per call; only the challenge <code>c</code> is transformed per branch
+(<code>veck_scale_ntt</code>).</li>
+<li><strong><code>i64</code> modular arithmetic + single-step
+reduction.</strong> <code>q &lt; 2²³</code>, so products of residues fit
+in <code>i64</code> (no <code>i128</code> division); butterfly add/sub
+use conditional <code>±q</code> instead of <code>%</code>.</li>
+</ul>
+<h3 id="measured-wsl-x86_64-release-ring-of-4">Measured (WSL x86_64,
+release, ring-of-4)</h3>
+<table>
+<thead>
+<tr>
+<th>Build</th>
+<th>params</th>
+<th style="text-align: right;">verify</th>
+<th style="text-align: right;">sign</th>
+<th style="text-align: right;">ring-4 sig</th>
+<th style="text-align: right;">pk</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>baseline (schoolbook)</td>
+<td>K=L=4</td>
+<td style="text-align: right;"><strong>6.54 ms</strong></td>
+<td style="text-align: right;">7.36 ms</td>
+<td style="text-align: right;">20 512 B</td>
+<td style="text-align: right;">4 096 B</td>
+</tr>
+<tr>
+<td>NTT, same params</td>
+<td>K=L=4</td>
+<td style="text-align: right;"><strong>0.69 ms</strong></td>
+<td style="text-align: right;">0.93 ms</td>
+<td style="text-align: right;">20 512 B (identical)</td>
+<td style="text-align: right;">4 096 B</td>
+</tr>
+<tr>
+<td>NTT + hardened params (shipped)</td>
+<td><strong>K=L=6</strong></td>
+<td style="text-align: right;"><strong>0.89 ms</strong></td>
+<td style="text-align: right;">3.80 ms</td>
+<td style="text-align: right;">30 752 B</td>
+<td style="text-align: right;">6 144 B</td>
+</tr>
+</tbody>
+</table>
+<p>The NTT gives a <strong>~9.5× verify speedup at fixed
+params</strong>; the parameter bump (§3) then spends part of that on
+security, leaving verify at <strong>0.89 ms</strong> — still well below
+the old 6.9 ms and under the 1 ms target <em>even with the larger
+module</em>. <code>sign</code> is wallet-side (rejection sampling over
+<code>L=6</code> masks dominates) and is not the consensus hot path;
+<code>verify</code> is what every validating node runs.</p>
+<p>The constant-time rewrite (§5) costs a small, measured amount on top
+of these figures — see §5's before/after table; it does
+<strong>not</strong> change the outputs (bit-identical).</p>
+<hr />
+<h2 id="3-parameters-heuristic-bump-toward-nist-cat-1-ish-task-2c">3.
+Parameters: heuristic bump toward NIST cat-1-ish (Task 2c)</h2>
+<p><strong>These parameters are HEURISTIC and explicitly NOT a
+calibrated security level.</strong> They were chosen to lift the demo's
+module rank; they have <strong>not</strong> been run through a lattice
+estimator. A cryptographer <strong>must</strong> estimate the actual
+bit-security before this scheme is considered for anything beyond
+testnet.</p>
+<p>Change: <code>K = L = 4 → 6</code> (other bounds unchanged:
+<code>N=256</code>, <code>q=8380417</code>, <code>η=2</code>,
+<code>τ=39</code>, <code>γ=2¹⁷</code>, <code>β=τη=78</code>,
+<code>ZBOUND=γ−β</code>).</p>
+<p>Rationale:</p>
+<ul>
+<li>Unforgeability binding rests on <strong>Module-SIS</strong> over the
+rank-<code>K</code> module (and the tag's <code>A2</code>), and
+key-recovery on <strong>Module-LWE</strong> for <code>t = A·s</code>. At
+fixed <code>N, q</code>, the <strong>module rank</strong> (here
+<code>K, L</code>) is the dominant lever on lattice-attack cost. Raising
+the block dimension from <code>4·256 = 1024</code> to
+<code>6·256 = 1536</code> materially increases the estimated cost of
+both BKZ-style attacks.</li>
+<li><code>K = 6</code> mirrors <strong>Dilithium-3's</strong> row count
+(a NIST cat-3 standardized primitive) as a sanity anchor. We
+deliberately keep <code>η, τ, γ</code> at the Dilithium-2-ish demo
+values, so the honest claim is <strong>"cat-1-ish heuristic"</strong>,
+<em>not</em> "equals Dilithium-3 cat-3".</li>
+<li>Cost: public key (<code>K·N·4</code>) and per-member signature share
+(<code>L·N·4</code>) grow ~50%; a ring-of-4 signature goes 20 512 → 30
+752 B. The ABI exposes sizes dynamically
+(<code>ccx_pq_pubkey_bytes</code>, the two-call <code>ccx_pq_sign</code>
+size query), so the C++ consensus path adapts with no code change —
+verified by a clean <code>conceald</code> link at the new sizes.</li>
+</ul>
+<p><strong>Wire-format version signal (consensus implication —
+<code>SCHEME_ID</code> bump).</strong> The <code>K=L=4→6</code> change
+altered the pk/sig byte sizes with no version signal, so an old client
+could mis-parse a wrong-sized buffer. <code>SCHEME_ID</code> is
+therefore bumped <code>0xC0DE_0003 → 0xC0DE_0004</code>: an old client
+now rejects the new format cleanly at the version check. Because the
+testnet PoC is <strong>experimental and resettable</strong>, a clean
+scheme bump is the right gate here; on mainnet a format change of this
+kind would instead be a height-gated hard fork (new
+<code>BLOCK_MAJOR_VERSION</code> / <code>UPGRADE_HEIGHT_*</code>), never
+a silent in-place change.</p>
+<p><strong>Chain-bound keys (consensus implication — network
+tag).</strong> The deterministic wallet keygen (<code>detkeygen</code>)
+now binds a <code>NETWORK_TAG</code> (<code>b"ccx-testnet"</code>) into
+its SHAKE domain, so the same mnemonic yields <strong>different</strong>
+PQ keys on testnet vs a future mainnet (and keys are chain-bound). This
+is pinned NOW because the wallet derives keys via the <code>*_det</code>
+FFIs as we speak — it calls them opaquely, so only the resulting address
+bytes change, which is harmless pre-launch but <strong>must be final
+before any wallet ships</strong>. The tag is a named const, so a mainnet
+variant is a one-line change.</p>
+<p>What "calibration" actually requires before mainnet (out of scope
+here):</p>
+<ul>
+<li>Run a current lattice estimator (APS / "lattice-estimator" / MATZOV
+refinements) over <strong>both</strong> the MSIS forgery instance and
+the MLWE key-recovery instance, for the <em>negacyclic</em> ring,
+targeting a concrete security level (e.g. ≥128-bit classical / cat-1)
+with margin.</li>
+<li>Re-tune <code>(K, L, η, τ, γ)</code> jointly: the abort/rejection
+probability, the <code>‖z‖∞ ≤ ZBOUND</code> soundness slack, and the
+<code>β = τη</code> bound all interact with the security estimate. The
+current set is internally consistent for <em>correctness</em> (the abort
+probability is fine) but that says nothing about bit-security.</li>
+</ul>
+<hr />
+<h2 id="4-remaining-gate-task-2d-the-honest-recommendation">4. Remaining
+gate (Task 2d): the honest recommendation</h2>
+<p>This scheme <strong>must not ship to mainnet</strong> until, at
+minimum:</p>
+<ol type="1">
+<li><strong>Constant-time implementation.</strong> <em>Partially done —
+see §5.</em> The modular-arithmetic <strong>hot paths</strong>
+(<code>mulmod</code>, <code>cmod</code>/<code>pmod</code>,
+<code>addq</code>/<code>subq</code>, hence the NTT butterflies and all
+reductions on the secret <code>s</code>, masks <code>y</code>, responses
+<code>z</code>) are now division-free and branchless (constant-time),
+bit-identically. <strong>Still open</strong> before mainnet:
+constant-time <strong>sampling</strong> and <strong>challenge
+handling</strong>, an audit of <code>poly_mul</code>
+operand-independence at the instruction level, and a decision on the
+<strong>rejection-loop abort-count residual</strong> (the
+<code>sign()</code> Fiat-Shamir-with-aborts iteration count is
+secret-dependent — a known lattice-signature consideration, documented
+in §5).</li>
+<li><strong>Professional cryptographic audit.</strong> The soundness
+argument in §1 is correct <em>as an argument</em> and survives our
+adversarial vectors, but it is not a proof and has not been reviewed by
+cryptographers. Anonymity (decoy/real <code>z</code>
+indistinguishability) and the linkable-tag soundness need formal
+treatment.</li>
+<li><strong>Estimator-calibrated parameters</strong> (§3).</li>
+</ol>
+<h3 id="harden-this-vs-port-a-published-scheme">Harden-this vs. port a
+published scheme</h3>
+<p><strong>Recommendation: keep hardening this construction for the
+testnet research track, but do NOT commit to it for mainnet without the
+audit gate — and seriously evaluate a published scheme in
+parallel.</strong> The honest trade-offs:</p>
+<ul>
+<li><p><strong>Harden-this.</strong> Pros: it already fits the
+flat-stride C ABI, yields a recoverable nullifier
+(<code>SHAKE256(A2·s)</code>), is anonymous + linkable end-to-end on
+testnet, and is now fast (0.89 ms verify). The signature is compact and
+roughly <strong>constant in ring size for the fixed part</strong> plus a
+<code>L·N·4</code> per-member share — a ring-of-4 is ~30 KB. Cons: it is
+a <em>bespoke</em> scheme; bespoke lattice ring signatures are exactly
+the kind of thing that needs heavy peer review before trusting funds to
+it. The soundness/anonymity claims, while argued, are unproven.</p></li>
+<li><p><strong>Port <code>pqringct</code> / RingCT-style lattice
+schemes.</strong> <code>pqringct</code> is a <em>published,
+peer-reviewed</em> lattice RingCT. But its proofs are <strong>LINEAR in
+ring size and ~130 KB per ring member</strong> — far too large for a
+CryptoNote transaction (a ring-of-11 would be &gt;1 MB). It also bundles
+amount-hiding (RingCT) we don't need here. <strong>Not viable as-is for
+tx size.</strong></p></li>
+<li><p><strong>Port <code>MatRiCT</code> / <code>MatRiCT+</code> /
+<code>MatRiCT-Au</code>.</strong> These are the state-of-the-art compact
+lattice RingCT designs (logarithmic-ish proofs). <strong>There is no
+public, production-grade, audited implementation</strong> — porting
+means implementing a research paper from scratch, which is <em>more</em>
+audit surface than hardening what we have, not less.</p></li>
+<li><p><strong>Net.</strong> For a <em>near-term testnet PoC</em>,
+hardening this scheme is the pragmatic choice and is what this pass
+delivers. For <em>mainnet</em>, the decision should be made
+<strong>after</strong> a cryptographer reviews both this construction
+and the then-current published options; if a compact, audited lattice
+ring/RingCT with a recoverable linking tag and tractable tx size exists
+at that time, <strong>porting an audited scheme is preferable to
+trusting funds to a bespoke one</strong>. Until then this backend stays
+testnet-only and must never be presented as audited.</p></li>
+</ul>
+<hr />
+<h2
+id="5-constant-time-modular-arithmetic-mainnet-activation-gate--done-for-the-hot-paths">5.
+Constant-time modular arithmetic (mainnet activation gate — DONE for the
+hot paths)</h2>
+<p>The scheme was testnet-only <strong>partly because the modular
+reductions branched on / divided by secret-dependent data</strong>: the
+secret key <code>s</code>, the per-signature masks <code>y</code>, and
+the responses <code>z</code> all flow through
+<code>cmod</code>/<code>pmod</code>/<code>mulmod</code>/<code>addq</code>/<code>subq</code>
+in the NTT butterflies and reductions. This pass makes those <strong>hot
+paths constant-time</strong>, with <strong>bit-identical
+outputs</strong> (no wire/format/scheme change).</p>
+<h3 id="51-what-was-non-constant-time-and-the-fix">5.1 What was
+non-constant-time, and the fix</h3>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Was</th>
+<th>Side channel</th>
+<th>Now (constant-time)</th>
+<th>Bit-identical over</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>mulmod(a,b)</code></td>
+<td><code>(a*b) % Q</code></td>
+<td>hardware <code>idiv</code> latency is data-dependent</td>
+<td><strong>Barrett</strong>: <code>i128</code> multiply by
+<code>BARRETT_M = ⌊2⁴⁶/Q⌋</code>, arithmetic <code>&gt;&gt; 46</code>,
+then <strong>two masked subtracts</strong></td>
+<td>both operands in <code>[0,Q)</code> (every call site)</td>
+</tr>
+<tr>
+<td><code>cmod(a)</code></td>
+<td><code>a % Q</code> + two <code>if</code> folds</td>
+<td><code>idiv</code> + 2 secret branches</td>
+<td><code>reduce_to_0q(a)</code> then one <strong>branchless</strong>
+centered fold</td>
+<td>full <code>i64</code> (covers centered sums/diffs, intt outputs, and
+the i32/u32 adversarial ranges)</td>
+</tr>
+<tr>
+<td><code>pmod(a)</code></td>
+<td><code>a % Q</code> + one <code>if</code> fold</td>
+<td><code>idiv</code> + 1 secret branch</td>
+<td><code>reduce_to_0q(a)</code> (division-free)</td>
+<td>full <code>i64</code></td>
+</tr>
+<tr>
+<td><code>addq(a)</code></td>
+<td><code>if a&gt;=Q {a-Q} else {a}</code></td>
+<td>secret-dependent branch</td>
+<td><code>let t=a-Q; t + (Q &amp; (t&gt;&gt;63))</code></td>
+<td><code>[0, 2Q)</code> (butterfly sum range)</td>
+</tr>
+<tr>
+<td><code>subq(a)</code></td>
+<td><code>if a&lt;0 {a+Q} else {a}</code></td>
+<td>secret-dependent branch</td>
+<td><code>a + (Q &amp; (a&gt;&gt;63))</code></td>
+<td><code>(-Q, Q)</code> (butterfly diff range)</td>
+</tr>
+</tbody>
+</table>
+<p><code>reduce_to_0q(a)</code> is a general division-free reduction of
+an arbitrary <code>i64</code> to <code>[0,Q)</code>: estimate
+<code>⌊a/Q⌋</code> with a fixed-point reciprocal
+<code>RECIP = ⌊2⁸⁴/Q⌋</code> (<code>i128</code> multiply, arithmetic
+<code>&gt;&gt; 84</code> which floors toward −∞), then correct with a
+fixed, branchless <code>±Q</code> masked-select count. The estimate
+error is <code>&lt; 1</code> over the whole <code>i64</code> range
+(<code>|a|·(2⁸⁴/Q − RECIP)/2⁸⁴ &lt; |a|/2⁸⁴ ≤ 2⁶³/2⁸⁴ &lt; 1</code>),
+plus at most 1 from the two floors, so a single correction each side
+suffices; two each side are applied as a proven-ample constant-count
+margin. The masked-select idiom is <code>(v &gt;&gt; 63)</code>
+(arithmetic shift → all-ones iff <code>v&lt;0</code>) ANDed with
+<code>Q</code>, so there is <strong>no secret-dependent branch and no
+<code>idiv</code></strong> anywhere on the hot path.</p>
+<h3 id="52-bit-identical-proof-no-output-changed">5.2 Bit-identical
+proof (no output changed)</h3>
+<p>The whole point is that the constant-time rewrite changed
+<strong>nothing</strong> observable — signatures, public keys, tags and
+nullifiers are byte-for-byte unchanged and the format is
+wire-compatible. Evidence:</p>
+<ul>
+<li><strong>NTT-vs-schoolbook equivalence:
+<code>ccx_pqr_ntt_equiv_test(5000) = 0</code> mismatches.</strong> The
+transform (which is where all the reductions live) still equals the
+reference <code>O(N²)</code> schoolbook multiply over the scheme's real
+input distributions plus edge cases. This is the same end-to-end oracle
+the NTT speedup was proven against — 0 means the arithmetic is
+unchanged.</li>
+<li><strong>Unit tests (<code>cargo test</code>, in
+<code>ringsig.rs</code>'s <code>#[cfg(test)] mod tests</code>)</strong>
+assert each new primitive is bit-identical to the <em>old</em>
+<code>%</code>/branch-based definition over the exact input ranges it is
+reachable with: <code>addq</code>/<code>subq</code> exhaustively over
+their butterfly ranges; <code>mulmod</code> over edges + 2 M random
+pairs in <code>[0,Q)²</code>; <code>cmod</code>/<code>pmod</code>
+densely around 0 and ±multiples of <code>Q</code>, at the i32/u32 edges,
+and over 6 M random i64/i32/u32 — <strong>0 mismatches</strong>.</li>
+<li><strong>C-ABI selftests (against the compiled
+<code>libccx_pqc.a</code>):</strong>
+<code>ccx_pqr_ringsig_selftest</code> ok=1 ·
+<code>ccx_pq_ringsig_selftest</code> ok=1 ·
+<code>ccx_pqr_forgery_test</code> = 0 ·
+<code>ccx_pqr_soundness_test</code> = 1 ·
+<code>ccx_pqr_ntt_equiv_test</code> = 0. Sizes unchanged (pk 6144, sig
+30752 for ring-4). <code>conceald</code> links clean.</li>
+</ul>
+<h3
+id="53-cost-before--after-ring-4-wsl-x86_64-release-median-of-200">5.3
+Cost (before → after, ring-4, WSL x86_64, release, median of 200)</h3>
+<table>
+<thead>
+<tr>
+<th>Build</th>
+<th style="text-align: right;">sign (median)</th>
+<th style="text-align: right;">verify (median)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>before (division/branch <code>%</code> + <code>idiv</code>)</td>
+<td style="text-align: right;"><strong>2.09 ms</strong></td>
+<td style="text-align: right;"><strong>0.95 ms</strong></td>
+</tr>
+<tr>
+<td>after (constant-time Barrett + branchless)</td>
+<td style="text-align: right;"><strong>2.46 ms</strong></td>
+<td style="text-align: right;"><strong>1.12 ms</strong></td>
+</tr>
+<tr>
+<td>delta</td>
+<td style="text-align: right;">+0.37 ms (≈ +17 %)</td>
+<td style="text-align: right;">+0.17 ms (≈ +18 %)</td>
+</tr>
+</tbody>
+</table>
+<p>The before figure was measured by running the <em>identical</em>
+timing harness against the pre-rewrite primitives (original
+<code>%</code>-based
+<code>mulmod</code>/<code>cmod</code>/<code>pmod</code>/<code>addq</code>/<code>subq</code>,
+same test module). Both builds produce identical signatures; only the
+timing differs. Verify stays near ~1.1 ms — still well under the old 6.9
+ms schoolbook verify, so the constant-time tax is comfortably absorbed.
+(Barrett costs an <code>i128</code> multiply + shift where the divide
+used to be; the branchless folds add a couple of ALU ops per coeff.)</p>
+<h3
+id="54-residual-secret-dependent-rejection-loop-iteration-count-not-fixed-here--documented">5.4
+Residual: secret-dependent rejection-loop iteration count (NOT fixed
+here — documented)</h3>
+<p><code>sign()</code> is Fiat-Shamir-<strong>with-aborts</strong>: it
+loops sampling a fresh mask <code>y</code> until the real-branch
+response <code>z_j = y + c_j·s</code> passes
+<code>‖z_j‖∞ ≤ ZBOUND</code>, otherwise it restarts (up to 256 attempts,
+else <code>None</code>). The <strong>number of attempts is
+data-dependent</strong> — it depends on <code>c_j·s</code>, i.e. on the
+secret — so the <em>wall-clock time and the attempt count of
+<code>sign</code> leak information about <code>s</code></em> via a
+timing/observable channel, independent of the now-constant-time
+arithmetic inside each attempt.</p>
+<p><strong>Assessment: acceptable to leave as a documented residual for
+the testnet track; revisit at the audit gate.</strong> Rationale:</p>
+<ul>
+<li>This is a <strong>well-known, standard property of
+Fiat-Shamir-with-aborts lattice signatures</strong> (Dilithium, qTESLA,
+BLISS-lineage). The abort decision is a norm check on a masked value;
+the accepted-<code>z</code> distribution is independent of
+<code>s</code> (that is what underpins anonymity/zero-knowledge), and
+the leak is about <em>how many tries it took</em>, not <em>which
+secret</em>. The literature treatment ranges from "benign in practice
+for a signing oracle the attacker cannot finely time" to "mask it for
+high-assurance".</li>
+<li><code>sign</code> is <strong>wallet-side</strong>, not the consensus
+hot path. <code>verify</code> — which every validating node runs on
+attacker-supplied input — has <strong>no rejection loop</strong> and is
+now fully constant-time on its arithmetic.</li>
+<li>Fully removing the leak (e.g. constant-iteration signing with a
+fixed attempt budget and dummy work, or a different sampler) is a
+<strong>non-trivial change to the signing procedure</strong> and was
+explicitly out of scope for this bit-identical pass — doing it naively
+risks changing the abort statistics (hence which signatures are
+produced) or introducing its own bias. It belongs with the constant-time
+sampling/challenge-handling work under the audit gate (§4), where the
+sampler can be co-designed.</li>
+</ul>
+<p>So: <strong>the modular-arithmetic hot paths are constant-time and
+done; the abort-count residual is the one remaining secret-dependent
+timing dependency in <code>sign</code>, left as a documented, scoped
+follow-up.</strong></p>
+<hr />
+<h2 id="review-provenance">Review provenance</h2>
+<p>Two rounds of review informed this document:</p>
+<ol type="1">
+<li>An initial <code>codex</code> crypto pass that
+<strong>confirmed</strong> the universal-forgery refutation and the
+NTT-is-a-pure-speedup conclusion and <strong>found</strong> the
+non-canonical-tag linkability break (§1.3.1).</li>
+<li>A second round of <strong>four independent reviews — Codex, Gemini,
+GLM, and CodeRabbit</strong> — that strongly corroborated each other and
+drove the §1.3.2 hardening pass (ring-member key validation, ABI
+integer-overflow guard, CI-verifiable NTT equivalence, exact crate
+pinning, scheme-id bump, network tag, low-entropy-seed rejection).</li>
+</ol>
+<p>The soundness claims here remain <strong>HEURISTIC</strong> and have
+<strong>not</strong> had a professional cryptographic audit; the
+construction stays testnet-only and is never to be presented as
+audited.</p>
+<h2 id="selftests-all-green-at-time-of-writing">Selftests (all green at
+time of writing)</h2>
+<p>After the constant-time rewrite (§5), re-run on WSL x86_64 / release
+against the compiled <code>libccx_pqc.a</code> via a C-ABI harness AND
+<code>cargo test</code>:</p>
+<p><code>ccx_pqr_ringsig_selftest</code> ok=1 ·
+<code>ccx_pq_ringsig_selftest</code> ok=1 ·
+<code>ccx_pqr_forgery_test</code> = 0 (refuted) ·
+<code>ccx_pqr_soundness_test</code> = 1 (all adversarial vectors
+rejected, rings 2/4/8) · <code>ccx_pqr_ntt_equiv_test</code> = 0
+mismatches (NTT == schoolbook, 5000 trials + edge cases — the
+bit-identical proof that the constant-time rewrite changed no output) ·
+constant-time-equivalence unit tests
+(<code>addq</code>/<code>subq</code>/<code>mulmod</code>/<code>cmod</code>/<code>pmod</code>
+vs the old <code>%</code>/branch definitions) = 0 mismatches ·
+KEM/DSA/multisig/detkeygen selftests ok=1 · <code>scheme_id</code> =
+<code>0xC0DE_0004</code> (unchanged — no wire change). Sizes unchanged
+(pk 6144, sig 30752 for ring-4). Constant-time ring-4 timing: verify
+median 1.12 ms, sign median 2.46 ms (before the rewrite: 0.95 ms / 2.09
+ms — §5.3). <code>conceald</code> builds and links clean with the
+constant-time staticlib (<code>make -j8 Daemon</code> →
+<code>[100%] Built target Daemon</code>), exercising the C++
+<code>ccx_pq_pubkey_is_canonical</code> output-acceptance path.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>
