@@ -208,16 +208,17 @@ interest is always derived from a consensus-validated term.</li>
 mainnet-ready.</strong> Implemented and unit-tested on
 <code>pqc/testnet-poc</code> (1007/1007 gtest pass, 11 new PQ tests;
 <code>docs/design/quantum-resistance/deposits-mldsa-impl.md:3,218-242</code>),
-but testnet-gated + mainnet-sentinel-gated and <strong>not
-pushed</strong>. The <code>dilithium3</code> primitive is
-production-grade NIST FIPS 204; the <strong>integration</strong>
-(detached-sig handling, message=prefix-hash, constant-time/side-channel)
-is explicitly <strong>unaudited</strong> and gates mainnet (CIP-0001
-C1). Chain-level CoreTests for PQ deposits (spend-after-lock,
-early-withdrawal reject, deep-reorg integrity) are <strong>not yet
-written</strong> — the divergent surface has unit tests; the consensus
-equivalence to the Ed25519 path is asserted by line-for-line port, not
-directly tested.</li>
+but testnet-gated + mainnet-sentinel-gated and pushed only as an
+<strong>UNAUDITED backup branch</strong> (not merged, not mainnet). The
+<code>dilithium3</code> primitive is production-grade NIST FIPS 204; the
+<strong>integration</strong> (detached-sig handling,
+message=prefix-hash, constant-time/side-channel) is explicitly
+<strong>unaudited</strong> and gates mainnet (CIP-0001 C1). Chain-level
+CoreTests for PQ deposits (spend-after-lock, early-withdrawal reject,
+deep-reorg integrity) are <strong>not yet written</strong> — the
+divergent surface has unit tests; the consensus equivalence to the
+Ed25519 path is asserted by line-for-line port, not directly
+tested.</li>
 </ul>
 <p>The one open policy question is below.</p>
 <hr />

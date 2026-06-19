@@ -1,8 +1,8 @@
 # PQ Deposits — ML-DSA-65 Implementation Report (CIP-0001)
 
 Status: **IMPLEMENTED on the worktree branch (testnet-gated, mainnet-sentinel-gated).**
-Built + tested on the WSL x86_64 host. Money-critical consensus code — left for human review,
-NOT pushed to the fork.
+Built + tested on the WSL x86_64 host. Money-critical consensus code — pushed as an UNAUDITED backup
+branch to the fork + org (`pqc/testnet-poc`); NOT merged, NOT mainnet, still pending human review + audit.
 
 Implements the blueprint `docs/design/quantum-resistance/deposits-mldsa.md` exactly: a dedicated
 `PqMultisigInput`/`PqMultisigOutput` variant pair (tag **0x5**, `BLOCK_MAJOR_VERSION_9` /

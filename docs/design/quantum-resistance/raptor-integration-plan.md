@@ -1,6 +1,6 @@
 # Raptor integration plan — swap the demo stand-in ring-sig for clean-room Raptor
 
-> **✅ EXECUTED (2026-06-20, LOCAL on `pqc/testnet-poc`, not pushed).** Phases 1–6 done: Falcon C + Raptor
+> **✅ EXECUTED (2026-06-20, `pqc/testnet-poc` — pushed as an UNAUDITED backup branch to the fork + org; NOT merged, NOT mainnet).** Phases 1–6 done: Falcon C + Raptor
 > Rust vendored into `pqc/ccx-pqc`; `ccx_pq_*` rewired to Raptor (variable-size sig handling); SCHEME_ID →
 > `0x52415054` "RAPT". **Build green, 72/72 PQ unit tests, e2e consensus GREEN** (ring-4 spend accepted,
 > double-spend rejected, independent nullifier accepted). One consensus-critical bug found+fixed in flight:

@@ -168,16 +168,15 @@ MIT Conceal — but the <em>construction</em> is a published algorithm
 (eprint 2018/857) and <strong>Falcon is NIST FIPS 206 (FN-DSA),
 patent-free/royalty-free</strong>, so the shippable route is a
 <strong>clean-room reimplementation over permissive (PQClean,
-public-domain) Falcon</strong> — MIT- clean, no GPL. ⏳ <em>Isolated
-clean-room spike in progress</em> (Rust island, behind the existing
-<code>ccx_pq_*</code> ABI, NOT wired into consensus) to validate
-linkability + measure the real compact size before any swap; (3) Raptor
-needs Falcon's <strong>low-level trapdoor preimage sampler</strong>, not
-just stock FN-DSA sign/verify; (4) Falcon's sampler is a
-<strong>constant-time / side-channel</strong> review item (the
-<em>consensus-determinism</em> worry is <strong>resolved</strong> — the
-vendored PQClean falcon-512 "clean" is integer-FP only,
-<code>uint64_t fpr</code>, verified by a
+public-domain) Falcon</strong> — MIT- clean, no GPL. ✅ <em>Built,
+vetted (4 reviewers), and INTEGRATED into the daemon</em> (behind the
+<code>ccx_pq_*</code> ABI — build + 72 PQ unit tests + e2e consensus
+green; ring-6 9.7 KB measured); (3) Raptor needs Falcon's
+<strong>low-level trapdoor preimage sampler</strong>, not just stock
+FN-DSA sign/verify; (4) Falcon's sampler is a <strong>constant-time /
+side-channel</strong> review item (the <em>consensus-determinism</em>
+worry is <strong>resolved</strong> — the vendored PQClean falcon-512
+"clean" is integer-FP only, <code>uint64_t fpr</code>, verified by a
 <code>-ffast-math</code>-invariant KAT sweep, so keygen is bit-identical
 cross-platform by construction; a cross-arch aarch64/MSVC KAT
 confirmation is the only residual); (5) unaudited research code.</li>
@@ -197,12 +196,13 @@ standalone size isn't isolated in the paper).</li>
 <p><strong>Net:</strong> ELRS demoted; the production target is a
 small-ring lattice linkable ring sig, <strong>Raptor the leading
 candidate to replace the demo-grade stand-in</strong> — now benchmarked
-(the GPL C reference) at 4.1× smaller / 2.5× faster verify. Next de-risk
-(in progress): an <strong>isolated clean-room Raptor spike</strong> —
-reimplement the construction over permissive PQClean Falcon (MIT-clean;
-the GPL repo can't be copied) behind the existing <code>ccx_pq_*</code>
-ABI, to validate linkability + measure the real <em>compact</em> size
-before any consensus swap.</p>
+(the GPL C reference) at 4.1× smaller / 2.5× faster verify.
+<strong>DONE:</strong> the clean-room Raptor (over permissive PQClean
+Falcon, MIT-clean) was built, adversarially vetted (4 reviewers; 1
+CRITICAL + 3 HIGH fixed), and <strong>integrated into the
+daemon</strong> behind the <code>ccx_pq_*</code> ABI — build + 72 PQ
+unit tests + e2e consensus green; pushed as an unaudited backup branch
+(not merged, not mainnet).</p>
 </blockquote>
 <blockquote>
 <p><strong>DIRECTION UPDATE (team input + this session's

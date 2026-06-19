@@ -8,8 +8,8 @@
 > NIST cat-1 *calibrated* (Falcon-512), confirmed linkable.** Corrections to the table below: Raptor's reference is
 > **C, not Rust**. **License resolved into a path:** the upstream repo is **GPL + patent-asserted** and cannot be
 > copied into MIT Conceal — but the construction is published (eprint 2018/857) and **Falcon is NIST FIPS 206,
-> royalty-free**, so the route is a **clean-room reimplementation over permissive PQClean Falcon** (MIT-clean); an
-> isolated spike is in progress. The compact size still needs the reference's TODO packing (binary emits ~4× bloat).
+> royalty-free**, so the route is a **clean-room reimplementation over permissive PQClean Falcon** (MIT-clean) —
+> now built, vetted, and **integrated into the daemon** (see `measured-numbers.md` §I.2). The compact packing is done.
 > It beats the stand-in on every axis — the work is the *integration*, not the crypto.
 
 **Question:** Is ELRS (ESORICS 2024, eprint 2024/553) the right PQ linkable ring signature to proceed with, or is something newer/better available?

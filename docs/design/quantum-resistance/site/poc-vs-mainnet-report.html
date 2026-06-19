@@ -106,15 +106,19 @@ main{margin-left:300px;padding:46px 6vw;}
     <h1
 id="conceal-post-quantum-migration--poc-vs-mainnet-decision-report">Conceal
 post-quantum migration — PoC vs. mainnet (decision report)</h1>
-<p><em>CIP-0001. Branch <code>pqc/testnet-poc</code> (not pushed; local
-for human review). <strong>Decision: keep full ring untraceability
-(Option A) — MatRiCT-Au is the best-fit production scheme.</strong>
-Numbers are tagged <strong>[measured]</strong> (live on the testnet
-binaries — <code>measured-numbers.md</code>), <strong>[team]</strong>
-(team evaluation of production candidates, Ryzen 9 5950X / Conceal's
-wire formula at chain-avg 2.39-in/2.22-out, mixin-5/ ring-6, ~1.16
-tx/block), <strong>[constant]</strong>, or <strong>[published]</strong>
-(<a href="https://conceal.network/wiki/doku.php?id=about">wiki</a>).
+<p><em>CIP-0001. Branch <code>pqc/testnet-poc</code> (pushed as an
+UNAUDITED backup branch to the fork + org; not merged, not mainnet).
+<strong>Decision: keep full ring untraceability (Option A). Scheme
+update: amounts kept plaintext (verify-funds), so the production ring
+sig is now small-ring lattice — Raptor (integrated + vetted) — NOT
+confidential-amount MatRiCT-Au (demoted). See
+<code>decisions-for-the-team.md</code> D1.</strong> Numbers are tagged
+<strong>[measured]</strong> (live on the testnet binaries —
+<code>measured-numbers.md</code>), <strong>[team]</strong> (team
+evaluation of production candidates, Ryzen 9 5950X / Conceal's wire
+formula at chain-avg 2.39-in/2.22-out, mixin-5/ ring-6, ~1.16 tx/block),
+<strong>[constant]</strong>, or <strong>[published]</strong> (<a
+href="https://conceal.network/wiki/doku.php?id=about">wiki</a>).
 Companion docs: <a href="STATUS.md"><code>STATUS.md</code></a>, <a
 href="measured-numbers.md"><code>measured-numbers.md</code></a>, <a
 href="ringsig-hardening.md"><code>ringsig-hardening.md</code></a>, <a
@@ -134,8 +138,11 @@ wallet plumbing end-to-end.</li>
 candidates</strong> (Raptor, MatRiCT-Au, Falafl, Falcon no-ring,
 SPHINCS+) with real measurements, and <strong>decided to keep full ring
 untraceability (Option A)</strong> rather than trade sender privacy for
-size. <strong>MatRiCT-Au is the best-fit</strong> production scheme
-(compact core + input amortization; research code that builds).</li>
+size. <strong>Scheme update:</strong> with amounts kept plaintext
+(verify-funds), the production ring sig is now small-ring lattice —
+<strong>Raptor</strong> (integrated + 4-reviewer vetted, ~9.7 KB @
+ring-6) — <strong>not</strong> confidential-amount MatRiCT-Au, which is
+demoted (it hides amounts).</li>
 </ol>
 <p>These connect via the PoC's <strong>swappable backend</strong>
 (<code>pq_ring_sig.h</code> C ABI, dynamic sizes): MatRiCT-Au drops into

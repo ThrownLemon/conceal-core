@@ -36,8 +36,8 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 >   patent-asserted**, so it **cannot be copied** into MIT Conceal — but the *construction* is a published
 >   algorithm (eprint 2018/857) and **Falcon is NIST FIPS 206 (FN-DSA), patent-free/royalty-free**, so the
 >   shippable route is a **clean-room reimplementation over permissive (PQClean, public-domain) Falcon** — MIT-
->   clean, no GPL. ⏳ *Isolated clean-room spike in progress* (Rust island, behind the existing `ccx_pq_*` ABI,
->   NOT wired into consensus) to validate linkability + measure the real compact size before any swap;
+>   clean, no GPL. ✅ *Built, vetted (4 reviewers), and INTEGRATED into the daemon* (behind the `ccx_pq_*` ABI —
+>   build + 72 PQ unit tests + e2e consensus green; ring-6 9.7 KB measured);
 >   (3) Raptor needs Falcon's **low-level trapdoor preimage sampler**, not just stock FN-DSA sign/verify;
 >   (4) Falcon's sampler is a **constant-time / side-channel** review item (the *consensus-determinism* worry is
 >   **resolved** — the vendored PQClean falcon-512 "clean" is integer-FP only, `uint64_t fpr`, verified by a
@@ -53,9 +53,9 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 >
 > **Net:** ELRS demoted; the production target is a small-ring lattice linkable ring sig, **Raptor the leading
 > candidate to replace the demo-grade stand-in** — now benchmarked (the GPL C reference) at 4.1× smaller / 2.5×
-> faster verify. Next de-risk (in progress): an **isolated clean-room Raptor spike** — reimplement the construction
-> over permissive PQClean Falcon (MIT-clean; the GPL repo can't be copied) behind the existing `ccx_pq_*` ABI, to
-> validate linkability + measure the real *compact* size before any consensus swap.
+> faster verify. **DONE:** the clean-room Raptor (over permissive PQClean Falcon, MIT-clean) was built, adversarially
+> vetted (4 reviewers; 1 CRITICAL + 3 HIGH fixed), and **integrated into the daemon** behind the `ccx_pq_*` ABI —
+> build + 72 PQ unit tests + e2e consensus green; pushed as an unaudited backup branch (not merged, not mainnet).
 
 > **DIRECTION UPDATE (team input + this session's benchmarks).** Conceal keeps **plaintext amounts** — its
 > **verify-funds feature needs visible amounts** — so **confidential-amount RingCT (MatRiCT-Au) is the wrong

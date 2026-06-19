@@ -1072,13 +1072,12 @@ patent-free/royalty-free</strong>, so the route is a <strong>clean-room
 reimplementation over permissive PQClean Falcon
 (public-domain)</strong>, reimplemented in the existing Rust
 <code>ccx-pqc</code> island (so "C, not Rust" is moot — we don't bind
-the GPL C). <em>An isolated clean-room spike is in progress</em> (behind
-the <code>ccx_pq_*</code> ABI, not wired into consensus). (3) Raptor
-needs Falcon's <strong>low-level trapdoor preimage sampler</strong>, not
-just stock FN-DSA sign/verify. (4) Falcon's <strong>floating-point
-Gaussian sampler</strong> is a constant-time <strong>and
-consensus-determinism</strong> hazard (cross-platform FP rounding →
-block-validation split). (5) Unaudited research code.</li>
+the GPL C). <em>Now built + integrated into the daemon</em> — see §I.2
+below. (3) Raptor needs Falcon's <strong>low-level trapdoor preimage
+sampler</strong>, not just stock FN-DSA sign/verify. (4) Falcon's
+<strong>floating-point Gaussian sampler</strong> is a constant-time
+<strong>and consensus-determinism</strong> hazard (cross-platform FP
+rounding → block-validation split). (5) Unaudited research code.</li>
 </ul>
 <p><strong>Verdict:</strong> Raptor beats the in-house stand-in on size,
 verify, assumption-cleanliness/calibration, and maturity — it is the
@@ -1206,8 +1205,10 @@ id="i2--raptor-integrated-into-conceal-core-pqctestnet-poc-2026-06-20">I.2
 2026-06-20)</h3>
 <p>The clean-room Raptor backend is now wired into the live consensus
 crate (<code>pqc/ccx-pqc</code>), replacing the demo lattice stand-in
-behind the unchanged <code>ccx_pq_*</code> C ABI (LOCAL branch,
-<strong>not pushed</strong>). Measured on the WSL host:</p>
+behind the unchanged <code>ccx_pq_*</code> C ABI (branch
+<code>pqc/testnet-poc</code>, pushed as an <strong>UNAUDITED backup
+branch</strong> to the fork + org — not merged, not mainnet). Measured
+on the WSL host:</p>
 <table>
 <thead>
 <tr>

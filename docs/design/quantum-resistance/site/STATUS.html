@@ -107,9 +107,10 @@ main{margin-left:300px;padding:46px 6vw;}
 id="cip-0001-post-quantum-poc--status--architecture-handoff">CIP-0001
 post-quantum PoC — status &amp; architecture (handoff)</h1>
 <p><em>One-page reference for the PQ proof-of-concept on branch
-<code>pqc/testnet-poc</code> (fork
-<code>ThrownLemon/conceal-core</code>, <strong>not pushed</strong> —
-local for human review). For the decision/economics view see <a
+<code>pqc/testnet-poc</code> (pushed as an <strong>UNAUDITED backup
+branch</strong> to the fork <code>ThrownLemon/conceal-core</code> + the
+org <code>ConcealNetwork/conceal-core</code> — NOT merged, NOT mainnet).
+For the decision/economics view see <a
 href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>;
 for the accepted-limitations list see <a
 href="hardening-notes.md"><code>hardening-notes.md</code></a>.</em></p>
@@ -295,12 +296,13 @@ calibration, <strong>professional audit</strong> — mainnet blocker.
 <strong>Production-scheme direction (D1) = Raptor</strong> (clean-room
 over PQClean Falcon), now <strong>INTEGRATED into the consensus
 crate</strong> (<code>pqc/ccx-pqc</code>) behind the unchanged
-<code>ccx_pq_*</code> ABI, replacing the demo stand-in (LOCAL, not
-pushed). <strong>Build green + 72/72 PQ unit tests + e2e consensus
-GREEN</strong>: ring-4 spend ACCEPTED (tx 8148 B), double-spend
-REJECTED, independent nullifier ACCEPTED; SCHEME_ID "RAPT"
-<code>0x52415054</code>; a fips202 symbol-collision (Falcon vs pqcrypto)
-found+fixed. See <code>measured-numbers.md</code> §I.2 +
+<code>ccx_pq_*</code> ABI, replacing the demo stand-in (pushed as an
+unaudited backup branch; not merged, not mainnet). <strong>Build green +
+72/72 PQ unit tests + e2e consensus GREEN</strong>: ring-4 spend
+ACCEPTED (tx 8148 B), double-spend REJECTED, independent nullifier
+ACCEPTED; SCHEME_ID "RAPT" <code>0x52415054</code>; a fips202
+symbol-collision (Falcon vs pqcrypto) found+fixed. See
+<code>measured-numbers.md</code> §I.2 +
 <code>raptor-integration-plan.md</code>. Earlier: isolated spike
 adversarially reviewed + hardened (a CRITICAL anonymity bug found+fixed;
 §I.1). Cross-platform FP-determinism is <strong>RESOLVED at build

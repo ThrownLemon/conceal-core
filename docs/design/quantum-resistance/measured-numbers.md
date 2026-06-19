@@ -384,7 +384,7 @@ against the PoC's in-house lattice ring-sig stand-in (`ccx-pqc` K=L=6, N=256).
   Conceal — but the *construction* is a published algorithm (eprint 2018/857) and **Falcon is NIST FIPS 206,
   patent-free/royalty-free**, so the route is a **clean-room reimplementation over permissive PQClean Falcon
   (public-domain)**, reimplemented in the existing Rust `ccx-pqc` island (so "C, not Rust" is moot — we don't bind
-  the GPL C). *An isolated clean-room spike is in progress* (behind the `ccx_pq_*` ABI, not wired into consensus).
+  the GPL C). *Now built + integrated into the daemon* — see §I.2 below.
   (3) Raptor needs Falcon's **low-level trapdoor preimage sampler**, not just stock FN-DSA sign/verify. (4) Falcon's
   **floating-point Gaussian sampler** is a constant-time **and consensus-determinism** hazard (cross-platform FP
   rounding → block-validation split). (5) Unaudited research code.
@@ -447,8 +447,8 @@ review (separate from determinism); (8) NTT (perf); (9) the cross-arch KAT confi
 ### I.2 — Raptor INTEGRATED into conceal-core (`pqc/testnet-poc`, 2026-06-20)
 
 The clean-room Raptor backend is now wired into the live consensus crate (`pqc/ccx-pqc`), replacing the
-demo lattice stand-in behind the unchanged `ccx_pq_*` C ABI (LOCAL branch, **not pushed**). Measured on
-the WSL host:
+demo lattice stand-in behind the unchanged `ccx_pq_*` C ABI (branch `pqc/testnet-poc`, pushed as an
+**UNAUDITED backup branch** to the fork + org — not merged, not mainnet). Measured on the WSL host:
 
 | Stage | Result |
 |---|---|

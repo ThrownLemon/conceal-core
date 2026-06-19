@@ -1,7 +1,8 @@
 # CIP-0001 post-quantum PoC — status & architecture (handoff)
 
-*One-page reference for the PQ proof-of-concept on branch `pqc/testnet-poc` (fork
-`ThrownLemon/conceal-core`, **not pushed** — local for human review). For the decision/economics view
+*One-page reference for the PQ proof-of-concept on branch `pqc/testnet-poc` (pushed as an **UNAUDITED
+backup branch** to the fork `ThrownLemon/conceal-core` + the org `ConcealNetwork/conceal-core` — NOT
+merged, NOT mainnet). For the decision/economics view
 see [`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md); for the accepted-limitations list see
 [`hardening-notes.md`](hardening-notes.md).*
 
@@ -64,7 +65,7 @@ see [`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md); for the accepted-lim
 1. Lattice ring-sig: constant-time [in progress], parameter calibration, **professional audit** —
    mainnet blocker. **Production-scheme direction (D1) = Raptor** (clean-room over PQClean Falcon), now
    **INTEGRATED into the consensus crate** (`pqc/ccx-pqc`) behind the unchanged `ccx_pq_*` ABI, replacing
-   the demo stand-in (LOCAL, not pushed). **Build green + 72/72 PQ unit tests + e2e consensus GREEN**:
+   the demo stand-in (pushed as an unaudited backup branch; not merged, not mainnet). **Build green + 72/72 PQ unit tests + e2e consensus GREEN**:
    ring-4 spend ACCEPTED (tx 8148 B), double-spend REJECTED, independent nullifier ACCEPTED; SCHEME_ID
    "RAPT" `0x52415054`; a fips202 symbol-collision (Falcon vs pqcrypto) found+fixed. See
    `measured-numbers.md` §I.2 + `raptor-integration-plan.md`. Earlier: isolated spike adversarially

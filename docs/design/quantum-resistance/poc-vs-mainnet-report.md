@@ -4,8 +4,10 @@ title: "Conceal post-quantum migration — PoC vs. mainnet"
 
 # Conceal post-quantum migration — PoC vs. mainnet (decision report)
 
-*CIP-0001. Branch `pqc/testnet-poc` (not pushed; local for human review). **Decision: keep full
-ring untraceability (Option A) — MatRiCT-Au is the best-fit production scheme.** Numbers are tagged
+*CIP-0001. Branch `pqc/testnet-poc` (pushed as an UNAUDITED backup branch to the fork + org; not merged,
+not mainnet). **Decision: keep full ring untraceability (Option A). Scheme update: amounts kept plaintext
+(verify-funds), so the production ring sig is now small-ring lattice — Raptor (integrated + vetted) — NOT
+confidential-amount MatRiCT-Au (demoted). See `decisions-for-the-team.md` D1.** Numbers are tagged
 **[measured]** (live on the testnet binaries — `measured-numbers.md`), **[team]** (team evaluation of
 production candidates, Ryzen 9 5950X / Conceal's wire formula at chain-avg 2.39-in/2.22-out, mixin-5/
 ring-6, ~1.16 tx/block), **[constant]**, or **[published]** ([wiki](https://conceal.network/wiki/doku.php?id=about)).
@@ -23,8 +25,9 @@ Two separate things were done and they meet in the middle:
    wallet plumbing end-to-end.
 2. **The team evaluated the production PQ ring-sig candidates** (Raptor, MatRiCT-Au, Falafl, Falcon
    no-ring, SPHINCS+) with real measurements, and **decided to keep full ring untraceability
-   (Option A)** rather than trade sender privacy for size. **MatRiCT-Au is the best-fit** production
-   scheme (compact core + input amortization; research code that builds).
+   (Option A)** rather than trade sender privacy for size. **Scheme update:** with amounts kept plaintext
+   (verify-funds), the production ring sig is now small-ring lattice — **Raptor** (integrated + 4-reviewer
+   vetted, ~9.7 KB @ ring-6) — **not** confidential-amount MatRiCT-Au, which is demoted (it hides amounts).
 
 These connect via the PoC's **swappable backend** (`pq_ring_sig.h` C ABI, dynamic sizes): MatRiCT-Au
 drops into the slot the bespoke stand-in occupies today, and the daemon/wallet retest against it.
