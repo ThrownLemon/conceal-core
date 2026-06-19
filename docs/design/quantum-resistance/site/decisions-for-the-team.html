@@ -221,11 +221,14 @@ which conflicts with verify-funds." This is a <em>much cheaper,
 smaller</em> PQ path than the RingCT route the doc previously defaulted
 to.</p>
 </blockquote>
-<p><strong>The choice (original framing — what signs a <em>spend</em> on
-mainnet).</strong> Three families, measured/cited in <a
+<p><strong>The choice (what signs a <em>spend</em> on mainnet).</strong>
+The three original families (A/B/C) plus <strong>B′ — Raptor</strong>,
+the production linkable ring sig that emerged as the D1 default;
+measured/cited in <a
 href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
-§3 — note A (MatRiCT-Au) is now demoted by the update above because it
-hides amounts:</p>
+§3. Note A (MatRiCT-Au) is demoted by the update above (hides amounts),
+and <strong>C is the only option without sender anonymity</strong> (a
+plain signature — rejected):</p>
 <table>
 <thead>
 <tr>
@@ -261,24 +264,48 @@ selected, because amounts are kept plaintext (verify-funds)</td>
 <td>the current PoC engine; <strong>not mainnet-safe</strong></td>
 </tr>
 <tr>
+<td><strong>B′ — Raptor</strong> (production linkable ring sig,
+NTRU/Falcon)</td>
+<td><strong>full ring, plaintext amounts</strong> — <strong>sender
+anonymity ✓</strong></td>
+<td><strong>~24 KB/tx</strong> <em>(measured 10.2 KB/sig @
+ring-6)</em></td>
+<td>~1.9 ms/tx</td>
+<td><strong>~7 GB</strong></td>
+<td><strong>C reference, measured; clean-room reimpl over PQClean Falcon
+in progress</strong></td>
+<td>✅ <strong>SELECTED DEFAULT (D1)</strong> — the production-grade,
+calibrated replacement for B's demo-grade stand-in; <em>same privacy as
+B/A's ring (sender anonymity), just without confidential
+amounts</em></td>
+</tr>
+<tr>
 <td>C — <strong>Falcon, no ring</strong> (stealth only)</td>
 <td><strong>no sender anonymity</strong></td>
 <td>6.4 KB</td>
 <td>0.2 ms</td>
 <td>~1.9 GB</td>
 <td>NIST-standardized</td>
-<td>smallest/fastest, but drops Conceal's core privacy</td>
+<td>smallest/fastest, but drops Conceal's core privacy —
+<strong>rejected</strong></td>
 </tr>
 </tbody>
 </table>
-<p><strong>Selected default (pending consensus): A (MatRiCT-Au), keep
-privacy.</strong> It's the only option that preserves Conceal's ring +
-confidential-amount privacy on a (to-be-audited) lattice construction.
-But the cost is bigger than first recorded — see the proof-size note
-below — and C forfeits the chain's reason to exist while B can't ship
-unaudited. The swappable backend (<code>pq_ring_sig.h</code> C-ABI) lets
-the stand-in (B) stay the <strong>testnet</strong> engine while A is
-integrated + audited; see <a
+<p><strong>Selected default (pending consensus): B′ (Raptor) — keep
+sender anonymity, plaintext amounts.</strong> Raptor is a <em>ring</em>
+signature, so it preserves Conceal's <strong>sender anonymity</strong>
+(signer hidden in the ring) + recipient unlinkability (stealth one-time
+keys); it drops only <em>confidential amounts</em>, which Conceal keeps
+plaintext for the verify-funds feature. It's the production-grade,
+calibrated (NIST cat-1) replacement for B's demo-grade stand-in —
+measured 4.1× smaller / 2.5× faster verify. C is rejected (no sender
+anonymity = forfeits the chain's reason to exist); A (MatRiCT-Au) is
+held in reserve <em>only if confidential amounts are later required</em>
+(its proof-size cost is bigger than first recorded — see the note
+below). The swappable backend (<code>pq_ring_sig.h</code> C-ABI) lets
+the stand-in (B) stay the <strong>testnet</strong> engine while Raptor
+is clean-room-built (over permissive PQClean Falcon), integrated +
+audited; see <a
 href="matrict-integration-plan.md"><code>matrict-integration-plan.md</code></a>.</p>
 <blockquote>
 <p><strong>Proof-size correction (measured this session, two independent

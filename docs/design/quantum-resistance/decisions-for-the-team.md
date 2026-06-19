@@ -67,21 +67,27 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 > confidential amounts — which conflicts with verify-funds." This is a *much cheaper, smaller* PQ path than the
 > RingCT route the doc previously defaulted to.
 
-**The choice (original framing — what signs a *spend* on mainnet).** Three families, measured/cited in
-[`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md) §3 — note A (MatRiCT-Au) is now demoted by the update
-above because it hides amounts:
+**The choice (what signs a *spend* on mainnet).** The three original families (A/B/C) plus **B′ — Raptor**, the
+production linkable ring sig that emerged as the D1 default; measured/cited in
+[`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md) §3. Note A (MatRiCT-Au) is demoted by the update above
+(hides amounts), and **C is the only option without sender anonymity** (a plain signature — rejected):
 
 | Option | Privacy | Spend size | Verify | Storage/yr | Maturity | Notes |
 |---|---|---|---|---|---|---|
 | **A — MatRiCT-Au** (lattice RingCT, log-size) | **full ring + confidential amounts** | **~107 KB** *(58 KB only w/ compression — see note)* | ~45 ms | **~33–35 GB** | research code, builds; **library-ized this session** (`~/matrict-lib`) | **DEMOTED** — the confidential-amounts option; not selected, because amounts are kept plaintext (verify-funds) |
 | B — keep the lattice **stand-in** | full ring, plaintext amounts | 25–61 KB (ring 2–8) | ~1 ms | ~13 GB | **experimental, unaudited, demo-grade** | the current PoC engine; **not mainnet-safe** |
-| C — **Falcon, no ring** (stealth only) | **no sender anonymity** | 6.4 KB | 0.2 ms | ~1.9 GB | NIST-standardized | smallest/fastest, but drops Conceal's core privacy |
+| **B′ — Raptor** (production linkable ring sig, NTRU/Falcon) | **full ring, plaintext amounts** — **sender anonymity ✓** | **~24 KB/tx** *(measured 10.2 KB/sig @ ring-6)* | ~1.9 ms/tx | **~7 GB** | **C reference, measured; clean-room reimpl over PQClean Falcon in progress** | ✅ **SELECTED DEFAULT (D1)** — the production-grade, calibrated replacement for B's demo-grade stand-in; *same privacy as B/A's ring (sender anonymity), just without confidential amounts* |
+| C — **Falcon, no ring** (stealth only) | **no sender anonymity** | 6.4 KB | 0.2 ms | ~1.9 GB | NIST-standardized | smallest/fastest, but drops Conceal's core privacy — **rejected** |
 
-**Selected default (pending consensus): A (MatRiCT-Au), keep privacy.** It's the only option that preserves
-Conceal's ring + confidential-amount privacy on a (to-be-audited) lattice construction. But the cost is bigger
-than first recorded — see the proof-size note below — and C forfeits the chain's reason to exist while B can't
-ship unaudited. The swappable backend (`pq_ring_sig.h` C-ABI) lets the stand-in (B) stay the **testnet** engine
-while A is integrated + audited; see [`matrict-integration-plan.md`](matrict-integration-plan.md).
+**Selected default (pending consensus): B′ (Raptor) — keep sender anonymity, plaintext amounts.** Raptor is a
+*ring* signature, so it preserves Conceal's **sender anonymity** (signer hidden in the ring) + recipient
+unlinkability (stealth one-time keys); it drops only *confidential amounts*, which Conceal keeps plaintext for
+the verify-funds feature. It's the production-grade, calibrated (NIST cat-1) replacement for B's demo-grade
+stand-in — measured 4.1× smaller / 2.5× faster verify. C is rejected (no sender anonymity = forfeits the chain's
+reason to exist); A (MatRiCT-Au) is held in reserve *only if confidential amounts are later required* (its
+proof-size cost is bigger than first recorded — see the note below). The swappable backend (`pq_ring_sig.h`
+C-ABI) lets the stand-in (B) stay the **testnet** engine while Raptor is clean-room-built (over permissive PQClean
+Falcon), integrated + audited; see [`matrict-integration-plan.md`](matrict-integration-plan.md).
 
 > **Proof-size correction (measured this session, two independent passes).** The "58 KB" widely quoted for
 > MatRiCT-Au is the **paper's *compressed* proof**, NOT a measurement — the reference code ships **no proof
