@@ -8,8 +8,10 @@
 >   MatRiCT-Au**; the paper has no absolute tables; under a shared param set the Go ref was *slightly larger*;
 >   the Go impl is partial (ring-sig only) and its MatRiCT baseline doesn't verify. **Not a demonstrated win
 >   over MatRiCT-Au.** The "#1 successor" ranking below is retracted.
-> - **ELRS — CONFIRMED (measured).** Flat ~25–29 KB at any ring size, 32-byte keys, 0.3 ms amortized verify —
->   a real size win for the *plaintext-amounts* path. Gated on the single-verify (~128 ms unbatched) experiment.
+> - **ELRS — CONFIRMED + the verify worry DISSOLVED (measured).** Flat ~25–29 KB at any ring size, 32-byte keys,
+>   and the cold un-batched single verify is **0.3 ms flat** (the feared ~128 ms is not this STARK verify).
+>   Verify is never Conceal's bottleneck (size is) and ELRS wins both — **it beats the lattice stand-in outright
+>   for the plaintext-amounts path.** §G.
 > - **MatRiCT-Au measured:** 107.4 KB, ~12 ms verify, 63 ms prove (Ryzen 5950X) — remains the only full,
 >   verifying RingCT measured. Treat the per-scheme numbers below as *abstract-level hypotheses* unless §G/§H
 >   marks them measured.

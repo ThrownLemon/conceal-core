@@ -280,14 +280,17 @@ amounts</strong> — which fits, because <strong>Conceal has
 an optional L2). If amounts stay plaintext, the privacy layer reduces to
 <em>PQ linkable ring sig + one-time key + nullifier</em>, and ELRS could
 be a <strong>bigger, cheaper win than confidential-amount RingCT at
-all</strong>. <strong>The gating catch:</strong> verify is 0.3 ms only
-<em>amortized across a shared ring</em>; a cold single verify is **~128
-ms** [paper] — and CryptoNote txs each pick their <em>own</em> ring, so
-cross-tx batching isn't free. <strong>The decisive next
-experiment</strong> is measuring un-batched verify under Conceal's
-per-tx ring model (→ if it can't amortize, ~128 ms/input is
-throughput-prohibitive; if it can, ELRS clearly wins). Also: hash-based
-PQ security is <em>conjectured</em>, not a SIS/LWE reduction. See <a
+all</strong>. <strong>The "128 ms verify" worry was tested and
+DISSOLVED:</strong> the cold, un-batched single verify is <strong>0.3
+ms, flat across ring 8→8192</strong> (measured) — Conceal's
+distinct-ring-per-tx model costs it nothing; the paper's 128 ms is not
+this STARK verify and couldn't be reproduced. <strong>Verify is never
+Conceal's bottleneck (size is), and ELRS wins both</strong> — faster
+verify (0.3 ms vs the stand-in's ~1 ms) <em>and</em> far smaller +
+ring-size-flat. <strong>ELRS beats the lattice stand-in outright for the
+plaintext path.</strong> Remaining caveats: hash-based PQ security is
+<em>conjectured</em> (not SIS/LWE); experimental unaudited Rust impl;
+tx-overhead under real output/nullifier binding still to confirm. See <a
 href="measured-numbers.md"><code>measured-numbers.md</code></a> §G.</li>
 </ul>
 <p><strong>A prior question this forces (decide before locking

@@ -84,12 +84,14 @@ while A is integrated + audited; see [`matrict-integration-plan.md`](matrict-int
 >   gap explodes** (≈14× smaller at ring-64, ≈225× at ring-1024). **No confidential amounts** — which fits,
 >   because **Conceal has *plaintext* amounts today** (confidential was deferred to an optional L2). If amounts
 >   stay plaintext, the privacy layer reduces to *PQ linkable ring sig + one-time key + nullifier*, and ELRS
->   could be a **bigger, cheaper win than confidential-amount RingCT at all**. **The gating catch:** verify is
->   0.3 ms only *amortized across a shared ring*; a cold single verify is **~128 ms** [paper] — and CryptoNote
->   txs each pick their *own* ring, so cross-tx batching isn't free. **The decisive next experiment** is
->   measuring un-batched verify under Conceal's per-tx ring model (→ if it can't amortize, ~128 ms/input is
->   throughput-prohibitive; if it can, ELRS clearly wins). Also: hash-based PQ security is *conjectured*, not a
->   SIS/LWE reduction. See [`measured-numbers.md`](measured-numbers.md) §G.
+>   could be a **bigger, cheaper win than confidential-amount RingCT at all**. **The "128 ms verify" worry was
+>   tested and DISSOLVED:** the cold, un-batched single verify is **0.3 ms, flat across ring 8→8192** (measured)
+>   — Conceal's distinct-ring-per-tx model costs it nothing; the paper's 128 ms is not this STARK verify and
+>   couldn't be reproduced. **Verify is never Conceal's bottleneck (size is), and ELRS wins both** — faster
+>   verify (0.3 ms vs the stand-in's ~1 ms) *and* far smaller + ring-size-flat. **ELRS beats the lattice
+>   stand-in outright for the plaintext path.** Remaining caveats: hash-based PQ security is *conjectured* (not
+>   SIS/LWE); experimental unaudited Rust impl; tx-overhead under real output/nullifier binding still to
+>   confirm. See [`measured-numbers.md`](measured-numbers.md) §G.
 >
 > **A prior question this forces (decide before locking D1):** *(i) are confidential amounts required, or can
 > they stay plaintext?* and *(ii) is on-chain auditability in or out?* Those two answers select

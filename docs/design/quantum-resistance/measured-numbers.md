@@ -283,30 +283,41 @@ Rust/Winterfell-fork, experimental/unaudited) was **built + run on the WSL host*
 It's an anonymity + linking-tag (nullifier) layer only — **no confidential amounts** — so it's compared against
 Conceal's PoC **lattice ring-sig stand-in** (the incumbent for that path), not MatRiCT-Au's full RingCT.
 
-| Ring | **ELRS sig** [measured] | ELRS verify (amortized) [measured] | ELRS verify (single) [paper] | Conceal lattice sig [const] | Conceal verify [live] |
-|---|---|---|---|---|---|
-| 8 | **~25 KB** | **0.28 ms** | 128 ms | 55.3 KB | ~1 ms |
-| 16 | ~26 KB | 0.28 ms | 128 ms | ~104 KB | ~1 ms |
-| 64 | ~29 KB | 0.30 ms | 128 ms | ~400 KB | ~1 ms |
-| 1024 | ~28 KB | 0.30 ms | 128 ms | ~6.3 MB | ~1 ms |
+| Ring | **ELRS sig** [measured] | **ELRS cold single-verify** [measured] | Conceal lattice sig [const] | Conceal lattice verify [live] |
+|---|---|---|---|---|
+| 8 | **~25 KB** | **0.3 ms** | 54 KB | ~1 ms |
+| 16 | ~25 KB | **0.3 ms** | ~102 KB | ~1 ms |
+| 64 | ~29 KB | **0.3 ms** | ~390 KB | ~1 ms |
+| 1024 | ~28 KB | **0.3 ms** | ~6.3 MB | ~1 ms |
+| 8192 | ~28 KB | **0.3 ms** | ~49 MB | ~1 ms |
 
 - **Public key: 32 B** (measured) vs Conceal's lattice ring-sig pubkey **6144 B** (192×).
-- **Size is FLAT in ring size** — the STARK trace is fixed at 2¹⁰–2¹¹ steps regardless of ring (membership =
-  one Merkle path against the ring root, not iteration over members). Conceal's lattice sig is **~6.1 KB per
-  ring member, linear**. **Crossover where ELRS wins on size ≈ ring 5**; above ring ~8 the gap explodes
-  (ring-64 ≈ 14×, ring-1024 ≈ 225×). Huge anonymity sets are nearly free for ELRS.
-- **The gating caveat:** the 0.3 ms verify is **amortized** (offline work shared across signatures over the
-  *same* ring). A cold **single** verify is **~128 ms** [paper — the public binary only exposed the fast path,
-  so 128 ms is not re-measured here]. **CryptoNote txs each pick their own ring**, so cross-tx batching is not
-  free — if block validation can't amortize, every input costs ~128 ms (~100× Conceal's per-sig verify) = a
-  throughput problem. **Resolving un-batched verify under Conceal's per-tx ring model is the decisive
-  experiment before adopting ELRS.**
-- Other caveats: hash-based PQ security is *conjectured* (ethSTARK ROM + proximity-gap assumptions), not a
-  clean SIS/LWE reduction; transparent setup (a plus); reference impl is single-author, experimental, Rust.
+- **Both size AND verify are FLAT in ring size** — the STARK trace is fixed at 2¹⁰–2¹¹ steps regardless of ring
+  (membership = one Merkle path against the ring root, not iteration over members). Conceal's lattice sig is
+  **~6.1 KB per ring member, linear**. **Crossover where ELRS wins on size ≈ ring 5**; above ring ~8 the gap
+  explodes (ring-64 ≈ 14×, ring-1024 ≈ 225×). Huge anonymity sets are nearly free for ELRS.
+- **The "128 ms single-verify" concern was wrong — RESOLVED by experiment.** The reference CLI does exactly one
+  **cold, un-batched** verify per process (no amortization, no batching — confirmed in `main.rs` /
+  `sigrescue/mod.rs`), and that cold single verify is **0.3 ms, flat across ring 8→8192** (5 reps each, fresh
+  process per run). The prior "amortized 0.3 ms" and this cold single verify are the **same number** — there is
+  no separate slow path. **CryptoNote's distinct-ring-per-tx model therefore costs ELRS nothing.** The paper's
+  ~128 ms could not be reproduced (eprint table paywalled) and is *not* this STARK verify — likely a different
+  instantiation or a prove time.
+- **Throughput verdict: verify is *never* Conceal's bottleneck — size is — and ELRS wins both.** Verify-bound
+  ceiling (1 core, 120 s block): ELRS ~400k inputs/block vs lattice ~120k vs classical ring-6 ~125k — ELRS is
+  the *fastest*. The binding cap is size (`floor(100000 / tx_bytes)`): lattice ring-8 = 1 tx/block and collapses
+  as the ring grows; ELRS ~28 KB + ~6.2 KB overhead ≈ 35 KB stays ~constant at *any* ring size.
+- **Verdict: ELRS beats the lattice stand-in outright** for the plaintext-amounts path — faster verify (0.3 ms
+  cold vs ~1 ms), far smaller, and ring-size-flat where lattice is unusable above ring ~16.
+- Caveats: hash-based PQ security is *conjectured* (ethSTARK SoK / Rescue hash; the "128-bit" is conjectured,
+  proven security lower); transparent setup (a plus); reference impl single-author, experimental, Rust,
+  unaudited; 0.3 ms is at the binary's 0.1 ms print floor (true ~250–349 µs); tx-overhead under a real
+  Conceal output/nullifier binding (~6.2 KB) still to confirm.
 
-*Source caveat: eprint 2024/553's full per-ring table is paywalled (eprint blocks automated fetch); the flat
-sizes + 0.3 ms above are **measured from the built reference impl**, the 128 ms single-verify is the paper's
-figure. See [`pq-scheme-landscape.md`](pq-scheme-landscape.md).*
+*Sources: [reference impl built + benchmarked](https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature),
+[ESORICS 2024](https://link.springer.com/chapter/10.1007/978-3-031-70903-6_22). The flat sizes + cold 0.3 ms
+verify are **measured**; eprint 2024/553's table is paywalled (403 to automated fetch). See
+[`pq-scheme-landscape.md`](pq-scheme-landscape.md).*
 
 ---
 
