@@ -1165,20 +1165,41 @@ debug-only) consistency check, retry→panic, expanded adversary suite
 tripwire</strong> for keygen FP-determinism (detects cross-platform
 drift).</li>
 </ul>
+<p><strong>Cross-platform FP determinism — RESOLVED at build level (was
+a misread).</strong> The earlier "Falcon uses native
+<code>double</code>, needs an FPEMU patch" (Codex HIGH-1 + the
+integration plan) was <strong>factually wrong</strong>: the vendored
+PQClean <strong>falcon-512 "clean"</strong> variant ships <em>only</em>
+the integer-emulated FP layer — <code>typedef uint64_t fpr</code>, zero
+real <code>double</code>/<code>float</code> arithmetic (the few tokens
+are comments), and no <code>FALCON_FPNATIVE</code>/<code>FPEMU</code>
+toggle (the old <code>build.rs</code> define was a dead no-op).
+<strong>Verified independently</strong> (code inspection + a 7-config
+keygen-KAT sweep:
+<code>-O0</code>/<code>-O3</code>/<code>-ffast-math</code>/<code>-ffp-contract=fast</code>/<code>-march</code>
+all produce the <strong>identical</strong> digest — proof there is no
+native FP in the path). So keygen+signing are <strong>bit-identical
+across compilers/opt/arch by construction</strong>; the chain-split risk
+the review feared cannot occur. Residual (belt-and-braces, NOT a
+blocker): an actual <strong>aarch64/MSVC KAT run</strong> to confirm
+cross-arch (the <code>uint64</code> argument is sound; 32-bit targets
+use SW 64-bit helpers but still yield identical results); the
+<code>assert_keygen_kat()</code> tripwire stays in CI (now expected to
+PASS everywhere). Perf cost of the "fix": <strong>zero</strong> (already
+integer-FP).</p>
 <p><strong>STILL requires humans — NOT production-ready to guard
 funds</strong> (an implementation pass can't close these): (1)
-<strong>cross-platform FP determinism</strong> — the KAT
-<em>detects</em> Falcon-FP-keygen drift but the real fix is an
-integer/emulated-FP (FPEMU) Falcon build (a C-source patch) — <em>the #1
-phase-2 blocker</em>; (2) norm-bound <strong>B1 re-derivation</strong>
-for the ring setting; (3) formal <strong>anonymity</strong> proof; (4)
-formal <strong>unforgeability</strong> reduction; (5)
-<strong>professional external audit</strong>; (6) <code>paramch_h</code>
-nothing-up-my-sleeve <strong>ceremony</strong>; (7) production wallet
-<strong>KDF</strong> for per-spend randomness; (8) NTT (perf). Verdict
-(Codex): <em>"engineering-hardened, comprehensively tested,
-deterministic on this platform — but not production-ready."</em> Full
-writeup: <code>~/raptor-spike/CODEX-ASSESS.md</code>.</p>
+norm-bound <strong>B1 re-derivation</strong> for the ring setting; (2)
+formal <strong>anonymity</strong> proof; (3) formal
+<strong>unforgeability</strong> reduction; (4) <strong>professional
+external audit</strong>; (5) <code>paramch_h</code> nothing-up-my-sleeve
+<strong>ceremony</strong>; (6) production wallet <strong>KDF</strong>
+for per-spend randomness; (7) Falcon <strong>constant-time /
+side-channel</strong> review (separate from determinism); (8) NTT
+(perf); (9) the cross-arch KAT confirmation above. Verdict (Codex):
+<em>"engineering-hardened, comprehensively tested, deterministic — but
+not production-ready."</em> Full writeup:
+<code>~/raptor-spike/CODEX-ASSESS.md</code>.</p>
 <hr />
 <h2 id="summary--headline-measured-numbers">Summary — headline measured
 numbers</h2>

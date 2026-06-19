@@ -23,8 +23,11 @@ mainnet-PQ-ready (see audit gates, §5).*
   limit. The sig-size *formula* changes but is comment-only, never enforced in C++.
 - **The spike already vendors Falcon C + a working `build.rs`** — Phase 1 is a *transplant*, not
   greenfield. Current `ccx-pqc` is pure-Rust (no build.rs/csrc/vendor).
-- **FP-determinism is the real consensus blocker** — the spike compiles Falcon `FALCON_FPNATIVE=1`
-  (native double); its KAT "DETECTS, does not fix." Real fix = emulated/integer-FP Falcon (§3).
+- **FP-determinism — RESOLVED at build level (the "native double" premise was a misread).** The vendored
+  PQClean falcon-512 "clean" variant is integer-FP only (`typedef uint64_t fpr`, no `FALCON_FPNATIVE`/`FPEMU`
+  toggle; the old `build.rs` define was a dead no-op). Verified (code + 7-config `-ffast-math`-invariant KAT
+  sweep). So **no `build.rs` FP change is needed** and the SCHEME_ID pin is NOT gated on an FP fix. Only residual:
+  a cross-arch (aarch64/MSVC) KAT confirmation run (belt-and-braces, §3).
 - **Map correction:** the "1 hardcoded C++ constant to fix" (`PQ_KEM_PUBLIC_KEY_SIZE`) is an **ML-KEM
   red herring** — Raptor doesn't touch it. So Phase 4 collapses into Phase 3 (only the SCHEME_ID const).
 
@@ -58,13 +61,18 @@ Opaque 32-byte blob throughout `m_spent_pq_nullifiers` (pre-check/bind/insert/ro
 4. Repoint the `ccx_pqr_*` selftests (forgery/soundness/ntt_equiv) to Raptor's adversarial harnesses + the KAT tripwire (the NTT-equiv test is stand-in-specific → replace with the keygen-KAT digest).
 5. Shell e2e (`pqc/*.sh`) — **no edits** (RPC/wallet-level, scheme-agnostic); they are the acceptance gate.
 
-## 3. FP-determinism PREREQUISITE `[needs-care — consensus blocker]`
-**Not consensus-safe until Falcon keygen is deterministic across platforms.** Native FP ⇒ different CPUs
-derive different `a0`/`aots` from the same seed ⇒ chain split + unspendable restores. The ABI is
-independent of this, so **Phases 1/2/5/6 may proceed now on a single machine**; but **Phase 3 (SCHEME_ID
-pin) and any multi-node / "blessed testnet" run must wait** for the emulated-FP build (flip `build.rs`
-off `FALCON_FPNATIVE`, re-pin KAT under emulated FP, prove same-seed→same-digest on a 2nd arch). **Land
-FP-emulation before minting the SCHEME_ID** so the id is committed against the deterministic build.
+## 3. FP-determinism — RESOLVED at build level (no longer a prerequisite) `[cross-arch confirm pending]`
+The premise that Falcon keygen is non-deterministic (native `double`) was a **misread** and is corrected:
+the vendored PQClean falcon-512 "clean" variant is **integer-FP only** (`typedef uint64_t fpr`; zero real
+`double`/`float` arithmetic; no `FALCON_FPNATIVE`/`FPEMU` conditional — the old `build.rs` define was a dead
+no-op). **Verified independently** (code inspection + a 7-config keygen-KAT sweep — `-O0`/`-O3`/`-ffast-math`/
+`-ffp-contract=fast`/`-march` all yield the *identical* digest, which is direct proof there's no native FP in
+the path). So keygen+signing are **bit-identical across compilers/opt/arch by construction**; there is **no
+`build.rs` FP change to make**, and **Phase 3's SCHEME_ID pin is NOT gated on an FP fix.** Residual
+(belt-and-braces, NOT a blocker): run an actual **aarch64/MSVC** build and confirm the KAT digest matches x86
+(the `uint64` argument is sound — 32-bit targets use SW 64-bit helpers but still produce identical results).
+Keep `assert_keygen_kat()` as the CI/boot tripwire (now expected to PASS everywhere). Falcon **constant-time /
+side-channel** review remains separately open (that is about timing, not determinism).
 
 ## 4. Build + test sequence (WSL `100.100.90.103`, `.claude/wsl-build.sh`)
 ```

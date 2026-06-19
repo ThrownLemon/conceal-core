@@ -424,13 +424,25 @@ the anonymity fix below (genuine Falcon sampling per non-signer, not the demo CL
   hard (not debug-only) consistency check, retry→panic, expanded adversary suite (forged-OTS, replay, ring-1,
   null-ring, b-tamper), and a **KAT tripwire** for keygen FP-determinism (detects cross-platform drift).
 
+**Cross-platform FP determinism — RESOLVED at build level (was a misread).** The earlier "Falcon uses native
+`double`, needs an FPEMU patch" (Codex HIGH-1 + the integration plan) was **factually wrong**: the vendored
+PQClean **falcon-512 "clean"** variant ships *only* the integer-emulated FP layer — `typedef uint64_t fpr`, zero
+real `double`/`float` arithmetic (the few tokens are comments), and no `FALCON_FPNATIVE`/`FPEMU` toggle (the old
+`build.rs` define was a dead no-op). **Verified independently** (code inspection + a 7-config keygen-KAT sweep:
+`-O0`/`-O3`/`-ffast-math`/`-ffp-contract=fast`/`-march` all produce the **identical** digest — proof there is no
+native FP in the path). So keygen+signing are **bit-identical across compilers/opt/arch by construction**; the
+chain-split risk the review feared cannot occur. Residual (belt-and-braces, NOT a blocker): an actual
+**aarch64/MSVC KAT run** to confirm cross-arch (the `uint64` argument is sound; 32-bit targets use SW 64-bit
+helpers but still yield identical results); the `assert_keygen_kat()` tripwire stays in CI (now expected to PASS
+everywhere). Perf cost of the "fix": **zero** (already integer-FP).
+
 **STILL requires humans — NOT production-ready to guard funds** (an implementation pass can't close these):
-(1) **cross-platform FP determinism** — the KAT *detects* Falcon-FP-keygen drift but the real fix is an
-integer/emulated-FP (FPEMU) Falcon build (a C-source patch) — *the #1 phase-2 blocker*; (2) norm-bound **B1
-re-derivation** for the ring setting; (3) formal **anonymity** proof; (4) formal **unforgeability** reduction;
-(5) **professional external audit**; (6) `paramch_h` nothing-up-my-sleeve **ceremony**; (7) production wallet
-**KDF** for per-spend randomness; (8) NTT (perf). Verdict (Codex): *"engineering-hardened, comprehensively tested,
-deterministic on this platform — but not production-ready."* Full writeup: `~/raptor-spike/CODEX-ASSESS.md`.
+(1) norm-bound **B1 re-derivation** for the ring setting; (2) formal **anonymity** proof; (3) formal
+**unforgeability** reduction; (4) **professional external audit**; (5) `paramch_h` nothing-up-my-sleeve
+**ceremony**; (6) production wallet **KDF** for per-spend randomness; (7) Falcon **constant-time / side-channel**
+review (separate from determinism); (8) NTT (perf); (9) the cross-arch KAT confirmation above. Verdict (Codex):
+*"engineering-hardened, comprehensively tested, deterministic — but not production-ready."* Full writeup:
+`~/raptor-spike/CODEX-ASSESS.md`.
 
 ---
 

@@ -65,9 +65,12 @@ see [`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md); for the accepted-lim
    mainnet blocker. **Production-scheme direction (D1) = Raptor** (clean-room over PQClean Falcon):
    isolated spike BUILT + adversarially reviewed + hardened (`~/raptor-spike/` on WSL, NOT merged) —
    ring-6 9.7 KB, all suites green, a CRITICAL anonymity bug found+fixed; see `measured-numbers.md` §I.1.
-   Open before any consensus use: **cross-platform FP-determinism** (Falcon integer/FPEMU keygen — KAT
-   only *detects* drift), B1 norm-bound re-derivation, formal anonymity/unforgeability proofs, `paramch_h`
-   ceremony, and the audit. "It verifies" ≠ "it's sound" — NOT production-ready to guard funds.
+   Cross-platform FP-determinism is **RESOLVED at build level** (the vendored PQClean falcon-512 "clean" is
+   integer-FP only — `uint64_t fpr`, verified by a `-ffast-math`-invariant KAT sweep; the "native double"
+   claim was a misread). Open before any consensus use: B1 norm-bound re-derivation, formal
+   anonymity/unforgeability proofs, `paramch_h` ceremony, Falcon constant-time review, a cross-arch
+   (aarch64/MSVC) KAT confirmation run, and the external audit. "It verifies" ≠ "it's sound" — NOT
+   production-ready to guard funds.
 2. Ring-sig size scales linearly (ring-16 ≈ 111 KB > max tx) — needs a ring-size/limit policy or a
    log-proof scheme.
 3. Human line-by-line review of the ML-DSA deposit money paths + the consensus PQ-input validator.

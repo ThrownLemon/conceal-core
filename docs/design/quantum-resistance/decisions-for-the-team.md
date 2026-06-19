@@ -39,8 +39,10 @@ the detailed doc that backs it. Numbers are live/measured where marked — see
 >   clean, no GPL. ⏳ *Isolated clean-room spike in progress* (Rust island, behind the existing `ccx_pq_*` ABI,
 >   NOT wired into consensus) to validate linkability + measure the real compact size before any swap;
 >   (3) Raptor needs Falcon's **low-level trapdoor preimage sampler**, not just stock FN-DSA sign/verify;
->   (4) Falcon's **floating-point Gaussian sampler** is a constant-time **and consensus-determinism** hazard (FP
->   rounding can differ across platforms → block-validation split); (5) unaudited research code.
+>   (4) Falcon's sampler is a **constant-time / side-channel** review item (the *consensus-determinism* worry is
+>   **resolved** — the vendored PQClean falcon-512 "clean" is integer-FP only, `uint64_t fpr`, verified by a
+>   `-ffast-math`-invariant KAT sweep, so keygen is bit-identical cross-platform by construction; a cross-arch
+>   aarch64/MSVC KAT confirmation is the only residual); (5) unaudited research code.
 > - **Harden the in-house lattice stand-in** (the PoC's K=L=6 LSAG) — fallback. Already integrated + working
 >   end-to-end, but **demo-grade**: biased sampling, not constant-time, params not a calibrated 128-bit level,
 >   and ~42 KB @ ring-6 (≈4× Raptor, measured). Would need a security-level recalibration + constant-time rewrite

@@ -147,10 +147,15 @@ C++.</li>
 <code>build.rs</code></strong> — Phase 1 is a <em>transplant</em>, not
 greenfield. Current <code>ccx-pqc</code> is pure-Rust (no
 build.rs/csrc/vendor).</li>
-<li><strong>FP-determinism is the real consensus blocker</strong> — the
-spike compiles Falcon <code>FALCON_FPNATIVE=1</code> (native double);
-its KAT "DETECTS, does not fix." Real fix = emulated/integer-FP Falcon
-(§3).</li>
+<li><strong>FP-determinism — RESOLVED at build level (the "native
+double" premise was a misread).</strong> The vendored PQClean falcon-512
+"clean" variant is integer-FP only (<code>typedef uint64_t fpr</code>,
+no <code>FALCON_FPNATIVE</code>/<code>FPEMU</code> toggle; the old
+<code>build.rs</code> define was a dead no-op). Verified (code +
+7-config <code>-ffast-math</code>-invariant KAT sweep). So <strong>no
+<code>build.rs</code> FP change is needed</strong> and the SCHEME_ID pin
+is NOT gated on an FP fix. Only residual: a cross-arch (aarch64/MSVC)
+KAT confirmation run (belt-and-braces, §3).</li>
 <li><strong>Map correction:</strong> the "1 hardcoded C++ constant to
 fix" (<code>PQ_KEM_PUBLIC_KEY_SIZE</code>) is an <strong>ML-KEM red
 herring</strong> — Raptor doesn't touch it. So Phase 4 collapses into
@@ -246,20 +251,33 @@ keygen-KAT digest).</li>
 <li>Shell e2e (<code>pqc/*.sh</code>) — <strong>no edits</strong>
 (RPC/wallet-level, scheme-agnostic); they are the acceptance gate.</li>
 </ol>
-<h2 id="3-fp-determinism-prerequisite-needs-care--consensus-blocker">3.
-FP-determinism PREREQUISITE
-<code>[needs-care — consensus blocker]</code></h2>
-<p><strong>Not consensus-safe until Falcon keygen is deterministic
-across platforms.</strong> Native FP ⇒ different CPUs derive different
-<code>a0</code>/<code>aots</code> from the same seed ⇒ chain split +
-unspendable restores. The ABI is independent of this, so <strong>Phases
-1/2/5/6 may proceed now on a single machine</strong>; but <strong>Phase
-3 (SCHEME_ID pin) and any multi-node / "blessed testnet" run must
-wait</strong> for the emulated-FP build (flip <code>build.rs</code> off
-<code>FALCON_FPNATIVE</code>, re-pin KAT under emulated FP, prove
-same-seed→same-digest on a 2nd arch). <strong>Land FP-emulation before
-minting the SCHEME_ID</strong> so the id is committed against the
-deterministic build.</p>
+<h2
+id="3-fp-determinism--resolved-at-build-level-no-longer-a-prerequisite-cross-arch-confirm-pending">3.
+FP-determinism — RESOLVED at build level (no longer a prerequisite)
+<code>[cross-arch confirm pending]</code></h2>
+<p>The premise that Falcon keygen is non-deterministic (native
+<code>double</code>) was a <strong>misread</strong> and is corrected:
+the vendored PQClean falcon-512 "clean" variant is <strong>integer-FP
+only</strong> (<code>typedef uint64_t fpr</code>; zero real
+<code>double</code>/<code>float</code> arithmetic; no
+<code>FALCON_FPNATIVE</code>/<code>FPEMU</code> conditional — the old
+<code>build.rs</code> define was a dead no-op). <strong>Verified
+independently</strong> (code inspection + a 7-config keygen-KAT sweep —
+<code>-O0</code>/<code>-O3</code>/<code>-ffast-math</code>/
+<code>-ffp-contract=fast</code>/<code>-march</code> all yield the
+<em>identical</em> digest, which is direct proof there's no native FP in
+the path). So keygen+signing are <strong>bit-identical across
+compilers/opt/arch by construction</strong>; there is <strong>no
+<code>build.rs</code> FP change to make</strong>, and <strong>Phase 3's
+SCHEME_ID pin is NOT gated on an FP fix.</strong> Residual
+(belt-and-braces, NOT a blocker): run an actual
+<strong>aarch64/MSVC</strong> build and confirm the KAT digest matches
+x86 (the <code>uint64</code> argument is sound — 32-bit targets use SW
+64-bit helpers but still produce identical results). Keep
+<code>assert_keygen_kat()</code> as the CI/boot tripwire (now expected
+to PASS everywhere). Falcon <strong>constant-time /
+side-channel</strong> review remains separately open (that is about
+timing, not determinism).</p>
 <h2 id="4-build--test-sequence-wsl-10010090103-claudewsl-buildsh">4.
 Build + test sequence (WSL <code>100.100.90.103</code>,
 <code>.claude/wsl-build.sh</code>)</h2>
