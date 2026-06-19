@@ -1200,6 +1200,97 @@ side-channel</strong> review (separate from determinism); (8) NTT
 <em>"engineering-hardened, comprehensively tested, deterministic — but
 not production-ready."</em> Full writeup:
 <code>~/raptor-spike/CODEX-ASSESS.md</code>.</p>
+<h3
+id="i2--raptor-integrated-into-conceal-core-pqctestnet-poc-2026-06-20">I.2
+— Raptor INTEGRATED into conceal-core (<code>pqc/testnet-poc</code>,
+2026-06-20)</h3>
+<p>The clean-room Raptor backend is now wired into the live consensus
+crate (<code>pqc/ccx-pqc</code>), replacing the demo lattice stand-in
+behind the unchanged <code>ccx_pq_*</code> C ABI (LOCAL branch,
+<strong>not pushed</strong>). Measured on the WSL host:</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pqc/ccx-pqc</code> crate build</td>
+<td><strong>green</strong> (Falcon C + Raptor Rust →
+<code>libccx_pqc.a</code>)</td>
+</tr>
+<tr>
+<td>C-ABI round-trip (<code>abi_test</code>)</td>
+<td>scheme <code>0x52415054</code> "RAPT", pk <strong>896</strong> / sk
+<strong>48</strong> / nf <strong>32</strong>; <strong>sign 7192 B @
+ring-4</strong>; verify ✓; nullifier(sign)==nullifier(verify) ✓;
+linkability ✓; tamper rejected ✓</td>
+</tr>
+<tr>
+<td>Full daemon + wallet + tests build</td>
+<td><strong>green</strong> <code>[100%]</code> (<code>conceald</code>
+9.7 MB)</td>
+</tr>
+<tr>
+<td>PQ unit tests</td>
+<td><strong>72/72 pass</strong> — incl. all golden serialization vectors
+(<code>PqKeyInput/Output</code>, <code>MixedInputsOutputs</code>,
+<code>FullTransactionV3</code>) <strong>unchanged</strong>
+(length-prefixed wire absorbs the variable sig) + tx-extra framing</td>
+</tr>
+<tr>
+<td><strong>e2e consensus</strong>
+(<code>run-poc-testnet.sh</code>)</td>
+<td>PQ coinbase → <strong>ring-4 spend ACCEPTED</strong> (tx
+<strong>8148 B</strong>) → <strong>in-pool double-spend
+REJECTED</strong> (Raptor nullifier) → mined →
+<strong>independent-nullifier spend ACCEPTED</strong>; KEM stealth scan
+OK</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Integration specifics worth recording:</strong></p>
+<ul>
+<li><strong>SCHEME_ID</strong> <code>0xC0DE0004</code> →
+<strong><code>0x52415054</code> ("RAPT")</strong> in both
+<code>lib.rs</code> and <code>CryptoNoteConfig.h</code>
+(<code>PQ_RING_SCHEME_ID</code>); old-scheme testnet data is
+incompatible (clean reset, as intended).</li>
+<li><strong>Variable-size signatures</strong>: the stand-in's exact-size
+verify check (<code>sig_len != ring_sig_size(n)</code>) was replaced
+with an <strong>upper-bound DoS guard</strong>
+(<code>sig_len ≤ n*4096+8192</code>) + <code>unpack</code>'s
+canonical-length validation (rejects trailing garbage / wrong ring). The
+C++ already used the max-buffer sign pattern (alloc 256 KB,
+<code>resize(sigLen)</code>), so <strong>no C++ consumer
+changes</strong> were needed beyond the scheme-id.</li>
+<li><strong>Consensus-critical bug found + fixed during
+integration:</strong> the vendored Falcon bundles
+<code>fips202.c</code>/<code>randombytes.c</code>, whose unnamespaced
+<code>shake256_inc_*</code>/<code>randombytes</code> symbols
+<strong>collided</strong> with the copies in
+<code>pqcrypto-kyber</code>/<code>pqcrypto-dilithium</code> → the linker
+bound Falcon's <code>inner_shake256_*</code> to a differently-laid-out
+state struct → <strong>stack smash</strong>. Fixed by
+<code>-D</code>-renaming every Falcon fips202/randombytes symbol to
+<code>ccxfalcon_*</code> in <code>build.rs</code> (isolated, verified
+one <code>shake256</code> + one <code>ccxfalcon_shake256</code>). Caught
+by a C-ABI smoke test before the daemon build.</li>
+<li>Seed handling: <code>ccx_pq_keygen</code> SHAKE-normalizes
+any-length stealth seed → 48-byte sk;
+<code>sign</code>/<code>nullifier</code> reuse that exact sk —
+consistent with the C++ spend flow (<code>PqSpendBuilder</code> stores
+the exported 48-B <code>otSk</code> and passes it back).</li>
+</ul>
+<p><strong>Still gated for the external audit (unchanged from
+§I.1):</strong> this is an UNAUDITED research construction wired into
+consensus-shaped code on a <strong>resettable testnet</strong> — it is
+NOT mainnet-ready. The human gates (formal anonymity/unforgeability
+proofs, B1 calibration, <code>paramch_h</code> ceremony, production
+per-spend KDF, constant-time review, cross-arch KAT, external audit) all
+stand. See <code>raptor-integration-plan.md</code> §5.</p>
 <hr />
 <h2 id="summary--headline-measured-numbers">Summary — headline measured
 numbers</h2>

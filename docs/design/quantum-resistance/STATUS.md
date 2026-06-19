@@ -62,9 +62,13 @@ see [`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md); for the accepted-lim
 ## Deferred / gates (see `poc-vs-mainnet-report.md` §6)
 
 1. Lattice ring-sig: constant-time [in progress], parameter calibration, **professional audit** —
-   mainnet blocker. **Production-scheme direction (D1) = Raptor** (clean-room over PQClean Falcon):
-   isolated spike BUILT + adversarially reviewed + hardened (`~/raptor-spike/` on WSL, NOT merged) —
-   ring-6 9.7 KB, all suites green, a CRITICAL anonymity bug found+fixed; see `measured-numbers.md` §I.1.
+   mainnet blocker. **Production-scheme direction (D1) = Raptor** (clean-room over PQClean Falcon), now
+   **INTEGRATED into the consensus crate** (`pqc/ccx-pqc`) behind the unchanged `ccx_pq_*` ABI, replacing
+   the demo stand-in (LOCAL, not pushed). **Build green + 72/72 PQ unit tests + e2e consensus GREEN**:
+   ring-4 spend ACCEPTED (tx 8148 B), double-spend REJECTED, independent nullifier ACCEPTED; SCHEME_ID
+   "RAPT" `0x52415054`; a fips202 symbol-collision (Falcon vs pqcrypto) found+fixed. See
+   `measured-numbers.md` §I.2 + `raptor-integration-plan.md`. Earlier: isolated spike adversarially
+   reviewed + hardened (a CRITICAL anonymity bug found+fixed; §I.1).
    Cross-platform FP-determinism is **RESOLVED at build level** (the vendored PQClean falcon-512 "clean" is
    integer-FP only — `uint64_t fpr`, verified by a `-ffast-math`-invariant KAT sweep; the "native double"
    claim was a misread). Open before any consensus use: B1 norm-bound re-derivation, formal

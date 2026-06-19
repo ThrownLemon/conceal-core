@@ -444,6 +444,28 @@ review (separate from determinism); (8) NTT (perf); (9) the cross-arch KAT confi
 *"engineering-hardened, comprehensively tested, deterministic — but not production-ready."* Full writeup:
 `~/raptor-spike/CODEX-ASSESS.md`.
 
+### I.2 — Raptor INTEGRATED into conceal-core (`pqc/testnet-poc`, 2026-06-20)
+
+The clean-room Raptor backend is now wired into the live consensus crate (`pqc/ccx-pqc`), replacing the
+demo lattice stand-in behind the unchanged `ccx_pq_*` C ABI (LOCAL branch, **not pushed**). Measured on
+the WSL host:
+
+| Stage | Result |
+|---|---|
+| `pqc/ccx-pqc` crate build | **green** (Falcon C + Raptor Rust → `libccx_pqc.a`) |
+| C-ABI round-trip (`abi_test`) | scheme `0x52415054` "RAPT", pk **896** / sk **48** / nf **32**; **sign 7192 B @ ring-4**; verify ✓; nullifier(sign)==nullifier(verify) ✓; linkability ✓; tamper rejected ✓ |
+| Full daemon + wallet + tests build | **green** `[100%]` (`conceald` 9.7 MB) |
+| PQ unit tests | **72/72 pass** — incl. all golden serialization vectors (`PqKeyInput/Output`, `MixedInputsOutputs`, `FullTransactionV3`) **unchanged** (length-prefixed wire absorbs the variable sig) + tx-extra framing |
+| **e2e consensus** (`run-poc-testnet.sh`) | PQ coinbase → **ring-4 spend ACCEPTED** (tx **8148 B**) → **in-pool double-spend REJECTED** (Raptor nullifier) → mined → **independent-nullifier spend ACCEPTED**; KEM stealth scan OK |
+
+**Integration specifics worth recording:**
+- **SCHEME_ID** `0xC0DE0004` → **`0x52415054` ("RAPT")** in both `lib.rs` and `CryptoNoteConfig.h` (`PQ_RING_SCHEME_ID`); old-scheme testnet data is incompatible (clean reset, as intended).
+- **Variable-size signatures**: the stand-in's exact-size verify check (`sig_len != ring_sig_size(n)`) was replaced with an **upper-bound DoS guard** (`sig_len ≤ n*4096+8192`) + `unpack`'s canonical-length validation (rejects trailing garbage / wrong ring). The C++ already used the max-buffer sign pattern (alloc 256 KB, `resize(sigLen)`), so **no C++ consumer changes** were needed beyond the scheme-id.
+- **Consensus-critical bug found + fixed during integration:** the vendored Falcon bundles `fips202.c`/`randombytes.c`, whose unnamespaced `shake256_inc_*`/`randombytes` symbols **collided** with the copies in `pqcrypto-kyber`/`pqcrypto-dilithium` → the linker bound Falcon's `inner_shake256_*` to a differently-laid-out state struct → **stack smash**. Fixed by `-D`-renaming every Falcon fips202/randombytes symbol to `ccxfalcon_*` in `build.rs` (isolated, verified one `shake256` + one `ccxfalcon_shake256`). Caught by a C-ABI smoke test before the daemon build.
+- Seed handling: `ccx_pq_keygen` SHAKE-normalizes any-length stealth seed → 48-byte sk; `sign`/`nullifier` reuse that exact sk — consistent with the C++ spend flow (`PqSpendBuilder` stores the exported 48-B `otSk` and passes it back).
+
+**Still gated for the external audit (unchanged from §I.1):** this is an UNAUDITED research construction wired into consensus-shaped code on a **resettable testnet** — it is NOT mainnet-ready. The human gates (formal anonymity/unforgeability proofs, B1 calibration, `paramch_h` ceremony, production per-spend KDF, constant-time review, cross-arch KAT, external audit) all stand. See `raptor-integration-plan.md` §5.
+
 ---
 
 ## Summary — headline measured numbers

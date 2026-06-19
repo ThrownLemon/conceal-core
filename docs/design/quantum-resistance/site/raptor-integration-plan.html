@@ -107,6 +107,19 @@ main{margin-left:300px;padding:46px 6vw;}
 id="raptor-integration-plan--swap-the-demo-stand-in-ring-sig-for-clean-room-raptor">Raptor
 integration plan — swap the demo stand-in ring-sig for clean-room
 Raptor</h1>
+<blockquote>
+<p><strong>✅ EXECUTED (2026-06-20, LOCAL on
+<code>pqc/testnet-poc</code>, not pushed).</strong> Phases 1–6 done:
+Falcon C + Raptor Rust vendored into <code>pqc/ccx-pqc</code>;
+<code>ccx_pq_*</code> rewired to Raptor (variable-size sig handling);
+SCHEME_ID → <code>0x52415054</code> "RAPT". <strong>Build green, 72/72
+PQ unit tests, e2e consensus GREEN</strong> (ring-4 spend accepted,
+double-spend rejected, independent nullifier accepted). One
+consensus-critical bug found+fixed in flight: a fips202/randombytes
+symbol collision (Falcon vs pqcrypto) → namespaced to
+<code>ccxfalcon_*</code>. Metrics in <code>measured-numbers.md</code>
+§I.2. The §5 audit gates are UNCHANGED — still NOT mainnet-ready.</p>
+</blockquote>
 <p><em>Ordered port plan (multi-agent integration-surface map + verified
 synthesis, 2026-06-20). Replaces conceal-core's demo-grade in-house
 lattice ring-sig stand-in (<code>pqc/ccx-pqc/src/ringsig.rs</code>,

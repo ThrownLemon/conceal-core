@@ -293,15 +293,22 @@ e.g. a wallet-file brick-on-close (W11) before merge.</li>
 <li>Lattice ring-sig: constant-time [in progress], parameter
 calibration, <strong>professional audit</strong> — mainnet blocker.
 <strong>Production-scheme direction (D1) = Raptor</strong> (clean-room
-over PQClean Falcon): isolated spike BUILT + adversarially reviewed +
-hardened (<code>~/raptor-spike/</code> on WSL, NOT merged) — ring-6 9.7
-KB, all suites green, a CRITICAL anonymity bug found+fixed; see
-<code>measured-numbers.md</code> §I.1. Cross-platform FP-determinism is
-<strong>RESOLVED at build level</strong> (the vendored PQClean
-falcon-512 "clean" is integer-FP only — <code>uint64_t fpr</code>,
-verified by a <code>-ffast-math</code>-invariant KAT sweep; the "native
-double" claim was a misread). Open before any consensus use: B1
-norm-bound re-derivation, formal anonymity/unforgeability proofs,
+over PQClean Falcon), now <strong>INTEGRATED into the consensus
+crate</strong> (<code>pqc/ccx-pqc</code>) behind the unchanged
+<code>ccx_pq_*</code> ABI, replacing the demo stand-in (LOCAL, not
+pushed). <strong>Build green + 72/72 PQ unit tests + e2e consensus
+GREEN</strong>: ring-4 spend ACCEPTED (tx 8148 B), double-spend
+REJECTED, independent nullifier ACCEPTED; SCHEME_ID "RAPT"
+<code>0x52415054</code>; a fips202 symbol-collision (Falcon vs pqcrypto)
+found+fixed. See <code>measured-numbers.md</code> §I.2 +
+<code>raptor-integration-plan.md</code>. Earlier: isolated spike
+adversarially reviewed + hardened (a CRITICAL anonymity bug found+fixed;
+§I.1). Cross-platform FP-determinism is <strong>RESOLVED at build
+level</strong> (the vendored PQClean falcon-512 "clean" is integer-FP
+only — <code>uint64_t fpr</code>, verified by a
+<code>-ffast-math</code>-invariant KAT sweep; the "native double" claim
+was a misread). Open before any consensus use: B1 norm-bound
+re-derivation, formal anonymity/unforgeability proofs,
 <code>paramch_h</code> ceremony, Falcon constant-time review, a
 cross-arch (aarch64/MSVC) KAT confirmation run, and the external audit.
 "It verifies" ≠ "it's sound" — NOT production-ready to guard funds.</li>
