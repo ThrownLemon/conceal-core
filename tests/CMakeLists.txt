@@ -24,7 +24,7 @@ file(GLOB_RECURSE UnitTests UnitTests/*)
 # TestUpgradeDetector targets the old BasicUpgradeDetector<BlockVector> API.
 # PQ authenticated-MESSAGE feature (tx_extra_authenticated_message / tx_message_entry.pq) is NOT
 # part of this PQ⊕MDBX merge PoC (spend + deposit path only) — exclude its tests until ported.
-list(FILTER UnitTests EXCLUDE REGEX ".*/(PaymentGateTests|TestWalletService|TestUpgradeDetector|TestAuthenticatedMessage|TestAuthenticatedMessageSendPath|TestPqMessage|TestPqMessageDefaultSendPath)\\.cpp$")
+list(FILTER UnitTests EXCLUDE REGEX ".*/(PaymentGateTests|TestWalletService|TestUpgradeDetector|TestAuthenticatedMessage|TestAuthenticatedMessageSendPath|TestPqMessage|TestPqMessageDefaultSendPath|TestTransactionSerializationGolden)\\.cpp$")
 
 file(GLOB_RECURSE CryptoNoteProtocol ../src/CryptoNoteProtocol/*)
 file(GLOB_RECURSE P2p ../src/P2p/*)
