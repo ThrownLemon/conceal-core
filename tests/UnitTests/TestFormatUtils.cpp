@@ -217,3 +217,47 @@ TEST(validate_parse_amount_case, validate_parse_amount)
   r = currency.parseAmount("1 00.00 00", res);
   ASSERT_FALSE(r);
 }
+
+// --- Post-quantum (CIP-0001) intra-tx double-spend guards (regression for the adversarial-vet
+//     CRITICAL findings: a v4 tx listing the same nullifier / deposit cell twice must be rejected
+//     so the money-conservation sum cannot double-count one real spend into output inflation). ---
+
+TEST(checkPqNullifiersDiff, rejects_duplicate_nullifier)
+{
+  cn::TransactionPrefix tx = AUTO_VAL_INIT(tx);
+  cn::PqKeyInput a; a.amount = 100; a.nullifier = {1, 2, 3, 4};
+  cn::PqKeyInput b; b.amount = 200; b.nullifier = {1, 2, 3, 4}; // same nullifier as a
+  tx.inputs.push_back(a);
+  tx.inputs.push_back(b);
+  ASSERT_FALSE(cn::checkPqNullifiersDiff(tx));
+}
+
+TEST(checkPqNullifiersDiff, accepts_distinct_nullifiers)
+{
+  cn::TransactionPrefix tx = AUTO_VAL_INIT(tx);
+  cn::PqKeyInput a; a.amount = 100; a.nullifier = {1, 2, 3, 4};
+  cn::PqKeyInput b; b.amount = 200; b.nullifier = {5, 6, 7, 8};
+  tx.inputs.push_back(a);
+  tx.inputs.push_back(b);
+  ASSERT_TRUE(cn::checkPqNullifiersDiff(tx));
+}
+
+TEST(checkPqMultisigInputsDiff, rejects_duplicate_deposit_cell)
+{
+  cn::TransactionPrefix tx = AUTO_VAL_INIT(tx);
+  cn::PqMultisigInput a; a.amount = 100; a.outputIndex = 7;
+  cn::PqMultisigInput b; b.amount = 100; b.outputIndex = 7; // same (amount, outputIndex) cell
+  tx.inputs.push_back(a);
+  tx.inputs.push_back(b);
+  ASSERT_FALSE(cn::checkPqMultisigInputsDiff(tx));
+}
+
+TEST(checkPqMultisigInputsDiff, accepts_distinct_cells)
+{
+  cn::TransactionPrefix tx = AUTO_VAL_INIT(tx);
+  cn::PqMultisigInput a; a.amount = 100; a.outputIndex = 7;
+  cn::PqMultisigInput b; b.amount = 100; b.outputIndex = 8;
+  tx.inputs.push_back(a);
+  tx.inputs.push_back(b);
+  ASSERT_TRUE(cn::checkPqMultisigInputsDiff(tx));
+}
