@@ -30,6 +30,7 @@
 #include "Common/Util.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/Currency.h"
+#include "CryptoNoteCore/ICore.h" // PqOutputEntry / PqMultisigOutputEntry (for getPqOutputs read-only enumeration)
 #include "CryptoNoteCore/IntrusiveLinkedList.h"
 #include "CryptoNoteCore/MessageQueue.h"
 #include "CryptoNoteCore/TransactionPool.h"
@@ -212,6 +213,11 @@ namespace cn
     bool getRandomOutsByAmount(
         const COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_request &req,
         COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_response &res);
+
+    // Read-only post-quantum output enumeration (for the get_pq_outputs / get_pq_multisig_outputs RPCs).
+    // Additive, never mutates state; projects m_pqOutputs[amount] / m_pqMultisigOutputs[amount].
+    bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry> &outs);
+    bool getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry> &outs);
 
     // Deposit tracking
     uint64_t fullDepositAmount() const;

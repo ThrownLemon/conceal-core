@@ -107,6 +107,11 @@ private:
   bool on_get_domain(const COMMAND_RPC_GET_DOMAIN::request &req,
                      COMMAND_RPC_GET_DOMAIN::response &res);
 
+  bool on_get_pq_outputs(const COMMAND_RPC_GET_PQ_OUTPUTS::request &req,
+                         COMMAND_RPC_GET_PQ_OUTPUTS::response &res);
+  bool on_get_pq_multisig_outputs(const COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::request &req,
+                                  COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::response &res);
+
   logging::LoggerRef logger;
   core& m_core;
   NodeServer& m_p2p;

@@ -42,6 +42,33 @@ struct KeyInput;
 struct TransactionPrefixInfo;
 struct tx_verification_context;
 
+// One spendable post-quantum (PqKeyOutput) output, as enumerated for the get_pq_outputs RPC so a
+// wallet can assemble a PQ ring (CIP-0001 testnet PoC). Read-only projection of m_pqOutputs[amount].
+struct PqOutputEntry {
+  uint32_t globalIndex;          // position in m_pqOutputs[amount]
+  std::vector<uint8_t> key;      // PqKeyOutput.key (PQ one-time public key)
+  std::vector<uint8_t> kemCt;    // PqKeyOutput.kemCt (ML-KEM ciphertext)
+  crypto::Hash txHash;           // hash of the containing transaction
+  uint32_t height;               // block height of the containing transaction
+  bool spendable;                // is_tx_spendtime_unlocked(unlockTime)
+};
+
+// One post-quantum DEPOSIT cell (PqMultisigOutput), as enumerated for the get_pq_multisig_outputs RPC
+// so a wallet can find its own deposits (named-key match on keys[0]) and resolve the (amount,
+// outputIndex, term, height, isUsed) a PQ withdrawal needs (CIP-0001 UPGRADE_HEIGHT_V10, Option 3).
+// Read-only projection of m_pqMultisigOutputs[amount]; outputIndex is exactly the PqMultisigInput
+// .outputIndex the consensus check resolves against.
+struct PqMultisigOutputEntry {
+  uint32_t outputIndex;                       // position in m_pqMultisigOutputs[amount] (== PqMultisigInput.outputIndex)
+  std::vector<std::vector<uint8_t>> keys;     // PqMultisigOutput.keys (n ML-DSA-65 public keys)
+  uint8_t requiredSignatureCount;             // m
+  uint32_t term;                              // deposit term (0 = plain multisig; != 0 = deposit)
+  crypto::Hash txHash;                        // hash of the containing transaction
+  uint32_t height;                            // block height that created the cell
+  bool isUsed;                                // already withdrawn (double-spend guard)
+  bool spendable;                             // is_tx_spendtime_unlocked(unlockTime)
+};
+
 class ICore {
 public:
   virtual ~ICore() {}
@@ -71,6 +98,11 @@ public:
   virtual bool get_random_outs_for_amounts(const COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_request& req, COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_response& res) = 0;
   virtual bool get_tx_outputs_gindexs(const crypto::Hash& tx_id, std::vector<uint32_t>& indexs) = 0;
   virtual bool getOutByMSigGIndex(uint64_t amount, uint64_t gindex, MultisignatureOutput& out) = 0;
+  // Read-only: enumerate every spendable PqKeyOutput indexed under 'amount' (for PQ ring assembly).
+  virtual bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry>& outs) = 0;
+  // Read-only: enumerate every PqMultisigOutput (PQ deposit cell) indexed under 'amount' (so a wallet
+  // can find its deposits by named-key match and resolve the withdrawal's (outputIndex, term, isUsed)).
+  virtual bool getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry>& outs) = 0;
   virtual i_cryptonote_protocol* get_protocol() = 0;
   virtual bool handle_incoming_tx(const BinaryArray& tx_blob, tx_verification_context& tvc, bool keeped_by_block) = 0; //Deprecated. Should be removed with CryptoNoteProtocolHandler.
   virtual std::vector<Transaction> getPoolTransactions() = 0;
