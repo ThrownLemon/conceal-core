@@ -255,15 +255,24 @@ endif()
 # Merged from pqc/testnet-poc. The Blockchain/CryptoNoteCore/Wallet/Rpc libs reference the
 # ccx-pqc FFI; ${CCX_PQC_LIB} must follow those libs on each executable's link line.
 set(CCX_PQC_DIR ${CMAKE_SOURCE_DIR}/pqc/ccx-pqc)
-set(CCX_PQC_LIB ${CCX_PQC_DIR}/target/release/libccx_pqc.a)
 set(CCX_PQC_INCLUDE ${CMAKE_SOURCE_DIR}/pqc/include)
+# Under MSVC, cargo's default target emits a gnu-style libccx_pqc.a that link.exe can't
+# consume (LNK1181); build for the msvc target so cargo emits a COFF ccx_pqc.lib instead.
+# MinGW/Linux keep the default target + libccx_pqc.a archive.
+if(MSVC)
+  set(CCX_PQC_CARGO_ARGS build --release --target x86_64-pc-windows-msvc)
+  set(CCX_PQC_LIB ${CCX_PQC_DIR}/target/x86_64-pc-windows-msvc/release/ccx_pqc.lib)
+else()
+  set(CCX_PQC_CARGO_ARGS build --release)
+  set(CCX_PQC_LIB ${CCX_PQC_DIR}/target/release/libccx_pqc.a)
+endif()
 # Locate cargo by absolute path: non-interactive build shells often lack ~/.cargo/bin on PATH.
-find_program(CARGO_EXECUTABLE cargo HINTS "$ENV{HOME}/.cargo/bin" "$ENV{CARGO_HOME}/bin")
+find_program(CARGO_EXECUTABLE cargo HINTS "$ENV{HOME}/.cargo/bin" "$ENV{CARGO_HOME}/bin" "$ENV{USERPROFILE}/.cargo/bin")
 if(NOT CARGO_EXECUTABLE)
   set(CARGO_EXECUTABLE cargo)
 endif()
 add_custom_command(OUTPUT ${CCX_PQC_LIB}
-  COMMAND ${CARGO_EXECUTABLE} build --release
+  COMMAND ${CARGO_EXECUTABLE} ${CCX_PQC_CARGO_ARGS}
   WORKING_DIRECTORY ${CCX_PQC_DIR}
   DEPENDS ${CCX_PQC_DIR}/src/lib.rs ${CCX_PQC_DIR}/Cargo.toml
   COMMENT "Building ccx-pqc (post-quantum crypto module, Rust)" VERBATIM)

@@ -262,11 +262,16 @@ foreach(pqlib Blockchain CryptoNoteCore Wallet Rpc Transfers)
   if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
     target_link_libraries(${pqlib} PUBLIC ${CCX_PQC_LIB} pthread dl m)
   elseif (WIN32)
-    # The Rust staticlib pulls Windows system deps (std + getrandom) that the C++
-    # link line must satisfy: ntdll (Nt*/RtlNtStatusToDosError), bcrypt
-    # (BCryptGenRandom), userenv (GetUserProfileDirectoryW), plus the usual std set.
-    # Listed AFTER ${CCX_PQC_LIB} so ld resolves the archive's undefined refs.
-    target_link_libraries(${pqlib} PUBLIC ${CCX_PQC_LIB} ntdll bcrypt userenv ws2_32 advapi32 secur32 user32 kernel32)
+    # The Rust staticlib pulls Windows system deps (std + getrandom) the C++ link
+    # line must satisfy: ntdll (Nt*/RtlNtStatusToDosError), bcrypt (BCryptGenRandom),
+    # userenv (GetUserProfileDirectoryW), winsock, etc. Listed AFTER ${CCX_PQC_LIB}
+    # so the linker resolves the archive's undefined refs. The exact set differs by
+    # toolchain (rustc --print native-static-libs); MinGW list is build-verified.
+    if (MSVC)
+      target_link_libraries(${pqlib} PUBLIC ${CCX_PQC_LIB} bcrypt advapi32 kernel32 ntdll userenv ws2_32 dbghelp legacy_stdio_definitions)
+    else()
+      target_link_libraries(${pqlib} PUBLIC ${CCX_PQC_LIB} ntdll bcrypt userenv ws2_32 advapi32 secur32 user32 kernel32)
+    endif()
   else()
     target_link_libraries(${pqlib} PUBLIC ${CCX_PQC_LIB})
   endif()
