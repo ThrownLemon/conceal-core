@@ -25,10 +25,11 @@ file(GLOB_RECURSE UnitTests UnitTests/*)
 # The PQ encrypted-MESSAGE feature (tx-extra 0x06/0x07, tx_extra_pq_message /
 # tx_extra_authenticated_message / tx_message_entry.pq) is now ported into this PQ⊕MDBX merge PoC, so
 # its tests (TestPqMessage, TestAuthenticatedMessage, the two send-path tests, and the serialization
-# golden) compile and are no longer excluded. The remaining exclusions are unrelated: PaymentGate /
-# WalletService (the fork has no PaymentGate/WalletService.cpp), the upgrade detector, and the
-# wallet-at-rest prefix-MAC test, all out of scope for this merge PoC.
-list(FILTER UnitTests EXCLUDE REGEX ".*/(PaymentGateTests|TestWalletService|TestUpgradeDetector|TestWalletPrefixMac)\\.cpp$")
+# golden) compile and are no longer excluded. The PQ wallet-at-rest v8 format (WalletSerializerV2 +
+# WalletKdf + the v8 prefix MAC) is now wired into this PoC's WalletGreen, so TestWalletPrefixMac
+# compiles and is no longer excluded. The remaining exclusions are unrelated: PaymentGate /
+# WalletService (the fork has no PaymentGate/WalletService.cpp) and the upgrade detector.
+list(FILTER UnitTests EXCLUDE REGEX ".*/(PaymentGateTests|TestWalletService|TestUpgradeDetector)\\.cpp$")
 
 file(GLOB_RECURSE CryptoNoteProtocol ../src/CryptoNoteProtocol/*)
 file(GLOB_RECURSE P2p ../src/P2p/*)
