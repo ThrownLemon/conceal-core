@@ -460,6 +460,19 @@ void serialize(AccountPublicAddress& address, ISerializer& serializer) {
   serializer(address.viewPublicKey, "m_view_public_key");
 }
 
+void serialize(PqAccountPublicAddress& address, ISerializer& serializer) {
+  // Canonical, fixed field order. The legacy Ed25519 keys are ALWAYS serialized (zero for a PQ-only
+  // address) so there is exactly one valid encoding per object — no flags-conditional field read on
+  // the input path, which would be a malleability/desync footgun.
+  serializer(address.pqVersion, "pq_version");
+  serializer(address.flags, "flags");
+  serializer(address.kemSchemeId, "kem_scheme_id");
+  serializer(address.ringSchemeId, "ring_scheme_id");
+  serializeAsBinary(address.kemPublicKey, "kem_public_key", serializer);
+  serializer(address.legacySpendPublicKey, "legacy_spend_public_key");
+  serializer(address.legacyViewPublicKey, "legacy_view_public_key");
+}
+
 void serialize(AccountKeys& keys, ISerializer& s) {
   s(keys.address, "m_account_address");
   s(keys.spendSecretKey, "m_spend_secret_key");

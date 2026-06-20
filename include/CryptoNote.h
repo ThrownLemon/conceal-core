@@ -118,6 +118,18 @@ struct AccountPublicAddress {
   crypto::PublicKey viewPublicKey;
 };
 
+// Post-quantum wallet address v2 (CIP-0001). Carries an ML-KEM-768 public key + agility-pinned
+// scheme ids; hybrid mode also retains the legacy Ed25519 keys.
+struct PqAccountPublicAddress {
+  uint8_t  pqVersion;                       // = PQ_ADDRESS_VERSION (2)
+  uint8_t  flags;                           // bit0: hybrid; other bits reserved (must be 0)
+  uint32_t kemSchemeId;                      // pinned ML-KEM scheme id (agility)
+  uint32_t ringSchemeId;                     // pinned ring-sig scheme id (agility)
+  std::vector<uint8_t> kemPublicKey;         // ML-KEM-768 public key (PQ_KEM_PUBLIC_KEY_SIZE bytes)
+  crypto::PublicKey legacySpendPublicKey;    // hybrid only (flags bit0); zero otherwise
+  crypto::PublicKey legacyViewPublicKey;     // hybrid only (flags bit0); zero otherwise
+};
+
 struct AccountKeys {
   AccountPublicAddress address;
   crypto::SecretKey spendSecretKey;
