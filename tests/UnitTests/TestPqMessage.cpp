@@ -49,6 +49,33 @@ namespace
     EXPECT_TRUE(writeTransactionExtra(extra, fields));
     return extra;
   }
+
+  // Append an unsigned LEB128 varint (the on-wire length prefix). Used to FORGE a raw 0x06 field that
+  // the production writers (which now enforce MEDIUM-3 bounds) would refuse to emit, so the parser's
+  // own bound checks can be exercised independently.
+  void appendVarint(std::vector<uint8_t> &out, uint64_t v)
+  {
+    while (v >= 0x80)
+    {
+      out.push_back(static_cast<uint8_t>((v & 0x7f) | 0x80));
+      v >>= 7;
+    }
+    out.push_back(static_cast<uint8_t>(v));
+  }
+
+  // Forge a raw 0x06 field [tag][varint(kemCtLen)][kemCt][varint(dataLen)][data]; kemCt is the correct
+  // ML-KEM ciphertext size so the parser passes the kemCt check and reaches the data-length bound.
+  std::vector<uint8_t> forgePqExtra(size_t dataLen)
+  {
+    std::vector<uint8_t> extra;
+    extra.push_back(TX_EXTRA_PQ_MESSAGE_TAG);
+    const size_t kemBytes = ccx_pq_kem_ct_bytes();
+    appendVarint(extra, kemBytes);
+    extra.insert(extra.end(), kemBytes, 0x11);
+    appendVarint(extra, dataLen);
+    extra.insert(extra.end(), dataLen, 0x22);
+    return extra;
+  }
 }
 
 // --- Rust FFI selftest -------------------------------------------------------------------------
@@ -223,13 +250,10 @@ TEST(PqMessage, TamperedAnyByteFailsNoFfiPanic)
 
 TEST(PqMessage, OversizeDataRejectedByParser)
 {
-  KemKeyPair kp;
-  tx_extra_pq_message field;
-  // data length one byte over the allowed bound; kemCt left at the correct size.
-  ASSERT_TRUE(field.encrypt(0, std::string(TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE, 'z'), kp.pk));
-  ASSERT_GT(field.data.size(), static_cast<size_t>(TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE));
-
-  std::vector<uint8_t> extra = writePqExtra(field);
+  // MEDIUM-3: the production writers (encrypt / append_pq_message_to_extra / writeTransactionExtra) now
+  // REFUSE to emit a field whose data exceeds the parser bound, so an oversize field can only arrive
+  // over the wire from a hostile peer. Forge the raw bytes directly so the parser's bound is exercised.
+  std::vector<uint8_t> extra = forgePqExtra(TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE + 1);
   std::vector<TransactionExtraField> parsed;
   // Oversize data must be rejected (parser returns false) without OOM/crash.
   ASSERT_FALSE(parseTransactionExtra(extra, parsed));
@@ -250,13 +274,9 @@ TEST(PqMessage, WrongKemCtLengthRejectedByParser)
 
 TEST(PqMessage, ShortSealedDataRejectedByParser)
 {
-  KemKeyPair kp;
-  tx_extra_pq_message field;
-  ASSERT_TRUE(field.encrypt(0, "abc", kp.pk));
-  // A valid sealed blob is at least the 16-byte Poly1305 tag; truncate below that.
-  field.data.resize(TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE - 1);
-
-  std::vector<uint8_t> extra = writePqExtra(field);
+  // A valid sealed blob is at least the 16-byte Poly1305 tag. Forge a field one byte short of that
+  // directly (the production writers now reject it), so the parser's lower-bound check is exercised.
+  std::vector<uint8_t> extra = forgePqExtra(TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE - 1);
   std::vector<TransactionExtraField> parsed;
   ASSERT_FALSE(parseTransactionExtra(extra, parsed));
 }

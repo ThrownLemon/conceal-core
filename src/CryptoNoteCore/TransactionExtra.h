@@ -143,6 +143,13 @@ bool append_pq_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_p
 std::vector<std::string> get_pq_messages_from_extra(const std::vector<uint8_t>& extra, const std::vector<uint8_t>& recipientKemSec);
 bool append_authenticated_message_to_extra(std::vector<uint8_t>& tx_extra, const tx_extra_authenticated_message& message);
 std::vector<std::string> get_authenticated_messages_from_extra(const std::vector<uint8_t>& extra, const crypto::PublicKey& txkey, const crypto::SecretKey* recipientSecretKey);
+// HIGH-2: unified single-pass decoder over ALL message tags (0x04 legacy / 0x06 PQ / 0x07 auth) in
+// wire order, maintaining ONE logical message index that matches the builder's global index. Use this
+// on the receive path so each field's decrypt index equals its encrypt index for any tag combination;
+// the per-tag getters above keep a private index and are only correct when a tx mixes no tags.
+// `recipientKemSec` may be null (skip 0x06 decryption); `recipientSpendSecretKey` may be null (skip
+// 0x04/0x07 recipient decryption — 0x04 unencrypted broadcasts still decode).
+std::vector<std::string> get_all_messages_from_extra(const std::vector<uint8_t>& extra, const crypto::PublicKey& txkey, const crypto::SecretKey* recipientSpendSecretKey, const std::vector<uint8_t>* recipientKemSec);
 void appendTTLToExtra(std::vector<uint8_t>& tx_extra, uint64_t ttl);
 bool getMergeMiningTagFromExtra(const std::vector<uint8_t>& tx_extra, TransactionExtraMergeMiningTag& mm_tag);
 

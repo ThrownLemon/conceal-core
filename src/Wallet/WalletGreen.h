@@ -375,6 +375,13 @@ protected:
   // No-op for < v8 wallets.
   void resealPrefixMacIfNeeded();
 
+  // HIGH-1: like resealPrefixMacIfNeeded but ATOMIC. After an in-place prefix mutation (address
+  // create/delete), republish the whole v8 container (already-mutated prefix + keys + a freshly-sealed
+  // suffix whose MAC binds that new prefix) through atomicUpdate (temp file + fsync + rename), so an
+  // interruption can never leave the durable file with a new prefix paired with the old suffix MAC
+  // (which the next load rejects, bricking the wallet). For < v8 it delegates to the in-place no-op.
+  void resealPrefixMacAtomic();
+
   void copyContainerStorageKeys(const ContainerStorage& src, const crypto::chacha8_key& srcKey, ContainerStorage& dst, const crypto::chacha8_key& dstKey) const;
   static void copyContainerStoragePrefix(ContainerStorage& src, const crypto::chacha8_key& srcKey, ContainerStorage& dst, const crypto::chacha8_key& dstKey);
 

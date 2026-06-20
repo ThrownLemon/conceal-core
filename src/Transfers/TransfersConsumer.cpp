@@ -572,20 +572,26 @@ void TransfersConsumer::processOutputs(const TransactionBlockInfo& blockInfo, Tr
       assert(subscribtionTxInfo.blockHeight == blockInfo.height);
     }
   } else {
-    auto messages = get_messages_from_extra(tx.getExtra(), tx.getTransactionPublicKey(), &sub.getKeys().spendSecretKey);
-    // Also scan authenticated classical messages (tx-extra 0x07). 0x07 uses the SAME classical key
-    // material as the legacy 0x04 field (ECDH between the tx secret key and the recipient spend key),
-    // so the recipient's spend secret decrypts it, mirroring the 0x04 call above. New messages are
-    // emitted as 0x07; 0x04 stays decode-only for history. Merge both so wallets see all messages.
-    auto authMessages = get_authenticated_messages_from_extra(tx.getExtra(), tx.getTransactionPublicKey(), &sub.getKeys().spendSecretKey);
-    messages.insert(messages.end(), authMessages.begin(), authMessages.end());
-    // PoC (Option B): on testnet, also scan post-quantum messages (tx-extra 0x06) with the hardcoded
-    // testnet ML-KEM recipient secret and merge them in. Production scanning uses the account's own
-    // ML-KEM secret from a PQ address/wallet (step 4 of messages-mlkem.md) — TODO.
+    // HIGH-2: decode ALL message tags (0x04 legacy / 0x06 PQ / 0x07 auth) in ONE wire-order pass with
+    // a single logical index, so each field's decrypt index matches the builder's global encrypt index.
+    // The previous per-tag getters restarted their index at 0 per tag, so a mixed tx (e.g. [0x06, 0x07])
+    // opened the 0x07 at the wrong index -> AEAD auth failed -> the permanent on-chain message was lost.
+    // 0x07 reuses the SAME classical key material as 0x04 (ECDH between tx secret key and recipient
+    // spend key), so the recipient's spend secret decrypts both. New messages are emitted as 0x06/0x07;
+    // 0x04 stays decode-only for history.
+    //
+    // PoC (Option B): on testnet, the hardcoded testnet ML-KEM recipient secret also unseals 0x06
+    // fields. Production scanning will use the account's own ML-KEM secret from a PQ address/wallet
+    // (step 4 of messages-mlkem.md) — TODO. Off testnet no KEM secret is available, so 0x06 fields are
+    // skipped (but still advance the shared index so following 0x04/0x07 keep their correct index).
+    std::vector<std::string> messages;
     if (m_currency.isTestnet()) {
       std::vector<uint8_t> kemSec(PQ_TESTNET_KEM_SK, PQ_TESTNET_KEM_SK + sizeof(PQ_TESTNET_KEM_SK));
-      auto pqMessages = get_pq_messages_from_extra(tx.getExtra(), kemSec);
-      messages.insert(messages.end(), pqMessages.begin(), pqMessages.end());
+      messages = get_all_messages_from_extra(tx.getExtra(), tx.getTransactionPublicKey(),
+                                             &sub.getKeys().spendSecretKey, &kemSec);
+    } else {
+      messages = get_all_messages_from_extra(tx.getExtra(), tx.getTransactionPublicKey(),
+                                             &sub.getKeys().spendSecretKey, nullptr);
     }
     updated = sub.addTransaction(blockInfo, tx, transfers, std::move(messages));
     contains = updated;

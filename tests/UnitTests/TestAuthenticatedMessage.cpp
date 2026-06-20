@@ -227,25 +227,30 @@ TEST(AuthenticatedMessage, MixedExtraParsesAllAndFiltersAuthOnly)
 
 TEST(AuthenticatedMessage, OversizeDataRejectedByParser)
 {
-  Parties p;
-  tx_extra_authenticated_message field;
-  ASSERT_TRUE(field.encrypt(0, std::string(TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE, 'z'), &p.recipientPub, p.txkey));
-  ASSERT_GT(field.data.size(), static_cast<size_t>(TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE));
+  // MEDIUM-3: the production writers (encrypt / append_authenticated_message_to_extra /
+  // writeTransactionExtra) now REFUSE to emit a field whose data exceeds the parser bound, so an
+  // oversize field can only arrive over the wire from a hostile peer. Forge the raw bytes directly
+  // ([tag 0x07][varint(dataLen)][dataLen bytes]) to exercise the parser's rejection independently.
+  std::vector<uint8_t> extra;
+  extra.push_back(TX_EXTRA_AUTH_MESSAGE_TAG);
+  const size_t oversize = TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE + 1;
+  appendVarint(extra, oversize);
+  extra.insert(extra.end(), oversize, 0xBB);
 
-  std::vector<uint8_t> extra = writeAuthExtra(field);
   std::vector<TransactionExtraField> parsed;
   ASSERT_FALSE(parseTransactionExtra(extra, parsed));
 }
 
 TEST(AuthenticatedMessage, ShortSealedDataRejectedByParser)
 {
-  Parties p;
-  tx_extra_authenticated_message field;
-  ASSERT_TRUE(field.encrypt(0, "abc", &p.recipientPub, p.txkey));
-  // A valid sealed blob is at least the 16-byte Poly1305 tag; truncate below that.
-  field.data.resize(TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE - 1);
+  // A valid sealed blob is at least the 16-byte Poly1305 tag. Forge a field one byte short of that
+  // directly (the production writers now reject it), so the parser's lower-bound check is exercised.
+  std::vector<uint8_t> extra;
+  extra.push_back(TX_EXTRA_AUTH_MESSAGE_TAG);
+  const size_t shortLen = TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE - 1;
+  appendVarint(extra, shortLen);
+  extra.insert(extra.end(), shortLen, 0xCC);
 
-  std::vector<uint8_t> extra = writeAuthExtra(field);
   std::vector<TransactionExtraField> parsed;
   ASSERT_FALSE(parseTransactionExtra(extra, parsed));
 }

@@ -364,6 +364,14 @@ namespace cn
 
   bool append_pq_message_to_extra(std::vector<uint8_t> &tx_extra, const tx_extra_pq_message &message)
   {
+    // MEDIUM-3: a manually built field (bypassing encrypt()) must not emit an extra the parser would
+    // reject. Mirror the parser's bounds on `data`: at least the 16-byte AEAD tag, at most MAX_DATA_SIZE.
+    if (message.data.size() < TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE ||
+        message.data.size() > TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE)
+    {
+      return false;
+    }
+
     BinaryArray blob;
     if (!toBinaryArray(message, blob))
     {
@@ -404,6 +412,14 @@ namespace cn
 
   bool append_authenticated_message_to_extra(std::vector<uint8_t> &tx_extra, const tx_extra_authenticated_message &message)
   {
+    // MEDIUM-3: reject a manually built field whose sealed `data` falls outside the parser's bounds
+    // (>= 16-byte AEAD tag, <= MAX_DATA_SIZE), so append can never emit an extra the parser rejects.
+    if (message.data.size() < TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE ||
+        message.data.size() > TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE)
+    {
+      return false;
+    }
+
     BinaryArray blob;
     if (!toBinaryArray(message, blob))
     {
@@ -438,6 +454,60 @@ namespace cn
         result.push_back(res);
       }
       ++i;
+    }
+    return result;
+  }
+
+  std::vector<std::string> get_all_messages_from_extra(const std::vector<uint8_t> &extra,
+                                                       const crypto::PublicKey &txkey,
+                                                       const crypto::SecretKey *recipientSpendSecretKey,
+                                                       const std::vector<uint8_t> *recipientKemSec)
+  {
+    // HIGH-2: the builder (CryptoNoteFormatUtils::constructTransaction) seals EVERY message with its
+    // GLOBAL position in the message array — one tx_extra field is emitted per message, in order, and
+    // index i is the i-th message regardless of which tag (0x04 / 0x06 / 0x07) it became. The legacy
+    // per-tag getters each restart their index at 0 for their own tag, so in a mixed tx (e.g.
+    // [0x06@0, 0x07@1]) the 0x07 is sealed at index 1 but a per-tag scan opens it at 0 -> AEAD auth
+    // fails and the permanent on-chain message is silently lost. This unified scan walks the fields in
+    // wire order with ONE shared index that advances for EVERY message-tag field, so each field's
+    // decrypt index equals its encrypt index for every tag combination. Wire order is preserved.
+    std::vector<TransactionExtraField> tx_extra_fields;
+    std::vector<std::string> result;
+    if (!parseTransactionExtra(extra, tx_extra_fields))
+    {
+      return result;
+    }
+    size_t i = 0;
+    for (const auto &f : tx_extra_fields)
+    {
+      std::string res;
+      if (f.type() == typeid(tx_extra_message))
+      {
+        if (boost::get<tx_extra_message>(f).decrypt(i, txkey, recipientSpendSecretKey, res))
+        {
+          result.push_back(res);
+        }
+        ++i;
+      }
+      else if (f.type() == typeid(tx_extra_pq_message))
+      {
+        // 0x06 decrypts only when a recipient ML-KEM secret is supplied; the index still advances so a
+        // following 0x07/0x04 keeps its correct global index even when this 0x06 is not for us.
+        if (recipientKemSec != nullptr &&
+            boost::get<tx_extra_pq_message>(f).decrypt(i, *recipientKemSec, res))
+        {
+          result.push_back(res);
+        }
+        ++i;
+      }
+      else if (f.type() == typeid(tx_extra_authenticated_message))
+      {
+        if (boost::get<tx_extra_authenticated_message>(f).decrypt(i, txkey, recipientSpendSecretKey, res))
+        {
+          result.push_back(res);
+        }
+        ++i;
+      }
     }
     return result;
   }
@@ -625,6 +695,15 @@ namespace cn
       return false;
     }
 
+    // MEDIUM-3: refuse a plaintext that would seal into a `data` field the parser later rejects. The
+    // parser caps `data` at TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE; sealing appends a 16-byte AEAD tag, so
+    // the largest sealable plaintext is MAX_DATA_SIZE - AEAD_TAG_SIZE. Without this the sender could
+    // emit a field its own (and every peer's) parser rejects, silently losing the on-chain message.
+    if (message.size() > TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE - TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE)
+    {
+      return false;
+    }
+
     kemCt.assign(ccx_pq_kem_ct_bytes(), 0);
     uint8_t seed[32];
     if (ccx_pq_msg_kem_encap(recipientKemPub.data(), recipientKemPub.size(),
@@ -709,6 +788,14 @@ namespace cn
   bool tx_extra_authenticated_message::encrypt(size_t index, const std::string &message, const AccountPublicAddress *recipient, const KeyPair &txkey)
   {
     if (recipient == nullptr)
+    {
+      return false;
+    }
+
+    // MEDIUM-3: cap the plaintext so the sealed `data` (plaintext + 16-byte AEAD tag) stays within the
+    // parser's TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE bound; otherwise the sender emits a field its own
+    // parser rejects, silently dropping the permanent on-chain message.
+    if (message.size() > TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE)
     {
       return false;
     }

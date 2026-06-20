@@ -1425,6 +1425,53 @@ namespace cn
     m_containerStorage.flush();
   }
 
+  void WalletGreen::resealPrefixMacAtomic()
+  {
+    if (m_walletFormatVersion < WalletSerializerV2::PREFIX_MAC_VERSION)
+    {
+      // < v8: the prefix is not authenticated, so there is no prefix MAC that can fall out of sync
+      // with the suffix — the in-place reseal (a no-op for < v8) is sufficient and atomicity is moot.
+      resealPrefixMacIfNeeded();
+      return;
+    }
+    if (!m_containerStorage.isOpened() || m_containerStorage.suffixSize() == 0)
+    {
+      return; // no sealed suffix yet (nothing on disk can become inconsistent)
+    }
+
+    // HIGH-1: the live mmap prefix+keys were ALREADY mutated in place (addWallet's push_back+incNextIv,
+    // or deleteAddress's erase) before this call. The plain in-place reseal (resealPrefixMacIfNeeded)
+    // flushes the dirty prefix page and rewrites the suffix in two steps: an interruption between them
+    // leaves the durable file with the NEW prefix paired with the OLD suffix MAC, which the next load
+    // rejects (prefix authentication failure) — the wallet is bricked.
+    //
+    // Recover the existing container payload (WITHOUT verifying the now-stale prefix MAC; the suffix
+    // AEAD tag is still checked, so a wrong key / corrupted suffix still throws), then republish the
+    // WHOLE container — the already-mutated prefix + keys, plus a freshly-sealed suffix whose MAC binds
+    // that new prefix — into a temp file via atomicUpdate (temp file + fsync-on-flush + rename), exactly
+    // like the v8 save() path. The recovered payload is re-sealed verbatim, so this changes ONLY the
+    // prefix MAC and preserves the existing on-disk cache (no re-serialization, no save-level choice).
+    // The rename commits prefix+suffix as one unit: a crash before it leaves the previous (consistent)
+    // file untouched; a crash after it leaves the new consistent file. A partial/old-MAC prefix is
+    // never durably exposed.
+    BinaryArray containerData;
+    loadAndDecryptContainerData(m_containerStorage, m_key, m_walletFormatVersion, containerData, /*verifyPrefixMac=*/false);
+
+    const crypto::chacha8_key key = m_key;
+    const WalletKdfHeader header = m_kdfHeader;
+    const uint8_t version = m_walletFormatVersion;
+    m_containerStorage.atomicUpdate([this, key, header, version, &containerData](ContainerStorage &newStorage) {
+      copyContainerStoragePrefix(m_containerStorage, key, newStorage, key);
+      reinterpret_cast<ContainerStoragePrefix *>(newStorage.prefix())->version = version;
+      copyContainerStorageKeys(m_containerStorage, key, newStorage, key);
+      // Seal the recovered payload over newStorage's prefix (its MAC binds the new prefix); resizeSuffix
+      // inside grows the temp suffix region, then flush fsyncs before the caller's rename commits.
+      encryptAndSaveContainerData(newStorage, key, version, &header,
+                                  containerData.data(), containerData.size());
+      newStorage.flush();
+    });
+  }
+
   void WalletGreen::encryptAndSaveContainerData(ContainerStorage &storage, const crypto::chacha8_key &key, uint8_t version, const WalletKdfHeader *kdfHeader, const void *containerData, size_t containerDataSize)
   {
     if (version >= WalletSerializerV2::AEAD_KDF_VERSION)
@@ -2058,23 +2105,25 @@ namespace cn
       }
       else
       {
-        // H1: addWallet() above did push_back + incNextIv on the mmap prefix WITHOUT re-sealing the
-        // suffix. Without this re-seal the stored v8 prefix MAC would no longer match the on-disk
+        // H1/HIGH-1: addWallet() above did push_back + incNextIv on the mmap prefix WITHOUT re-sealing
+        // the suffix. Without this re-seal the stored v8 prefix MAC would no longer match the on-disk
         // prefix; close()'s msync of the dirty prefix page would then brick the wallet on next load
-        // (MAC mismatch). Re-seal so disk-prefix == MAC'd-prefix even if the caller never save()s. The
-        // reset branch above already re-seals via its full save(), so only the non-reset path needs it.
-        resealPrefixMacIfNeeded();
+        // (MAC mismatch). Re-seal ATOMICALLY (temp file + fsync + rename) so an interruption between the
+        // prefix mutation and the new suffix MAC can never durably expose a new-prefix/old-MAC pairing.
+        // The reset branch above already re-seals via its full save(), so only the non-reset path needs it.
+        resealPrefixMacAtomic();
       }
     }
     catch (const std::exception &e)
     {
       m_logger(ERROR, BRIGHT_RED) << "Failed to add wallets: " << e.what();
-      // H1: a partial add may have left the mmap prefix mutated (push_back rolled back, but incNextIv
-      // advanced). Re-seal so the on-disk prefix can't become inconsistent with the stored v8 MAC if
-      // close() later msyncs the dirty prefix page. Best-effort — never mask the original failure.
+      // H1/HIGH-1: a partial add may have left the mmap prefix mutated (push_back rolled back, but
+      // incNextIv advanced). Re-seal ATOMICALLY so the on-disk prefix can't become inconsistent with
+      // the stored v8 MAC if close() later msyncs the dirty prefix page. Best-effort — never mask the
+      // original failure.
       try
       {
-        resealPrefixMacIfNeeded();
+        resealPrefixMacAtomic();
       }
       catch (const std::exception &re)
       {
@@ -2210,10 +2259,12 @@ namespace cn
 
     m_containerStorage.erase(std::next(m_containerStorage.begin(), addressIndex));
 
-    // H1: erase() removed a spend record from the mmap prefix without re-sealing the suffix. Re-seal
-    // so the stored v8 prefix MAC matches the (now shorter) on-disk prefix; otherwise close()'s msync
-    // of the dirty prefix page would brick the wallet on next load even if the caller never save()s.
-    resealPrefixMacIfNeeded();
+    // H1/HIGH-1: erase() removed a spend record from the mmap prefix without re-sealing the suffix.
+    // Re-seal ATOMICALLY (temp file + fsync + rename) so the stored v8 prefix MAC matches the (now
+    // shorter) on-disk prefix as a single durable unit; otherwise an interruption between the erase
+    // and the new suffix MAC could leave a new-prefix/old-MAC file that the next load rejects, and
+    // close()'s msync of the dirty prefix page would brick the wallet even if the caller never save()s.
+    resealPrefixMacAtomic();
 
     if (m_walletsContainer.get<RandomAccessIndex>().size() != 0)
     {
@@ -2373,12 +2424,13 @@ namespace cn
     for (size_t i = 0; i < getAddressCount(); ++i)
     {
       crypto::SecretKey secretKey = getAddressSpendKey(getAddress(i)).secretKey;
-      std::vector<std::string> m = cn::get_messages_from_extra(extraBin, publicKey, &secretKey);
+      // HIGH-2: unified single-pass scan over all message tags so each field's decrypt index matches the
+      // builder's global encrypt index. 0x07 reuses the same ECDH key material as 0x04, so the same
+      // spend secret decrypts both; new messages are emitted as 0x06/0x07, 0x04 is decode-only history.
+      // No per-account ML-KEM secret is wired up on this view path yet (PoC TODO), so 0x06 fields are
+      // skipped (nullptr) — but they still advance the shared index so 0x04/0x07 keep their index.
+      std::vector<std::string> m = cn::get_all_messages_from_extra(extraBin, publicKey, &secretKey, nullptr);
       messages.insert(std::end(messages), std::begin(m), std::end(m));
-      // Also read authenticated 0x07 messages (same ECDH key material as 0x04, so the same spend
-      // secret decrypts them). New messages are emitted as 0x07; 0x04 is decode-only for history.
-      std::vector<std::string> mAuth = cn::get_authenticated_messages_from_extra(extraBin, publicKey, &secretKey);
-      messages.insert(std::end(messages), std::begin(mAuth), std::end(mAuth));
     }
     return messages;
   }
