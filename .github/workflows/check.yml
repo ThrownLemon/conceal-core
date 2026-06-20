@@ -209,6 +209,40 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  ct-tripwire:
+    name: ctgrind (constant-time)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Install valgrind
+        run: sudo apt-get update && sudo apt-get install -y valgrind
+
+      - name: ctgrind constant-time tripwire
+        working-directory: pqc/ccx-pqc
+        run: |
+          # Build the feature-gated ctgrind harness and run it under valgrind memcheck. It poisons
+          # the secret seed; memcheck flags every secret-dependent branch. The documented
+          # Falcon-internal flags (non-CT keygen, isochronous BerExp sampler) and public-output
+          # encoders are expected and ignored. This gate fails ONLY on a NEW secret-dependent branch
+          # in OUR glue (raptor_falcon.c), excluding the benign public-data rejection rfalcon_hash_to_rq.
+          cargo test --features ctgrind --no-run 2>&1 | tee /tmp/ctbuild.log
+          BIN=$(grep -aoE 'target/debug/deps/ccx_pqc-[a-f0-9]+' /tmp/ctbuild.log | head -1)
+          test -n "$BIN" || { echo "no ctgrind test binary built"; exit 2; }
+          valgrind --tool=memcheck --track-origins=yes --error-limit=no --num-callers=30 \
+            "$BIN" --ignored --test-threads=1 ct_leakmap > /tmp/ctgrind.raw 2>&1 || true
+          awk '
+          /depends on uninitialised/ { e=1; next }
+          e && / at 0x/ {
+            if ($0 ~ /raptor_falcon\.c/ && $0 !~ /hash_to_rq/) { print "NEW GLUE CT LEAK:" $0; bad++ }
+            e=0
+          }
+          END {
+            if (bad) { print bad " new secret-dependent branch(es) in raptor_falcon.c"; exit 1 }
+            else print "ctgrind OK: no new secret-dependent branch in our glue"
+          }
+          ' /tmp/ctgrind.raw
+
       - name: core_tests
         shell: msys2 {0}
         run: |
