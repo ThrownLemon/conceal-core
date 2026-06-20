@@ -187,7 +187,11 @@ void Dispatcher::dispatch()
       {
         uint64_t buf;
         auto transferred = read(m_remoteSpawnEvent, &buf, sizeof buf);
-        if (transferred == -1)
+        // remoteSpawnEvent is a level-triggered O_NONBLOCK eventfd drained from both dispatch() and
+        // yield(); a concurrent drain can make this read() return EAGAIN/EWOULDBLOCK (errno 11). That
+        // is benign (queued procedures are still drained under the mutex below), so treat it as
+        // "already drained" instead of aborting the process. (org ConcealNetwork/conceal-core PR #358)
+        if (transferred == -1 && errno != EAGAIN && errno != EWOULDBLOCK)
         {
           throw std::runtime_error("Dispatcher::dispatch, read(remoteSpawnEvent) failed, " + lastErrorMessage());
         }
@@ -335,8 +339,10 @@ void Dispatcher::yield() {
         if(((events[i].events & (EPOLLIN | EPOLLOUT)) != 0) && contextPair->readContext == nullptr && contextPair->writeContext == nullptr) {
           uint64_t buf;
           auto transferred = read(m_remoteSpawnEvent, &buf, sizeof buf);
-          if(transferred == -1) {
-            throw std::runtime_error("Dispatcher::dispatch, read(remoteSpawnEvent) failed, " + lastErrorMessage());
+          // Benign EAGAIN/EWOULDBLOCK on the already-drained level-triggered eventfd — see above.
+          // (org ConcealNetwork/conceal-core PR #358)
+          if(transferred == -1 && errno != EAGAIN && errno != EWOULDBLOCK) {
+            throw std::runtime_error("Dispatcher::yield, read(remoteSpawnEvent) failed, " + lastErrorMessage());
           }
 
           MutextGuard guard(*reinterpret_cast<pthread_mutex_t*>(this->m_mutex));
