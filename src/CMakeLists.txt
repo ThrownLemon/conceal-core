@@ -251,6 +251,24 @@ target_link_libraries(Sidechain BoltSync BoltCore BoltHttp NodeRpcProxy Rpc HTTP
   ${CMAKE_THREAD_LIBS_INIT}
 )
 
+# ── Post-quantum (ccx-pqc) wiring — merged from pqc/testnet-poc ────────────
+# Libs whose .cpp reference the ccx-pqc C-ABI need its include dir + the cargo build first.
+foreach(pqlib Blockchain CryptoNoteCore Wallet Rpc Transfers)
+  add_dependencies(${pqlib} ccx_pqc)
+  target_include_directories(${pqlib} PRIVATE ${CCX_PQC_INCLUDE})
+endforeach()
+# Every executable that links CryptoNoteCore/Blockchain pulls in ccx_* symbols, so the
+# static libccx_pqc.a must trail each link line (Linux needs pthread/dl/m for the Rust staticlib).
+foreach(pqexe Daemon ConcealWallet ClientWallet BoltRPC Sidechain)
+  add_dependencies(${pqexe} ccx_pqc)
+  target_include_directories(${pqexe} PRIVATE ${CCX_PQC_INCLUDE})
+  if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
+    target_link_libraries(${pqexe} ${CCX_PQC_LIB} pthread dl m)
+  else()
+    target_link_libraries(${pqexe} ${CCX_PQC_LIB})
+  endif()
+endforeach()
+
 # Tools
 add_subdirectory(Tools)
 

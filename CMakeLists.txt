@@ -251,5 +251,23 @@ if(MINGW AND STATIC)
   set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive")
 endif()
 
+# --- Post-quantum crypto module (ccx-pqc, Rust C-ABI) — testnet PoC (CIP-0001) ---
+# Merged from pqc/testnet-poc. The Blockchain/CryptoNoteCore/Wallet/Rpc libs reference the
+# ccx-pqc FFI; ${CCX_PQC_LIB} must follow those libs on each executable's link line.
+set(CCX_PQC_DIR ${CMAKE_SOURCE_DIR}/pqc/ccx-pqc)
+set(CCX_PQC_LIB ${CCX_PQC_DIR}/target/release/libccx_pqc.a)
+set(CCX_PQC_INCLUDE ${CMAKE_SOURCE_DIR}/pqc/include)
+# Locate cargo by absolute path: non-interactive build shells often lack ~/.cargo/bin on PATH.
+find_program(CARGO_EXECUTABLE cargo HINTS "$ENV{HOME}/.cargo/bin" "$ENV{CARGO_HOME}/bin")
+if(NOT CARGO_EXECUTABLE)
+  set(CARGO_EXECUTABLE cargo)
+endif()
+add_custom_command(OUTPUT ${CCX_PQC_LIB}
+  COMMAND ${CARGO_EXECUTABLE} build --release
+  WORKING_DIRECTORY ${CCX_PQC_DIR}
+  DEPENDS ${CCX_PQC_DIR}/src/lib.rs ${CCX_PQC_DIR}/Cargo.toml
+  COMMENT "Building ccx-pqc (post-quantum crypto module, Rust)" VERBATIM)
+add_custom_target(ccx_pqc DEPENDS ${CCX_PQC_LIB})
+
 add_subdirectory(external)
 add_subdirectory(src)
