@@ -289,11 +289,18 @@ uint32_t get_block_height(const Block& b) {
 bool check_inputs_types_supported(const TransactionPrefix& tx) {
   for (const auto& in : tx.inputs) {
     const auto& inputType = in.type();
-    if (inputType == typeid(MultisignatureInput)) {
+    if (inputType == typeid(KeyInput)) {
+      // always supported
+    } else if (inputType == typeid(MultisignatureInput)) {
       if (tx.version < TRANSACTION_VERSION_2) {
         return false;
       }
-    } else if (in.type() != typeid(KeyInput) && in.type() != typeid(MultisignatureInput)) {
+    } else if (inputType == typeid(PqKeyInput) || inputType == typeid(PqMultisigInput)) {
+      // Post-quantum (CIP-0001) inputs are carried only in PQ transactions (version 4).
+      if (tx.version < TRANSACTION_VERSION_4) {
+        return false;
+      }
+    } else {
       return false;
     }
   }
