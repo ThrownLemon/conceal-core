@@ -201,14 +201,14 @@ TEST(TransactionSerializationGolden, MultisignatureInputGolden)
 
 TEST(TransactionSerializationGolden, PqKeyInputGolden)
 {
-  EXPECT_EQ("04c08db70102040508a0a1a2a3a4a5a6a70cb0b1b2b3b4b5b6b7b8b9babb",
+  EXPECT_EQ("08c08db70102040508a0a1a2a3a4a5a6a70cb0b1b2b3b4b5b6b7b8b9babb", // tag 0x08 on the merged tree
             toHex(variantBytes(makePqKeyInput())));
   expectVariantRoundTrip(makePqKeyInput());
 }
 
 TEST(TransactionSerializationGolden, PqMultisigInputGolden)
 {
-  EXPECT_EQ("058092f40102090d0206c0c1c2c3c4c507d0d1d2d3d4d5d6",
+  EXPECT_EQ("098092f40102090d0206c0c1c2c3c4c507d0d1d2d3d4d5d6", // tag 0x09 on the merged tree
             toHex(variantBytes(makePqMultisigInput())));
   expectVariantRoundTrip(makePqMultisigInput());
 }
@@ -234,14 +234,14 @@ TEST(TransactionSerializationGolden, MultisignatureOutputGolden)
 
 TEST(TransactionSerializationGolden, PqKeyOutputGolden)
 {
-  EXPECT_EQ("040a505152535455565758590e606162636465666768696a6b6c6d",
+  EXPECT_EQ("080a505152535455565758590e606162636465666768696a6b6c6d", // tag 0x08 on the merged tree
             toHex(variantBytes(makePqKeyOutput())));
   expectVariantRoundTrip(makePqKeyOutput());
 }
 
 TEST(TransactionSerializationGolden, PqMultisigOutputGolden)
 {
-  EXPECT_EQ("0502057071727374068081828384850311",
+  EXPECT_EQ("0902057071727374068081828384850311", // tag 0x09 on the merged tree
             toHex(variantBytes(makePqMultisigOutput())));
   expectVariantRoundTrip(makePqMultisigOutput());
 }
@@ -376,12 +376,12 @@ TEST(TransactionSerializationGolden, MixedInputsOutputsTransactionGolden)
   // tags, all four output tags, and the positional signature framing together (review FIX 2).
   EXPECT_EQ(
       "032a05ff8486880802c0843d03010203101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f"
-      "0380897a02070b04c08db70102040508a0a1a2a3a4a5a6a70cb0b1b2b3b4b5b6b7b8b9babb"
-      "058092f40102090d0206c0c1c2c3c4c507d0d1d2d3d4d5d6"
+      "0380897a02070b08c08db70102040508a0a1a2a3a4a5a6a70cb0b1b2b3b4b5b6b7b8b9babb"
+      "098092f40102090d0206c0c1c2c3c4c507d0d1d2d3d4d5d6"
       "040702202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f"
       "070302303132333435363738393a3b3c3d3e3f404142434445464748494a4b4c4d4e4f404142434445464748494a4b4c4d4e4f505152535455565758595a5b5c5d5e5f0205"
-      "07040a505152535455565758590e606162636465666768696a6b6c6d"
-      "070502057071727374068081828384850311"
+      "07080a505152535455565758590e606162636465666768696a6b6c6d"
+      "070902057071727374068081828384850311"
       "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f40"
       "02030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f4041"
       "030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f202122232425262728292a2b2c2d2e2f303132333435363738393a3b3c3d3e3f404142"

@@ -172,7 +172,7 @@ TEST_F(PqDepositTxTest, CreateBuildsWellFormedDepositOutput)
   std::string err;
   ASSERT_TRUE(buildPqDepositTransaction(req, tx, err)) << err;
 
-  ASSERT_EQ(static_cast<uint8_t>(TRANSACTION_VERSION_3), tx.version);
+  ASSERT_EQ(static_cast<uint8_t>(TRANSACTION_VERSION_4), tx.version); // PQ tx is v4 on the merged tree
   ASSERT_EQ(1u, tx.inputs.size());
   ASSERT_EQ(typeid(PqKeyInput), tx.inputs[0].type());
   ASSERT_FALSE(boost::get<PqKeyInput>(tx.inputs[0]).ringSig.empty()) << "funding ring must be signed";
@@ -258,7 +258,7 @@ TEST_F(PqDepositTxTest, WithdrawInlineSignatureVerifiesOverSigningHash)
   std::string err;
   ASSERT_TRUE(buildPqWithdrawTransaction(req, tx, err)) << err;
 
-  ASSERT_EQ(static_cast<uint8_t>(TRANSACTION_VERSION_3), tx.version);
+  ASSERT_EQ(static_cast<uint8_t>(TRANSACTION_VERSION_4), tx.version); // PQ tx is v4 on the merged tree
   ASSERT_EQ(1u, tx.inputs.size());
   ASSERT_EQ(typeid(PqMultisigInput), tx.inputs[0].type());
   const PqMultisigInput &in = boost::get<PqMultisigInput>(tx.inputs[0]);
