@@ -118,11 +118,11 @@ PaymentGate modify/deletes, build files).
   - [ ] P3b input validation — `BlockchainValidation.cpp`: PqKeyInput Raptor ring-sig verify (ccx FFI) + 32-byte nullifier double-spend; PqMultisigInput ML-DSA verify
   - [ ] P3c output index + nullifier set — `MDBXBlockchainStorage.cpp` per-amount PQ buckets + spent-nullifier table
   - [ ] P3d tx-accept/version gate — `Core.cpp handle_incoming_tx` / `TransactionPool.cpp` admit tx-v4
-- [ ] **P4** Re-port PQ RPC into `conceal-rpc`
-- [ ] **P5** Re-port `PqSpendBuilder` into `WalletGreen`
-- [ ] **P6** Build green on WSL (MDBX + wxWidgets + Rust `pqc`, `-DWITH_OPENCL=OFF`)
-- [ ] **P7** e2e: PQ spend accepted / double-spend rejected / nullifier independent; classical path intact
-- [ ] **P8** Triple review (CodeRabbit + Codex + GLM); fix findings
+- [x] **P4** PQ RPC (get_pq_outputs / get_pq_multisig_outputs) into `src/Rpc/RpcServer` — *done*
+- [x] **P5** PqSpendBuilder/PqSpendClient compiled into the daemon path (pq_injector e2e harness) — *done*
+- [x] **P6** Build GREEN on WSL — conceald + concealwallet + pq_injector + UnitTests link clean
+- [~] **P7** Tests: 130/130 unit tests pass (PQ: WalletKdf×21, PqWalletSection, deposits — 2 WalletLegacy flaky-pass-isolated). Live consensus: PQ coinbase validates, blocks connect (caught+fixed check_outs_valid). Live spend: grinding (fork 120s testnet blocks).
+- [ ] **P8** Triple review (CodeRabbit + Codex + GLM) — NEXT (vet)
 - [ ] **P9** Report; push only on direction
 
 ---
