@@ -397,8 +397,14 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
     }
     else if (out.target.type() == typeid(PqMultisigOutput))
     {
-      // Post-quantum (CIP-0001) deposit cell: structural bounds only (term/amount band is enforced
-      // in the block-connect visitor via the Currency).
+      // Post-quantum (CIP-0001) deposit cell. A PQ deposit output is only valid in a v4 tx — this
+      // also slams the coinbase path (v1) shut, so a malicious miner cannot embed a PqMultisigOutput
+      // with an out-of-band term that the spend-side lock/interest arithmetic would later trust.
+      // (The full term/amount band is enforced by the block-connect visitor via the Currency.)
+      if (tx.version < TRANSACTION_VERSION_4) {
+        if (error) { *error = "PQ multisignature output but tx version < 4"; }
+        return false;
+      }
       const PqMultisigOutput &pqMsig = ::boost::get<PqMultisigOutput>(out.target);
       if (pqMsig.requiredSignatureCount == 0 || pqMsig.requiredSignatureCount > pqMsig.keys.size()) {
         if (error) { *error = "PQ multisignature output with invalid required signature count"; }
@@ -425,6 +431,36 @@ bool checkMultisignatureInputsDiff(const TransactionPrefix& tx) {
     if (inv.type() == typeid(MultisignatureInput)) {
       const MultisignatureInput& in = ::boost::get<MultisignatureInput>(inv);
       if (!inputsUsage.insert(std::make_pair(in.amount, in.outputIndex)).second) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool checkPqNullifiersDiff(const TransactionPrefix& tx) {
+  // PQ twin of checkInputsKeyimagesDiff: reject a tx that lists the same PQ nullifier on more than one
+  // input (intra-tx double-spend). The per-input spent-set check only sees pre-existing chain state,
+  // so without this an attacker could double-count one real PQ spend and inflate outputs.
+  std::set<std::vector<uint8_t>> nfs;
+  for (const auto& in : tx.inputs) {
+    if (in.type() == typeid(PqKeyInput)) {
+      if (!nfs.insert(::boost::get<PqKeyInput>(in).nullifier).second) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+bool checkPqMultisigInputsDiff(const TransactionPrefix& tx) {
+  // PQ twin of checkMultisignatureInputsDiff: reject a tx that spends the same PQ deposit cell
+  // (amount, outputIndex) twice before its isUsed flag is set.
+  std::set<std::pair<uint64_t, uint32_t>> usage;
+  for (const auto& in : tx.inputs) {
+    if (in.type() == typeid(PqMultisigInput)) {
+      const PqMultisigInput& pin = ::boost::get<PqMultisigInput>(in);
+      if (!usage.insert(std::make_pair(pin.amount, pin.outputIndex)).second) {
         return false;
       }
     }

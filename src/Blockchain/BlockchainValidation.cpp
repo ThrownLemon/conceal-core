@@ -107,6 +107,21 @@ namespace cn
     crypto::Hash transactionHash = getObjectHash(tx);
     size_t inputIndex = 0;
 
+    // Intra-tx PQ double-spend guards (CIP-0001), twins of the classical key-image/multisig diff
+    // checks. The per-input spent-set / isUsed checks below only see pre-existing chain state, so
+    // these reject a tx that lists the same PQ nullifier or PQ deposit cell on two inputs (which the
+    // money-conservation sum would otherwise count twice → output inflation from one real spend).
+    if (!checkPqNullifiersDiff(tx))
+    {
+      logger(logging::INFO, logging::BRIGHT_WHITE) << "Transaction " << transactionHash << " has duplicate PQ nullifiers";
+      return false;
+    }
+    if (!checkPqMultisigInputsDiff(tx))
+    {
+      logger(logging::INFO, logging::BRIGHT_WHITE) << "Transaction " << transactionHash << " spends the same PQ deposit cell twice";
+      return false;
+    }
+
     // The message every PQ signature in this tx signs (prefix with all inline PQ signatures cleared)
     // is shared by every PQ-bearing input — compute it once, lazily, on first PQ input.
     crypto::Hash pqSigningHash;
