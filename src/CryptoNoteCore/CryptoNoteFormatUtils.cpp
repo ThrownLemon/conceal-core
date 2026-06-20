@@ -382,6 +382,32 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
     else if (out.target.type() == typeid(DomainDeletionOutput))
     {
       // Domain deletions are valid as long as they parse correctly
+    }
+    else if (out.target.type() == typeid(PqKeyOutput))
+    {
+      // Post-quantum (CIP-0001) stealth output: non-zero amount + non-empty one-time key.
+      if (out.amount == 0) {
+        if (error) { *error = "Zero amount PQ output"; }
+        return false;
+      }
+      if (::boost::get<PqKeyOutput>(out.target).key.empty()) {
+        if (error) { *error = "PQ output with empty key"; }
+        return false;
+      }
+    }
+    else if (out.target.type() == typeid(PqMultisigOutput))
+    {
+      // Post-quantum (CIP-0001) deposit cell: structural bounds only (term/amount band is enforced
+      // in the block-connect visitor via the Currency).
+      const PqMultisigOutput &pqMsig = ::boost::get<PqMultisigOutput>(out.target);
+      if (pqMsig.requiredSignatureCount == 0 || pqMsig.requiredSignatureCount > pqMsig.keys.size()) {
+        if (error) { *error = "PQ multisignature output with invalid required signature count"; }
+        return false;
+      }
+      if (pqMsig.keys.size() > PQ_MULTISIG_MAX_KEYS) {
+        if (error) { *error = "PQ multisignature output with too many keys"; }
+        return false;
+      }
     } else {
       if (error) {
         *error = "Output with invalid type";
