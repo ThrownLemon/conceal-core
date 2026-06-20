@@ -284,6 +284,7 @@ namespace cn
     uint64_t m_upgradeHeightV6;
     uint64_t m_upgradeHeightV7;
     uint64_t m_upgradeHeightV8;
+    uint64_t m_upgradeHeightV10; // CIP-0001: PQ deposit (ML-DSA-65) activation height (BLOCK_MAJOR_VERSION_10)
 
     unsigned int m_upgradeVotingThreshold;
     uint32_t m_upgradeVotingWindow;
@@ -592,6 +593,11 @@ namespace cn
       m_currency.m_upgradeHeightV8 = val;
       return *this;
     }
+    CurrencyBuilder &upgradeHeightV10(uint64_t val) // CIP-0001: PQ deposit (ML-DSA-65) activation height
+    {
+      m_currency.m_upgradeHeightV10 = val;
+      return *this;
+    }
 
     CurrencyBuilder &upgradeVotingThreshold(unsigned int val);
     CurrencyBuilder &upgradeVotingWindow(uint32_t val)
@@ -693,6 +699,7 @@ namespace cn
         upgradeHeightV6(parameters::TESTNET_UPGRADE_HEIGHT_V6);
         upgradeHeightV7(parameters::TESTNET_UPGRADE_HEIGHT_V7);
         upgradeHeightV8(parameters::TESTNET_UPGRADE_HEIGHT_V8);
+        upgradeHeightV10(parameters::TESTNET_UPGRADE_HEIGHT_V10); // CIP-0001: PQ deposit (ML-DSA-65) activation height
       }
       return *this;
     }

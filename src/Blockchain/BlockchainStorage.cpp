@@ -18,6 +18,30 @@
 namespace cn
 {
 
+  // True if the transaction carries any PQ deposit (multisig) variant — used to height-gate PQ
+  // deposits behind UPGRADE_HEIGHT_V10 (CIP-0001). transactionContainsClassicalDeposit (the Option-3
+  // freeze predicate) is the symmetric twin and lives as a shared free function in
+  // CryptoNoteFormatUtils.h — single source of truth for the authoritative block-connect gate here and
+  // any mempool/template policy gate, so they cannot drift apart.
+  static bool transactionContainsPqMultisig(const Transaction &tx)
+  {
+    for (const auto &in : tx.inputs)
+    {
+      if (in.type() == typeid(PqMultisigInput))
+      {
+        return true;
+      }
+    }
+    for (const auto &out : tx.outputs)
+    {
+      if (out.target.type() == typeid(PqMultisigOutput))
+      {
+        return true;
+      }
+    }
+    return false;
+  }
+
   // Constructor
   Blockchain::Blockchain(const Currency &currency, tx_memory_pool &tx_pool, logging::ILogger &logger, bool blockchainIndexesEnabled)
       : m_currency(currency),
@@ -248,6 +272,34 @@ namespace cn
     block.bl = blockData;
     block.height = static_cast<uint32_t>(blocksSize());
 
+    // HEIGHT GATE (CIP-0001 UPGRADE_HEIGHT_V10) for the COINBASE: the per-tx gate in
+    // validateAndPushTransaction below only covers non-coinbase transactions, so guard the miner tx
+    // here too — otherwise a hand-crafted pre-V10 coinbase could mint a PqMultisigOutput deposit cell
+    // that becomes spendable after V10. A genuine coinbase never carries one (constructMinerTx emits
+    // only KeyOutput/PqKeyOutput), so this only rejects malicious blocks. Never apply retroactively.
+    if (transactionContainsPqMultisig(blockData.baseTransaction) &&
+        block.height < m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10))
+    {
+      logger(logging::INFO, logging::BRIGHT_WHITE) << "Block " << blockHash << " coinbase contains a PQ deposit output before height "
+                                                   << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10);
+      bvc.m_verification_failed = true;
+      return false;
+    }
+
+    // PQ-ONLY DEPOSIT FREEZE (CIP-0001 UPGRADE_HEIGHT_V10, Option 3) for the COINBASE: symmetric with
+    // the per-tx freeze in validateAndPushTransaction and with the PQ coinbase guard above. A genuine
+    // coinbase never carries a deposit (constructMinerTx emits only KeyOutput/PqKeyOutput), so this
+    // only rejects a malicious block that tries to mint a classical deposit cell at/after V10 to
+    // bypass the freeze. Never applied retroactively.
+    if (transactionContainsClassicalDeposit(blockData.baseTransaction) &&
+        block.height >= m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10))
+    {
+      logger(logging::INFO, logging::BRIGHT_WHITE) << "Block " << blockHash << " coinbase creates a classical deposit at/after height "
+                                                   << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10) << "; classical deposit creation is frozen";
+      bvc.m_verification_failed = true;
+      return false;
+    }
+
     crypto::Hash minerTransactionHash = getObjectHash(blockData.baseTransaction);
     block.transactions.resize(1 + transactions.size());
     block.transactions[0].tx = blockData.baseTransaction;
@@ -351,11 +403,45 @@ namespace cn
     uint64_t fee = m_currency.getTransactionFee(tx, block.height);
 
     bool valid = true;
-    if (block.bl.majorVersion == BLOCK_MAJOR_VERSION_1 && tx.version > TRANSACTION_VERSION_1)
+    // Testnet PoC (CIP-0001): allow version-4 PQ transactions inside the (version-1) testnet blocks
+    // without standing up a dedicated PQ block-major-version fork.
+    bool pqTestnetTx = m_currency.isTestnet() && tx.version == TRANSACTION_VERSION_4;
+    if (block.bl.majorVersion == BLOCK_MAJOR_VERSION_1 && tx.version > TRANSACTION_VERSION_1 && !pqTestnetTx)
     {
       valid = false;
       logger(logging::INFO, logging::BRIGHT_WHITE) << "invalid version";
     }
+
+    // HEIGHT GATE (CIP-0001 UPGRADE_HEIGHT_V10): a PQ deposit (PqMultisigInput/PqMultisigOutput) is
+    // only consensus-valid at or after the V10 upgrade height. Below it, reject any tx carrying one.
+    // Mainnet's V10 height is a far-future sentinel past the last checkpoint, so PQ deposits never
+    // activate on mainnet until audited; testnet activates at TESTNET_UPGRADE_HEIGHT_V10. NEVER apply
+    // retroactively.
+    if (valid && transactionContainsPqMultisig(tx) &&
+        block.height < m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10))
+    {
+      valid = false;
+      logger(logging::INFO, logging::BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id
+                                                   << " because PQ deposits are not active until height "
+                                                   << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10);
+    }
+
+    // PQ-ONLY DEPOSIT FREEZE (CIP-0001 UPGRADE_HEIGHT_V10, Option 3): the symmetric twin of the
+    // PQ-enable gate above. At or after the V10 activation height, reject CREATION of any new
+    // classical (Ed25519) deposit output (MultisignatureOutput with term != 0), so PqMultisig becomes
+    // the only new deposit path. The classical path closes on exactly the block the PQ path opens —
+    // the ">=" here mirrors the PQ-enable "<" above (do NOT change it to ">", which would shift
+    // activation by one block and desynchronize the two gates -> chain split). CREATION-side only:
+    // spending of already-existing classical deposits is unaffected. Never applied retroactively.
+    if (valid && transactionContainsClassicalDeposit(tx) &&
+        block.height >= m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10))
+    {
+      valid = false;
+      logger(logging::INFO, logging::BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id
+                                                   << " because classical deposit creation is frozen at/after height "
+                                                   << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10) << "; use a PQ deposit";
+    }
+
     if (!checkTransactionInputs(tx, nullptr))
     {
       valid = false;

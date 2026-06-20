@@ -23,6 +23,10 @@
 #include "TransactionExtra.h"
 #include "Blockchain/UpgradeDetector.h"
 
+#include "pq_ring_sig.h"            // ccx-pqc FFI: testnet coinbase emits a PQ output (CIP-0001 PoC)
+#include "pq_testnet_keys.h"        // shared per-output PQ coinbase seed derivation (daemon == injector)
+#include "pq_testnet_kem_keypair.h" // hardcoded testnet recipient ML-KEM keypair (stealth outputs)
+
 #undef ERROR
 
 using namespace logging;
@@ -212,6 +216,10 @@ namespace cn
     else if (majorVersion == BLOCK_MAJOR_VERSION_8)
     {
       return m_upgradeHeightV8;
+    }
+    else if (majorVersion == BLOCK_MAJOR_VERSION_10)
+    {
+      return m_upgradeHeightV10; // CIP-0001: PQ deposit (ML-DSA-65) activation height
     }
     else
     {
@@ -599,6 +607,71 @@ namespace cn
     }
 
     uint64_t summaryAmounts = 0;
+    if (m_testnet && height > 0)
+    {
+      // Testnet PoC (CIP-0001): emit ONE fixed-denomination post-quantum output with a DISTINCT
+      // one-time key per (height,outIndex) — so many blocks' PQ outputs share a single
+      // m_pqOutputs[amount] bucket and the injector can form a real ring of N distinct members.
+      // The reward remainder is paid to a normal KeyOutput. NOT stealth/KEM — a deterministic
+      // demo key the injector re-derives via the shared derivePqCoinbaseSeed() helper.
+      uint64_t pqAmount = PQ_TESTNET_COINBASE_AMOUNT;
+      if (pqAmount > blockReward) pqAmount = blockReward;
+
+      // ML-KEM-768 stealth: encapsulate to the testnet recipient and derive a one-time output key
+      // from the shared secret. The Kyber ciphertext (kemCt) is published; only the KEM-secret
+      // holder can decapsulate it, recover the seed, and re-derive the keypair to spend. Each block
+      // gets a unique, recipient-unlinkable PQ output.
+      std::vector<uint8_t> kemCt(ccx_pq_kem_ct_bytes(), 0);
+      uint8_t otSeed[32];
+      if (ccx_pq_kem_derive_output(PQ_TESTNET_KEM_PK, sizeof(PQ_TESTNET_KEM_PK),
+                                   kemCt.data(), kemCt.size(), otSeed, sizeof(otSeed)) != 0)
+      {
+        logger(ERROR, BRIGHT_RED) << "while creating outs: KEM derive_output failed";
+        return false;
+      }
+      const size_t pkBytes = ccx_pq_pubkey_bytes();
+      const size_t skBytes = ccx_pq_seckey_bytes();
+      std::vector<uint8_t> pqPk(pkBytes, 0);
+      std::vector<uint8_t> pqSk(skBytes, 0);
+      if (ccx_pq_keygen(otSeed, sizeof(otSeed), pqPk.data(), pqPk.size(), pqSk.data(), pqSk.size()) != 0)
+      {
+        logger(ERROR, BRIGHT_RED) << "while creating outs: failed to derive testnet PQ coinbase key";
+        return false;
+      }
+
+      PqKeyOutput pqOut;
+      pqOut.key = pqPk;
+      pqOut.kemCt = kemCt; // real Kyber-768 ciphertext: recipient-unlinkable stealth output
+      TransactionOutput pqo;
+      summaryAmounts += pqo.amount = pqAmount;
+      pqo.target = pqOut;
+      tx.outputs.push_back(pqo);
+
+      uint64_t remainder = blockReward - pqAmount;
+      if (remainder > 0)
+      {
+        crypto::KeyDerivation derivation = boost::value_initialized<crypto::KeyDerivation>();
+        crypto::PublicKey outEphemeralPubKey = boost::value_initialized<crypto::PublicKey>();
+        if (!crypto::generate_key_derivation(minerAddress.viewPublicKey, txkey.secretKey, derivation))
+        {
+          logger(ERROR, BRIGHT_RED) << "while creating PQ-coinbase remainder out: generate_key_derivation failed";
+          return false;
+        }
+        if (!crypto::derive_public_key(derivation, tx.outputs.size(), minerAddress.spendPublicKey, outEphemeralPubKey))
+        {
+          logger(ERROR, BRIGHT_RED) << "while creating PQ-coinbase remainder out: derive_public_key failed";
+          return false;
+        }
+        KeyOutput tk;
+        tk.key = outEphemeralPubKey;
+        TransactionOutput out;
+        summaryAmounts += out.amount = remainder;
+        out.target = tk;
+        tx.outputs.push_back(out);
+      }
+    }
+    else
+    {
     for (size_t no = 0; no < outAmounts.size(); no++)
     {
       crypto::KeyDerivation derivation = boost::value_initialized<crypto::KeyDerivation>();
@@ -634,6 +707,7 @@ namespace cn
       summaryAmounts += out.amount = outAmounts[no];
       out.target = tk;
       tx.outputs.push_back(out);
+    }
     }
 
     if (!(summaryAmounts == blockReward))
@@ -1449,6 +1523,7 @@ namespace cn
     upgradeHeightV6(parameters::UPGRADE_HEIGHT_V6);
     upgradeHeightV7(parameters::UPGRADE_HEIGHT_V7);
     upgradeHeightV8(parameters::UPGRADE_HEIGHT_V8);
+    upgradeHeightV10(parameters::UPGRADE_HEIGHT_V10); // CIP-0001: PQ deposit (ML-DSA-65) activation height
     upgradeVotingThreshold(parameters::UPGRADE_VOTING_THRESHOLD);
     upgradeVotingWindow(parameters::UPGRADE_VOTING_WINDOW);
     upgradeWindow(parameters::UPGRADE_WINDOW);

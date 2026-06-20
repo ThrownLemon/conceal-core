@@ -94,6 +94,12 @@ uint32_t get_block_height(const Block& b);
 std::vector<uint32_t> relative_output_offsets_to_absolute(const std::vector<uint32_t>& off);
 std::vector<uint32_t> absolute_output_offsets_to_relative(const std::vector<uint32_t>& off);
 
+// True if the transaction CREATES a classical (Ed25519) deposit output — a MultisignatureOutput with
+// term != 0. The Option-3 freeze (CIP-0001 UPGRADE_HEIGHT_V10) predicate. Shared free function (single
+// source of truth) so the authoritative block-connect gate and any mempool/template policy gate cannot
+// drift apart. Creation-side only: spending an existing classical deposit is unaffected.
+bool transactionContainsClassicalDeposit(const Transaction& tx);
+
 
 // 62387455827 -> 455827 + 7000000 + 80000000 + 300000000 + 2000000000 + 60000000000, where 455827 <= dust_threshold
 template<typename chunk_handler_t, typename dust_handler_t>

@@ -520,6 +520,16 @@ bool lookup_acc_outs(const AccountKeys& acc, const Transaction& tx, const Public
   return true;
 }
 
+bool transactionContainsClassicalDeposit(const Transaction& tx) {
+  for (const auto& out : tx.outputs) {
+    if (out.target.type() == typeid(MultisignatureOutput) &&
+        boost::get<MultisignatureOutput>(out.target).term != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 bool get_block_hashing_blob(const Block& b, BinaryArray& ba) {
   if (!toBinaryArray(static_cast<const BlockHeader&>(b), ba)) {
     return false;
