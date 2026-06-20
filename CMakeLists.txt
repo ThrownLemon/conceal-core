@@ -266,8 +266,24 @@ else()
   set(CCX_PQC_CARGO_ARGS build --release)
   set(CCX_PQC_LIB ${CCX_PQC_DIR}/target/release/libccx_pqc.a)
 endif()
-# Locate cargo by absolute path: non-interactive build shells often lack ~/.cargo/bin on PATH.
-find_program(CARGO_EXECUTABLE cargo HINTS "$ENV{HOME}/.cargo/bin" "$ENV{CARGO_HOME}/bin" "$ENV{USERPROFILE}/.cargo/bin")
+# Locate cargo. The cargo must match the C++ toolchain's ABI, which is subtle on Windows
+# where multiple cargos can coexist (a Windows rustup cargo defaults to the msvc ABI; the
+# msys2 cargo is gnu). Picking the wrong one builds the wrong artifact (ccx_pqc.lib vs
+# libccx_pqc.a) and the link fails. So select per-toolchain rather than by a generic hint
+# (a Windows-profile $HOME in an msys2 shell would otherwise resolve to the msvc cargo).
+if(MSVC)
+  find_program(CARGO_EXECUTABLE cargo HINTS "$ENV{USERPROFILE}/.cargo/bin" "$ENV{HOME}/.cargo/bin" "$ENV{CARGO_HOME}/bin")
+elseif(MINGW)
+  # The gnu cargo lives next to gcc in /mingw64/bin; require it (NO_DEFAULT_PATH) so a
+  # foreign Windows rustup cargo reachable via $HOME/$USERPROFILE can't shadow it.
+  get_filename_component(_ccx_mingw_bin "${CMAKE_C_COMPILER}" DIRECTORY)
+  find_program(CARGO_EXECUTABLE cargo HINTS "${_ccx_mingw_bin}" NO_DEFAULT_PATH)
+  if(NOT CARGO_EXECUTABLE)
+    find_program(CARGO_EXECUTABLE cargo)
+  endif()
+else()
+  find_program(CARGO_EXECUTABLE cargo HINTS "$ENV{HOME}/.cargo/bin" "$ENV{CARGO_HOME}/bin")
+endif()
 if(NOT CARGO_EXECUTABLE)
   set(CARGO_EXECUTABLE cargo)
 endif()
