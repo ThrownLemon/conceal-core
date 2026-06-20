@@ -6,6 +6,7 @@
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
 #include "CryptoNoteBasicImpl.h"
+#include "CryptoNoteConfig.h"      // PQ address-v2 constants (PQ_ADDRESS_VERSION, PQ_*_SCHEME_ID, …)
 #include "CryptoNoteFormatUtils.h"
 #include "CryptoNoteTools.h"
 #include "CryptoNoteSerialization.h"
