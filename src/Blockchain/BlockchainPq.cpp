@@ -139,7 +139,11 @@ namespace cn
       }
       ring.insert(ring.end(), memberKey.begin(), memberKey.end());
 
-      if (count++ == absolute_offsets.size() - 1 && pmax_related_block_height && *pmax_related_block_height < amount_outs_vec[i].first.block)
+      // Track the MAX referenced block across ALL ring members (not just the last). pmax gates
+      // checkpoint-zone sig-skip + reorg; under-reporting it could treat a tx as checkpoint-safe
+      // when an earlier ring member sits above the checkpoint. (CodeRabbit)
+      ++count;
+      if (pmax_related_block_height && *pmax_related_block_height < amount_outs_vec[i].first.block)
       {
         *pmax_related_block_height = amount_outs_vec[i].first.block;
       }
@@ -239,7 +243,8 @@ namespace cn
     // DEPOSIT LOCK (ported byte-for-byte): a deposit (term != 0) cannot be spent until its term has
     // fully elapsed since the block that created it. Off-by-one here allows early withdrawal and
     // over-credits interest, so the comparison must match the Ed25519 path exactly.
-    if (output.term != 0 && outputIndex.transactionIndex.block + output.term > getCurrentBlockchainHeight())
+    if (output.term != 0 &&
+        static_cast<uint64_t>(outputIndex.transactionIndex.block) + output.term > getCurrentBlockchainHeight()) // uint64 add: no wrap (CodeRabbit)
     {
       logger(logging::DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input that spends locked deposit output";
       return false;

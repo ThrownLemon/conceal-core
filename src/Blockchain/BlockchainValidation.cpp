@@ -249,6 +249,15 @@ namespace cn
         logger(logging::INFO, logging::BRIGHT_WHITE) << "Transaction " << transactionHash << " has overflowing output amounts";
         return false;
       }
+      // Symmetric guard on the input side: getTransactionAllInputsAmount sums uint64 unguarded, so a
+      // wrapping input sum could mint a small inputs_amount that passes the conservation comparison.
+      // check_inputs_overflow covers KeyInput/MultisignatureInput AND the PQ inputs (incl. deposit
+      // interest). (CodeRabbit) Practically unreachable below MONEY_SUPPLY, kept for parity + safety.
+      if (!check_inputs_overflow(tx))
+      {
+        logger(logging::INFO, logging::BRIGHT_WHITE) << "Transaction " << transactionHash << " has overflowing input amounts";
+        return false;
+      }
       uint64_t inputs_amount = m_currency.getTransactionAllInputsAmount(tx, getCurrentBlockchainHeight());
       uint64_t outputs_amount = getOutputAmount(tx);
       if (outputs_amount > inputs_amount)
