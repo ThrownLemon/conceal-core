@@ -32,6 +32,8 @@ namespace cn {
   uint64_t getPenalizedAmount(uint64_t amount, size_t medianSize, size_t currentBlockSize);
   std::string getAccountAddressAsStr(uint64_t prefix, const AccountPublicAddress& adr);
   bool parseAccountAddressString(uint64_t& prefix, AccountPublicAddress& adr, const std::string& str);
+  std::string getPqAccountAddressAsStr(uint64_t prefix, const PqAccountPublicAddress& adr); // CIP-0001 PQ address v2
+  bool parsePqAccountAddressString(uint64_t& prefix, PqAccountPublicAddress& adr, const std::string& str);
   bool is_coinbase(const Transaction& tx);
 
   bool operator ==(const cn::Transaction& a, const cn::Transaction& b);
