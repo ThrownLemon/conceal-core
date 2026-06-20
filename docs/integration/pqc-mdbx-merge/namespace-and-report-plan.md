@@ -67,11 +67,13 @@ version **4**; their self-describing-output txs keep version 3. Output tags
 are *also* globally unique (1.1) so the variant is unambiguous regardless of
 version dispatch — defence in depth.
 
-### 1.5 TransactionExtra tags — no collision
-Fork uses ≤ 0x04 (PADDING/PUBKEY/MERGE_MINING/MESSAGE). PQ's `PQ_MESSAGE`
-0x06 and `AUTH_MESSAGE` 0x07 are free → **kept as-is**.
-⚠️ Verify the fork's "encrypted memos" feature does not claim 0x06/0x07 at
-deserialize time before finalising.
+### 1.5 TransactionExtra tags — no collision ✅ VERIFIED
+Fork `TransactionExtra.h` uses 0x00 PADDING, 0x01 PUBKEY, 0x02 NONCE,
+0x03 MERGE_MINING, 0x04 MESSAGE, **0x05 TTL**. PQ's `PQ_MESSAGE` 0x06 and
+`AUTH_MESSAGE` 0x07 are free → **kept as-is** (port additively above the fork's
+0x05). The fork's "encrypted memos" are carried in the self-describing **output**
+(`EncryptedMemo.h` + `NewOutputSerialization.cpp`), NOT a tx-extra tag — confirmed
+the extra parse loop handles only ≤ 0x05, so 0x06/0x07 do not collide.
 
 ### 1.6 Scheme IDs (agility pins) — no collision
 `PQ_KEM_SCHEME_ID 0xC0DE0203`, `PQ_RING_SCHEME_ID 0x52415054`,
