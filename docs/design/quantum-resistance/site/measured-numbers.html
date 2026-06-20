@@ -73,6 +73,7 @@ main{margin-left:300px;padding:46px 6vw;}
 <li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
 <li class="active"><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
 <li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="constant-time-status.html" data-title="constant-time / side-channel status">Constant-time / side-channel status</a></li>
 <li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
 </ul></div>
 <div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
@@ -1178,14 +1179,49 @@ keygen-KAT sweep:
 <code>-O0</code>/<code>-O3</code>/<code>-ffast-math</code>/<code>-ffp-contract=fast</code>/<code>-march</code>
 all produce the <strong>identical</strong> digest — proof there is no
 native FP in the path). So keygen+signing are <strong>bit-identical
-across compilers/opt/arch by construction</strong>; the chain-split risk
-the review feared cannot occur. Residual (belt-and-braces, NOT a
-blocker): an actual <strong>aarch64/MSVC KAT run</strong> to confirm
-cross-arch (the <code>uint64</code> argument is sound; 32-bit targets
-use SW 64-bit helpers but still yield identical results); the
-<code>assert_keygen_kat()</code> tripwire stays in CI (now expected to
-PASS everywhere). Perf cost of the "fix": <strong>zero</strong> (already
-integer-FP).</p>
+across compilers/opt/arch by construction</strong> — and this is now
+<strong>empirically confirmed by a 4-platform determinism
+matrix</strong> (<code>raptor::keygen_kat_digest()</code> for the fixed
+KAT seed):</p>
+<table>
+<thead>
+<tr>
+<th>platform</th>
+<th>compiler / arch</th>
+<th>keygen digest</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>linux-x86_64</td>
+<td>gcc / x86_64</td>
+<td><code>8f245c82dc7390f3cb4d8955556a45d56af41c83a37fc0388b996b58f295745e</code></td>
+</tr>
+<tr>
+<td>windows-gnu (MinGW)</td>
+<td>gcc / x86_64</td>
+<td><code>8f245c82…f295745e</code></td>
+</tr>
+<tr>
+<td>windows-msvc</td>
+<td>MSVC <code>cl</code> / x86_64</td>
+<td><code>8f245c82…f295745e</code></td>
+</tr>
+<tr>
+<td>macos-arm64</td>
+<td>Apple <code>clang</code> / <strong>aarch64</strong></td>
+<td><code>8f245c82…f295745e</code></td>
+</tr>
+</tbody>
+</table>
+<p>All four match the pinned reference — three compilers, three OSes,
+<strong>two architectures (x86_64 + aarch64)</strong> derive identical
+keys/nullifiers. The previously-listed "residual aarch64/MSVC KAT run"
+is <strong>CLOSED</strong>; the chain-split risk the review feared
+cannot occur. The <code>assert_keygen_kat()</code> tripwire + a
+committed <code>keygen_kat_matches_reference</code> test stay as the
+permanent drift guard. Perf cost of the "fix": <strong>zero</strong>
+(already integer-FP).</p>
 <p><strong>STILL requires humans — NOT production-ready to guard
 funds</strong> (an implementation pass can't close these): (1)
 norm-bound <strong>B1 re-derivation</strong> for the ring setting; (2)
@@ -1195,7 +1231,8 @@ external audit</strong>; (5) <code>paramch_h</code> nothing-up-my-sleeve
 <strong>ceremony</strong>; (6) production wallet <strong>KDF</strong>
 for per-spend randomness; (7) Falcon <strong>constant-time /
 side-channel</strong> review (separate from determinism); (8) NTT
-(perf); (9) the cross-arch KAT confirmation above. Verdict (Codex):
+(perf). [(9) cross-arch KAT confirmation — <strong>DONE</strong>, see
+the 4-platform matrix above.] Verdict (Codex):
 <em>"engineering-hardened, comprehensively tested, deterministic — but
 not production-ready."</em> Full writeup:
 <code>~/raptor-spike/CODEX-ASSESS.md</code>.</p>

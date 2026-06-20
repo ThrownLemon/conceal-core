@@ -29,6 +29,7 @@ DOCS = [
     ("gao-bench-notes.md", "Gao RingCT benchmark (notes)", "Reports & measurements"),
     ("measured-numbers.md", "Measured numbers", "Reports & measurements"),
     ("STATUS.md", "Status & architecture", "Reports & measurements"),
+    ("constant-time-status.md", "Constant-time / side-channel status", "Reports & measurements"),
     ("REMAINING-WORK.md", "Remaining work", "Reports & measurements"),
     # group: Implementation
     ("deposit-freeze-impl.md", "Deposit freeze (impl)", "Implementation"),

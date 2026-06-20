@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Remaining work — Conceal PQ docs</title>
+<title>Constant-time / side-channel status — Conceal PQ docs</title>
 <style>
 :root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
 *{box-sizing:border-box}
@@ -73,8 +73,8 @@ main{margin-left:300px;padding:46px 6vw;}
 <li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
 <li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
 <li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
-<li class=""><a href="constant-time-status.html" data-title="constant-time / side-channel status">Constant-time / side-channel status</a></li>
-<li class="active"><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+<li class="active"><a href="constant-time-status.html" data-title="constant-time / side-channel status">Constant-time / side-channel status</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
 </ul></div>
 <div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
 <li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
@@ -104,78 +104,121 @@ main{margin-left:300px;padding:46px 6vw;}
 <main>
   <article class="content">
     
-    <h1 id="pq-migration--remaining-work--hand-off-cip-0001">PQ migration —
-remaining work + hand-off (CIP-0001)</h1>
-<p>Branch: <code>pqc/testnet-poc</code> (fork
-<code>ThrownLemon/conceal-core</code>). Status as of the multi-agent
-review pass. The working PoC + its hardening are committed; this file
-tracks what is left and how to pick it up cleanly in a fresh
-session.</p>
+    <h1 id="pq-constant-time--side-channel--status--checklist">PQ
+Constant-Time / Side-Channel — Status &amp; Checklist</h1>
+<p><strong>Status: harness + CI gate in place; one real fix shipped; the
+remaining items are external-audit gates, not engineering.</strong></p>
+<p>This tracks the constant-time (timing/cache) and side-channel posture
+of the post-quantum crypto (Raptor ring-sig over Falcon-512, ML-DSA
+deposits, ML-KEM messages). It is a living checklist for the team — not
+an audit. "Flagged" by tooling ≠ "exploitable"; the
+exploitable-vs-benign call on the audit items below belongs to a
+side-channel specialist.</p>
+<h2 id="threat-model-this-scopes-everything">Threat model (this scopes
+everything)</h2>
+<ul>
+<li><strong>Daemon = out of scope.</strong> The validating node does
+<strong>verify-only</strong> — no secret-key operations — so there is no
+side-channel surface on the network/consensus path.</li>
+<li><strong>Wallet = the surface</strong>, and only against a
+<strong>local</strong> attacker (timing, cache, or power/EM). A software
+wallet defends timing + cache with <strong>constant-time</strong> code;
+<strong>masking</strong> (power/EM/DPA) matters only if/when a hardware
+wallet or HSM becomes a target.</li>
+</ul>
+<h2 id="done-white_check_mark">Done ✅</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" /><strong>ctgrind / TIMECOP
+harness</strong> — valgrind memcheck poisons the secret seed; flags
+every secret-dependent branch across the Falcon C and our glue.
+(<code>ctgrind</code> cargo feature; the <code>ct_leakmap</code> test;
+gated off by default so normal builds never pull valgrind
+deps.)</label></li>
+<li><label><input type="checkbox" checked="" /><strong>CI
+tripwire</strong> — the <code>ctgrind (constant-time)</code> job runs
+the harness under valgrind and <strong>fails on any <em>new</em>
+secret-dependent branch in our glue</strong>
+(<code>raptor_falcon.c</code>), excluding the documented Falcon-internal
+and public-output flags. Green across the branch.</label></li>
+<li><label><input type="checkbox" checked="" /><strong>Fixed the one
+real leak in our code</strong> — <code>rfalcon_polymul_modq</code> had
+<code>if (a[i]==0) continue</code>, a data-dependent skip that leaked a
+secret polynomial's zero-coefficient pattern. Made branchless
+(<code>a[i]==0</code> contributes 0; identical result). Confirmed
+removed from the map.</label></li>
+<li><label><input type="checkbox" checked="" /><strong>0
+secret-dependent memory accesses</strong> anywhere — no cache-timing
+(table-lookup) leaks.</label></li>
+<li><label><input type="checkbox" checked="" /><strong>Determinism ⊗
+constant-time both hold</strong> — the integer-emulated FP layer is
+branch-free, so it is simultaneously deterministic (cross-platform
+consensus) and timing-invariant. No conflict between the two
+requirements.</label></li>
+</ul>
+<h2 id="verified-benign--no-action-white_check_mark">Verified-benign —
+no action ✅</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" checked="" /><strong>Gaussian sampler
+(<code>BerExp</code>)</strong> — PQClean's isochronous sampler;
+constant-time by construction. Flagged by valgrind, but not a
+leak.</label></li>
+<li><label><input type="checkbox" checked="" /><strong>ML-KEM /
+ML-DSA</strong> (messages / deposits) — constant-time-policy
+implementations (pqcrypto / RustCrypto); not the Falcon concern. (The
+FO-decapsulation comparison is the classic risk class — covered by those
+impls' CT policy; reconfirm under audit.)</label></li>
+<li><label><input type="checkbox" checked="" /><strong>Signature /
+public-key encoding</strong> flags — operate on <strong>public</strong>
+outputs, not secrets.</label></li>
+<li><label><input type="checkbox"
+checked="" /><strong><code>rfalcon_hash_to_rq</code> rejection</strong>
+— rejection-samples on <code>H1(aots)</code>; <code>aots</code> is the
+published linking tag (public), so the variable timing leaks nothing
+secret.</label></li>
+<li><label><input type="checkbox"
+checked="" /><strong>Keygen-once-store</strong> — <em>investigated, not
+needed.</em> Falcon <code>ccx_pq_keygen</code> appears only in the
+spend/deposit builders, coinbase, and the spend-time scan —
+<strong>never in WalletGreen / Transfers</strong>. The balance/incoming
+sync is <strong>ML-KEM only</strong> (CT). Falcon keys are
+<strong>ephemeral per one-time output</strong>, derived at spend/deposit
+time (when they're needed to sign anyway), never re-derived in a
+load/refresh loop. So Falcon's one-shot-keygen argument already holds
+for our usage by construction — there is no long-term key to
+cache.</label></li>
+</ul>
 <h2
-id="merged-into-pqctestnet-poc-done--make--j12-green-ctest--r-unittests-100">MERGED
-into <code>pqc/testnet-poc</code> (done — <code>make -j12</code> green,
-<code>ctest -R UnitTests</code> 100%)</h2>
-<ul>
-<li><strong>Bug fix + 2 small fixes</strong> — the "reload crash" was a
-<strong>pre-existing, non-PQ</strong> null-deref in
-<code>gettransactions</code> on a malformed hash (fixed); + a v3
-money-conservation check on the block-import path (Codex/GLM review
-caught + fixed a CRITICAL output-sum-overflow bypass); + uniform
-<code>catch_unwind</code> guards on every panicking Rust FFI entry point
-(incl. the new message + multisig fns).</li>
-<li><strong>Messages → ML-KEM-768</strong> (tag <code>0x06</code>)
-<strong>+ ChaCha20-Poly1305 AEAD</strong> — real authenticated
-encryption (tampering any byte now fails), beyond the legacy chacha8
-owner-test. Send/scan glue + unit tests.</li>
-<li><strong>Deposits → ML-DSA-65</strong> (tag <code>0x5</code>,
-<code>UPGRADE_HEIGHT_V9</code>) — faithful PQ analogue of the Ed25519
-deposit path; interest/lock/reorg semantics byte-identical; +11 tests.
-<strong>GATE BEFORE ANY PR to development/master:</strong> the required
-pre-PR triple review + a line-by-line human read of the interest-minting
-/ reorg money paths (money-critical; tested + agent-reviewed, not yet
-human-reviewed).</li>
+id="open--needs-a-side-channel-specialist--external-audit-hourglass_flowing_sand">Open
+— needs a side-channel specialist + external audit ⏳</h2>
+<ul class="task-list">
+<li><label><input type="checkbox" /><strong>Bless Falcon keygen's non-CT
+region.</strong> Keygen's NTRU <code>(f,g)</code> rejection + basis
+solve is documented non-constant-time. It is one-shot per key and our
+usage never re-derives a long-term key on load, so the standard argument
+applies — but it needs formal sign-off. <strong>Do <em>not</em> rewrite
+keygen constant-time:</strong> the NTRU solve is research-grade, and the
+perf cost is irrelevant (one-shot) — the rewrite is high-risk and
+unnecessary.</label></li>
+<li><label><input type="checkbox" /><strong>Bless the isochronous
+sampler</strong> CT claim under audit (we rely on PQClean's
+construction).</label></li>
+<li><label><input type="checkbox" /><strong>Confirm ML-KEM / ML-DSA
+CT</strong> end-to-end under audit (FO decapsulation
+comparison).</label></li>
+<li><label><input type="checkbox" /><strong>Masking decision</strong> —
+only if a hardware wallet / HSM becomes a target. Masking lattice
+schemes is a large, specialized effort (and the belief-propagation /
+higher-order pitfalls are real); explicitly out of scope for a software
+wallet.</label></li>
+<li><label><input type="checkbox" /><strong>Ring-sig formal
+proofs</strong> (anonymity + unforgeability) — separate from CT, same
+audit track.</label></li>
 </ul>
-<h2 id="still-queued-sequential-shared-core-files">Still queued
-(sequential; shared core files)</h2>
-<p>Assigned-tag table (so future work never collides): PQ key in/out =
-variant <code>0x4</code>; messages = tx-extra <code>0x06</code>;
-deposits = variant <code>0x5</code> +
-<code>BLOCK_MAJOR_VERSION_9</code>/<code>UPGRADE_HEIGHT_V9</code>;
-wallet = <code>ccxpq</code>/<code>ccxh</code> address prefixes.
-(<code>0x4</code>/<code>0x06</code>/<code>0x5</code> are now in the
-tree.)</p>
-<ol type="1">
-<li><strong>Wallet / address v2</strong> — blueprint
-<code>wallet-address-v2.md</code> (medium; <strong>BLOCKER</strong>:
-deterministic ML-KEM keygen from the mnemonic seed is unbuilt —
-<code>kyber768::keypair()</code> is RNG-based; needs a FIPS-203
-<code>KeyGen(d,z)</code> crate path). Address carries the
-<strong>1184-byte ML-KEM pubkey only</strong> (NOT the 4096-byte
-ring-sig key, which is per-output/derived). Adds the
-<code>get_pq_outputs</code> RPC to replace the demo script's coinbase-tx
-fetching, and <code>createPqTransaction</code> in WalletGreen to retire
-<code>pq_injector</code>.</li>
-</ol>
-<h2 id="not-needed">Not needed</h2>
-<ul>
-<li><strong>PoW / hashing</strong> — already Grover-adequate (256-bit
-hashes, unbounded search space). See
-<code>pow-grover-widening.md</code>. Documentation only; <strong>do
-not</strong> widen the nonce or migrate any hash.</li>
-</ul>
-<h2 id="build--test-conventions">Build / test conventions</h2>
-<ul>
-<li>Edit on Mac, build on WSL (<code>ssh 100.100.90.103</code>); Mac
-arm64 cannot build. <code>pkill -x conceald</code> (never
-<code>-f</code>). Tests: <code>-DBUILD_TESTS=ON</code>,
-<code>ctest -R UnitTests</code>. Demo:
-<code>pqc/run-poc-testnet.sh</code>.</li>
-<li><strong>Before any PR</strong>: required pre-PR triple review
-(CodeRabbit + Codex + GLM) on the consensus/crypto diff, plus ASAN on
-the reload path. The lattice ring sig stays <strong>experimental /
-testnet-only</strong> until parameters are calibrated, made
-constant-time, and audited (CIP-0001 C1).</li>
-</ul>
+<h2 id="bottom-line">Bottom line</h2>
+<p>The measurable software-CT surface is <strong>closed and now
+CI-guarded</strong>. The residual is "an auditor blesses Falcon keygen /
+sampler," <strong>not new engineering</strong> — unless we decide to
+target hardware wallets, which adds the masking workstream.</p>
 
   </article>
 </main>
