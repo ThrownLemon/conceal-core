@@ -558,8 +558,22 @@ namespace cn
       return false;
     }
 
+    // Mark PQ nullifiers spent (with rollback on failure). A mixed tx may carry both KeyInput and
+    // PqKeyInput; if PQ marking fails after key-image marking succeeded, undo the key images too so
+    // pushTransaction leaves no partial state.
+    if (!markPqNullifiersSpent(transaction.tx, block.height))
+    {
+      for (auto &input : transaction.tx.inputs)
+        if (input.type() == typeid(KeyInput))
+          m_spent_keys.erase(::boost::get<KeyInput>(input).keyImage);
+      m_transactionMap.erase(transactionHash);
+      return false;
+    }
+
     // Mark multisig outputs as spent
     markMultisigInputsSpent(transaction.tx);
+    // Mark PQ deposit cells as spent (twin of the above)
+    markPqMultisigInputsSpent(transaction.tx);
 
     // Add new outputs to global output index
     transaction.m_global_output_indexes.resize(transaction.tx.outputs.size());
@@ -589,6 +603,21 @@ namespace cn
         transaction.m_global_output_indexes[output] = static_cast<uint32_t>(amountOutputs.size());
         amountOutputs.push_back({transactionIndex, static_cast<uint16_t>(output), false});
       }
+      else if (transaction.tx.outputs[output].target.type() == typeid(PqKeyOutput))
+      {
+        // PQ ring-sig output: index by amount into the parallel m_pqOutputs (twin of KeyOutput).
+        auto &amountOutputs = m_pqOutputs[transaction.tx.outputs[output].amount];
+        transaction.m_global_output_indexes[output] = static_cast<uint32_t>(amountOutputs.size());
+        amountOutputs.push_back(std::make_pair<>(transactionIndex, output));
+      }
+      else if (transaction.tx.outputs[output].target.type() == typeid(PqMultisigOutput))
+      {
+        // PQ deposit cell: index it exactly like a MultisignatureOutput (same usage struct,
+        // isUsed=false) into the parallel m_pqMultisigOutputs (CIP-0001 / UPGRADE_HEIGHT_V10).
+        auto &amountOutputs = m_pqMultisigOutputs[transaction.tx.outputs[output].amount];
+        transaction.m_global_output_indexes[output] = static_cast<uint32_t>(amountOutputs.size());
+        amountOutputs.push_back({transactionIndex, static_cast<uint16_t>(output), false});
+      }
       // DomainRegistrationOutput and DomainDeletionOutput are not spendable,
       // so they don't need global output indexing
     }
@@ -613,6 +642,10 @@ namespace cn
         popKeyOutput(output.amount, transactionIndex, transaction.outputs.size() - 1 - outputIndex);
       else if (output.target.type() == typeid(MultisigPaymentOutput))
         popMultisigOutput(output.amount, transactionIndex, transaction.outputs.size() - 1 - outputIndex);
+      else if (output.target.type() == typeid(PqKeyOutput))
+        popPqKeyOutput(output.amount, transactionIndex, transaction.outputs.size() - 1 - outputIndex);
+      else if (output.target.type() == typeid(PqMultisigOutput))
+        popPqMultisigOutput(output.amount, transactionIndex, transaction.outputs.size() - 1 - outputIndex);
       // Domain outputs don't have global output entries to pop
     }
 
@@ -625,6 +658,20 @@ namespace cn
       {
         const MultisignatureInput &in = ::boost::get<MultisignatureInput>(input);
         m_multisignatureOutputs[in.amount][in.outputIndex].isUsed = false;
+      }
+      else if (input.type() == typeid(PqKeyInput))
+      {
+        // REORG SYMMETRY: erase the PQ nullifier so a rolled-back spend frees it for re-spend after a
+        // reorg, exactly as the KeyInput branch erases the key image.
+        const std::vector<uint8_t> &nf = ::boost::get<PqKeyInput>(input).nullifier;
+        m_spent_pq_nullifiers.erase(std::string(nf.begin(), nf.end()));
+      }
+      else if (input.type() == typeid(PqMultisigInput))
+      {
+        // REORG SYMMETRY: clear the spent flag on the PQ deposit cell, mirroring the
+        // MultisignatureInput branch, so a rolled-back deposit spend frees the cell.
+        const PqMultisigInput &in = ::boost::get<PqMultisigInput>(input);
+        m_pqMultisigOutputs[in.amount][in.outputIndex].isUsed = false;
       }
     }
 
@@ -703,6 +750,96 @@ namespace cn
     it->second.pop_back();
     if (it->second.empty())
       m_multisignatureOutputs.erase(it);
+  }
+
+  // ── Post-quantum (CIP-0001) index helpers — twins of the classic helpers above ──────────────────
+
+  // Insert every PqKeyInput nullifier into the double-spend set, with rollback on failure. Mirrors
+  // markKeyImagesSpent exactly (insert-or-fail + erase-prior-on-failure), plus the source's length
+  // guard so a malformed nullifier never enters the set (memory-DoS guard).
+  bool Blockchain::markPqNullifiersSpent(const Transaction &tx, uint32_t blockHeight)
+  {
+    for (size_t i = 0; i < tx.inputs.size(); ++i)
+    {
+      if (tx.inputs[i].type() != typeid(PqKeyInput))
+        continue;
+
+      const std::vector<uint8_t> &pqnf = ::boost::get<PqKeyInput>(tx.inputs[i]).nullifier;
+      if (pqnf.size() != PQ_NULLIFIER_SIZE)
+      {
+        logger(logging::ERROR, logging::BRIGHT_RED) << "PQ nullifier has invalid length " << pqnf.size()
+                                                    << " (expected " << PQ_NULLIFIER_SIZE << ").";
+        // Roll back PQ nullifiers inserted for inputs [0, i).
+        for (size_t j = 0; j < i; ++j)
+          if (tx.inputs[i - 1 - j].type() == typeid(PqKeyInput))
+          {
+            const std::vector<uint8_t> &prevNf = ::boost::get<PqKeyInput>(tx.inputs[i - 1 - j]).nullifier;
+            m_spent_pq_nullifiers.erase(std::string(prevNf.begin(), prevNf.end()));
+          }
+        return false;
+      }
+
+      if (!m_spent_pq_nullifiers.insert(std::make_pair(std::string(pqnf.begin(), pqnf.end()), blockHeight)).second)
+      {
+        logger(logging::ERROR, logging::BRIGHT_RED) << "Double spending PQ nullifier pushed to blockchain.";
+        // Roll back PQ nullifiers inserted for inputs [0, i).
+        for (size_t j = 0; j < i; ++j)
+          if (tx.inputs[i - 1 - j].type() == typeid(PqKeyInput))
+          {
+            const std::vector<uint8_t> &prevNf = ::boost::get<PqKeyInput>(tx.inputs[i - 1 - j]).nullifier;
+            m_spent_pq_nullifiers.erase(std::string(prevNf.begin(), prevNf.end()));
+          }
+        return false;
+      }
+    }
+    return true;
+  }
+
+  // Mark each spent PQ deposit cell used (double-spend guard), mirroring markMultisigInputsSpent.
+  void Blockchain::markPqMultisigInputsSpent(const Transaction &tx)
+  {
+    for (const auto &inv : tx.inputs)
+    {
+      if (inv.type() == typeid(PqMultisigInput))
+      {
+        const PqMultisigInput &in = ::boost::get<PqMultisigInput>(inv);
+        m_pqMultisigOutputs[in.amount][in.outputIndex].isUsed = true;
+      }
+    }
+  }
+
+  // Pop the last PqKeyOutput from m_pqOutputs for this amount (twin of popKeyOutput).
+  void Blockchain::popPqKeyOutput(uint64_t amount, const TransactionIndex &txIndex, size_t outputIndex)
+  {
+    auto it = m_pqOutputs.find(amount);
+    if (it == m_pqOutputs.end() || it->second.empty())
+      return;
+    if (it->second.back().first.block != txIndex.block ||
+        it->second.back().first.transaction != txIndex.transaction)
+      return;
+    if (it->second.back().second != outputIndex)
+      return;
+    it->second.pop_back();
+    if (it->second.empty())
+      m_pqOutputs.erase(it);
+  }
+
+  // Pop the last PqMultisigOutput deposit cell from m_pqMultisigOutputs (twin of popMultisigOutput).
+  void Blockchain::popPqMultisigOutput(uint64_t amount, const TransactionIndex &txIndex, size_t outputIndex)
+  {
+    auto it = m_pqMultisigOutputs.find(amount);
+    if (it == m_pqMultisigOutputs.end() || it->second.empty())
+      return;
+    if (it->second.back().isUsed)
+      return;
+    if (it->second.back().transactionIndex.block != txIndex.block ||
+        it->second.back().transactionIndex.transaction != txIndex.transaction)
+      return;
+    if (it->second.back().outputIndex != outputIndex)
+      return;
+    it->second.pop_back();
+    if (it->second.empty())
+      m_pqMultisigOutputs.erase(it);
   }
 
   // Upgrade detector notification helpers

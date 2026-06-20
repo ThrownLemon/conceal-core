@@ -418,6 +418,21 @@ namespace cn
     return calculateInterest(input.amount, input.term, lockHeight);
   }
 
+  /* PQ deposit interest — byte-for-byte the same calculation as the Ed25519 MultisignatureInput
+     path above (same calculateInterest, same lockHeight, same missing-interest special case). The
+     caller binds input.term == output.term before this runs, so interest is computed from a
+     consensus-validated term — this is the interest-minting safety guarantee (CIP-0001). */
+  uint64_t Currency::getInterestForInput(const PqMultisigInput &input, uint32_t height) const
+  {
+    uint32_t lockHeight = height - input.term;
+    if (height == m_blockWithMissingInterest)
+    {
+      lockHeight = height;
+    }
+
+    return calculateInterest(input.amount, input.term, lockHeight);
+  }
+
   /* ---------------------------------------------------------------------------------------------------- */
 
   uint64_t Currency::calculateTotalTransactionInterest(const Transaction &tx, uint32_t height) const
@@ -431,6 +446,14 @@ namespace cn
         if (multisignatureInput.term != 0)
         {
           interest += getInterestForInput(multisignatureInput, height);
+        }
+      }
+      else if (input.type() == typeid(PqMultisigInput))
+      {
+        const PqMultisigInput &pqMultisigInput = boost::get<PqMultisigInput>(input);
+        if (pqMultisigInput.term != 0)
+        {
+          interest += getInterestForInput(pqMultisigInput, height);
         }
       }
     }

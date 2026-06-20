@@ -166,6 +166,7 @@ namespace cn
     uint64_t calculateInterestV2(uint64_t amount, uint32_t term) const;
     uint64_t calculateInterestV3(uint64_t amount, uint32_t term) const;
     uint64_t getInterestForInput(const MultisignatureInput &input, uint32_t height) const;
+    uint64_t getInterestForInput(const PqMultisigInput &input, uint32_t height) const;
     uint64_t calculateTotalTransactionInterest(const Transaction &tx, uint32_t height) const;
     uint64_t getTransactionInputAmount(const TransactionInput &in, uint32_t height) const;
     uint64_t getTransactionAllInputsAmount(const Transaction &tx, uint32_t height) const;
@@ -713,6 +714,10 @@ namespace cn
     {
       return keyInput.amount;
     }
+    uint64_t operator()(const PqKeyInput &pqInput) const
+    {
+      return pqInput.amount;
+    }
     uint64_t operator()(const MultisignatureInput &multisignatureInput) const
     {
       if (multisignatureInput.term == 0)
@@ -722,6 +727,20 @@ namespace cn
       else
       {
         return multisignatureInput.amount + m_currency.getInterestForInput(multisignatureInput, m_height);
+      }
+    }
+    // PQ deposit input — mirrors the MultisignatureInput case exactly: principal for a plain
+    // (term==0) PQ multisig, principal + accrued interest for a deposit (CIP-0001). validateInput
+    // binds input.term to the on-chain output.term before this runs, closing the mint-interest hole.
+    uint64_t operator()(const PqMultisigInput &pqMultisigInput) const
+    {
+      if (pqMultisigInput.term == 0)
+      {
+        return pqMultisigInput.amount;
+      }
+      else
+      {
+        return pqMultisigInput.amount + m_currency.getInterestForInput(pqMultisigInput, m_height);
       }
     }
   };

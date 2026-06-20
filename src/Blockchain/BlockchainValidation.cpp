@@ -107,6 +107,11 @@ namespace cn
     crypto::Hash transactionHash = getObjectHash(tx);
     size_t inputIndex = 0;
 
+    // The message every PQ signature in this tx signs (prefix with all inline PQ signatures cleared)
+    // is shared by every PQ-bearing input — compute it once, lazily, on first PQ input.
+    crypto::Hash pqSigningHash;
+    bool pqSigningHashReady = false;
+
     for (const auto &txin : tx.inputs)
     {
       assert(inputIndex < tx.signatures.size());
@@ -130,10 +135,111 @@ namespace cn
         }
         ++inputIndex;
       }
+      else if (txin.type() == typeid(PqKeyInput))
+      {
+        // PQ inputs only exist in PQ (v4) transactions. A non-v4 tx carrying a PQ input would
+        // otherwise skip the v4-gated money-conservation check below (inflation hole), so reject it
+        // here. (Block-major-version / UPGRADE_HEIGHT_V10 activation is gated at block acceptance.)
+        if (tx.version != TRANSACTION_VERSION_4)
+        {
+          logger(logging::INFO, logging::BRIGHT_WHITE) << "PQ input in non-v4 transaction " << transactionHash;
+          return false;
+        }
+        const PqKeyInput &pqin = boost::get<PqKeyInput>(txin);
+        if (pqin.outputIndexes.empty())
+        {
+          logger(logging::ERROR, logging::BRIGHT_RED) << "empty PQ input outputIndexes in transaction with id " << transactionHash;
+          return false;
+        }
+
+        // Double-spend guard: reject if this PQ nullifier is already recorded as spent.
+        const std::string nfk(pqin.nullifier.begin(), pqin.nullifier.end());
+        if (m_spent_pq_nullifiers.count(nfk) != 0)
+        {
+          logger(logging::DEBUGGING) << "PQ nullifier already spent in blockchain.";
+          return false;
+        }
+
+        if (!isInCheckpointZone(getCurrentBlockchainHeight()))
+        {
+          if (!pqSigningHashReady)
+          {
+            pqSigningHash = getTransactionPqSigningHash(tx);
+            pqSigningHashReady = true;
+          }
+          if (!check_pq_tx_input(pqin, pqSigningHash, pmax_used_block_height))
+          {
+            logger(logging::INFO, logging::BRIGHT_WHITE) << "Failed to check PQ input in transaction " << transactionHash;
+            return false;
+          }
+        }
+
+        // tx.signatures is POSITIONAL (resized to inputs.size()); the PQ slot is a real but empty
+        // entry. Advance inputIndex so later KeyInput / MultisignatureInput slots stay aligned in
+        // mixed-input transactions (getSignaturesCount(PqKeyInput) == 0).
+        ++inputIndex;
+      }
+      else if (txin.type() == typeid(PqMultisigInput))
+      {
+        // PQ inputs only exist in PQ (v4) transactions — see the PqKeyInput branch. Reject a PQ
+        // deposit input smuggled into a non-v4 tx (would skip the v4 money-conservation check).
+        if (tx.version != TRANSACTION_VERSION_4)
+        {
+          logger(logging::INFO, logging::BRIGHT_WHITE) << "PQ multisignature input in non-v4 transaction " << transactionHash;
+          return false;
+        }
+        const PqMultisigInput &pqin = boost::get<PqMultisigInput>(txin);
+        if (!isInCheckpointZone(getCurrentBlockchainHeight()))
+        {
+          if (!pqSigningHashReady)
+          {
+            pqSigningHash = getTransactionPqSigningHash(tx);
+            pqSigningHashReady = true;
+          }
+          if (!check_pq_multisig(pqin, transactionHash, pqSigningHash))
+          {
+            logger(logging::INFO, logging::BRIGHT_WHITE) << "Failed to check PQ multisignature input in transaction " << transactionHash;
+            return false;
+          }
+        }
+
+        // tx.signatures is POSITIONAL; getSignaturesCount(PqMultisigInput) == 0, so this slot is a
+        // real-but-empty entry. Advance inputIndex (mirror PqKeyInput) so later KeyInput /
+        // MultisignatureInput slots stay aligned in mixed-input transactions.
+        ++inputIndex;
+      }
       else
       {
         logger(logging::INFO, logging::BRIGHT_WHITE) << "Transaction " << transactionHash
                                                      << " contains input of unsupported type.";
+        return false;
+      }
+    }
+
+    // Money conservation for version-4 (post-quantum) transactions. The mempool enforces
+    // outputs <= inputs, but the peer-block-import path (pushBlock -> checkTransactionInputs)
+    // bypasses the mempool, so a malicious miner could otherwise smuggle a PQ tx whose outputs
+    // exceed its inputs into a block. PqKeyInput.amount is an attacker-chosen field (only loosely
+    // bound to "a PQ output bucket of this amount exists"), so this check must be explicit here
+    // rather than relying on the cryptographic amount binding legacy inputs enjoy. Gated on v4 only:
+    // legacy deposit-withdrawal txs (v1/v2 multisig) legitimately have outputs > inputs (interest)
+    // and must not be rejected here. (The fork owns TRANSACTION_VERSION_3; PQ is v4.)
+    if (tx.version == TRANSACTION_VERSION_4)
+    {
+      // Reject before summing: a v4 tx whose output amounts individually validate but whose uint64
+      // sum wraps past 2^64 would otherwise produce a small outputs_amount that slips under the
+      // conservation comparison (supply inflation). check_outs_overflow is the canonical guard.
+      if (!check_outs_overflow(tx))
+      {
+        logger(logging::INFO, logging::BRIGHT_WHITE) << "Transaction " << transactionHash << " has overflowing output amounts";
+        return false;
+      }
+      uint64_t inputs_amount = m_currency.getTransactionAllInputsAmount(tx, getCurrentBlockchainHeight());
+      uint64_t outputs_amount = getOutputAmount(tx);
+      if (outputs_amount > inputs_amount)
+      {
+        logger(logging::INFO, logging::BRIGHT_WHITE) << "Transaction " << transactionHash << " is not conserving money: outputs "
+                                                     << outputs_amount << " > inputs " << inputs_amount;
         return false;
       }
     }

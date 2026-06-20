@@ -48,6 +48,10 @@ namespace cn
     m_spent_keys.clear();
     m_outputs.clear();
     m_multisignatureOutputs.clear();
+    // PQ (CIP-0001) consensus caches — cleared alongside the classic ones before the rescan below.
+    m_spent_pq_nullifiers.clear();
+    m_pqOutputs.clear();
+    m_pqMultisigOutputs.clear();
     m_depositIndex = DepositIndex();
     m_timestampIndex.clear();
     m_generatedTransactionsIndex.clear();
@@ -105,6 +109,18 @@ namespace cn
             const auto &msInput = boost::get<MultisignatureInput>(input);
             m_multisignatureOutputs[msInput.amount][msInput.outputIndex].isUsed = true;
           }
+          else if (input.type() == typeid(PqKeyInput))
+          {
+            // Repopulate the PQ ring-sig double-spend set on rebuild (twin of the KeyInput case).
+            const std::vector<uint8_t> &nf = boost::get<PqKeyInput>(input).nullifier;
+            m_spent_pq_nullifiers.insert(std::make_pair(std::string(nf.begin(), nf.end()), h));
+          }
+          else if (input.type() == typeid(PqMultisigInput))
+          {
+            // Repopulate the spent PQ deposit cell flag (twin of the MultisignatureInput case).
+            const auto &pqIn = boost::get<PqMultisigInput>(input);
+            m_pqMultisigOutputs[pqIn.amount][pqIn.outputIndex].isUsed = true;
+          }
         }
 
         // Outputs index
@@ -119,6 +135,15 @@ namespace cn
           {
             MultisignatureOutputUsage usage = {txIdx, static_cast<uint16_t>(o), false};
             m_multisignatureOutputs[out.amount].push_back(usage);
+          }
+          else if (out.target.type() == typeid(PqKeyOutput))
+          {
+            m_pqOutputs[out.amount].push_back(std::make_pair<>(txIdx, o));
+          }
+          else if (out.target.type() == typeid(PqMultisigOutput))
+          {
+            MultisignatureOutputUsage usage = {txIdx, static_cast<uint16_t>(o), false};
+            m_pqMultisigOutputs[out.amount].push_back(usage);
           }
         }
       }
@@ -150,6 +175,11 @@ namespace cn
       m_spent_keys.clear();
       m_outputs.clear();
       m_multisignatureOutputs.clear();
+      // PQ (CIP-0001) consensus caches — cleared alongside the classic ones (rebuildMdbxIndex below
+      // re-clears + repopulates them).
+      m_spent_pq_nullifiers.clear();
+      m_pqOutputs.clear();
+      m_pqMultisigOutputs.clear();
       m_depositIndex = DepositIndex();
       m_timestampIndex.clear();
       m_generatedTransactionsIndex.clear();
@@ -341,6 +371,11 @@ namespace cn
       m_spent_keys.clear();
       m_outputs.clear();
       m_multisignatureOutputs.clear();
+      // PQ (CIP-0001) consensus caches — clear alongside the classic ones so a rebuild does not
+      // double-count PQ outputs / nullifiers.
+      m_spent_pq_nullifiers.clear();
+      m_pqOutputs.clear();
+      m_pqMultisigOutputs.clear();
 
       for (uint32_t b = 0; b < blocksSize(); ++b)
       {
@@ -371,6 +406,16 @@ namespace cn
               const auto &out = boost::get<MultisignatureInput>(i);
               m_multisignatureOutputs[out.amount][out.outputIndex].isUsed = true;
             }
+            else if (i.type() == typeid(PqKeyInput))
+            {
+              const std::vector<uint8_t> &nf = boost::get<PqKeyInput>(i).nullifier;
+              m_spent_pq_nullifiers.insert(std::make_pair(std::string(nf.begin(), nf.end()), b));
+            }
+            else if (i.type() == typeid(PqMultisigInput))
+            {
+              const auto &pqIn = boost::get<PqMultisigInput>(i);
+              m_pqMultisigOutputs[pqIn.amount][pqIn.outputIndex].isUsed = true;
+            }
           }
 
           for (uint32_t o = 0; o < transaction.tx.outputs.size(); ++o)
@@ -382,6 +427,13 @@ namespace cn
             {
               MultisignatureOutputUsage usage = {transactionIndex, static_cast<uint16_t>(o), false};
               m_multisignatureOutputs[out.amount].push_back(usage);
+            }
+            else if (out.target.type() == typeid(PqKeyOutput))
+              m_pqOutputs[out.amount].push_back(std::make_pair<>(transactionIndex, o));
+            else if (out.target.type() == typeid(PqMultisigOutput))
+            {
+              MultisignatureOutputUsage usage = {transactionIndex, static_cast<uint16_t>(o), false};
+              m_pqMultisigOutputs[out.amount].push_back(usage);
             }
           }
 
@@ -451,6 +503,12 @@ namespace cn
     m_spent_keys.clear();
     m_alternative_chains.clear();
     m_outputs.clear();
+    // PQ (CIP-0001) consensus caches — clear on reset so no stale PQ nullifier / output survives a
+    // genesis reset. (NB: the classic m_multisignatureOutputs is not cleared here in the fork; that
+    // pre-existing asymmetry is left as-is — only the PQ twins are added.)
+    m_spent_pq_nullifiers.clear();
+    m_pqOutputs.clear();
+    m_pqMultisigOutputs.clear();
     m_paymentIdIndex.clear();
     m_timestampIndex.clear();
     m_generatedTransactionsIndex.clear();

@@ -253,7 +253,11 @@ namespace cn {
 void serialize(TransactionPrefix& txP, ISerializer& serializer) {
   serializer(txP.version, "version");
 
-  if (TRANSACTION_VERSION_3 < txP.version) {
+  // PQ (CIP-0001) transactions are TRANSACTION_VERSION_4 (the fork owns v3). Raise the accepted-
+  // version ceiling to v4 so a v4 PQ tx can be deserialized at all — otherwise it is rejected at the
+  // wire/storage boundary before validation runs. Mirrors the reference, which caps at its own PQ
+  // version. (The v4 PQ consensus rules themselves are height-gated by UPGRADE_HEIGHT_V10.)
+  if (TRANSACTION_VERSION_4 < txP.version) {
     throw serialization_error("Wrong transaction version");
   }
 

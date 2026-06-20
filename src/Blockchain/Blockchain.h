@@ -378,6 +378,14 @@ namespace cn
     TransactionMap m_transactionMap;
     MultisignatureOutputsContainer m_multisignatureOutputs;
 
+    // Post-quantum (CIP-0001 / UPGRADE_HEIGHT_V10) in-memory consensus caches. Mirror the classic
+    // sets above exactly: this fork keeps the spent-key / output / multisig-output indexes in memory
+    // (only blocks/headers live in MDBX), so the PQ twins are in-memory too — NOT new MDBX tables.
+    // Rebuilt on load by the same scan that rebuilds m_spent_keys / m_outputs / m_multisignatureOutputs.
+    parallel_flat_hash_map<std::string, uint32_t> m_spent_pq_nullifiers; // PQ ring-sig double-spend set (key = raw nullifier bytes)
+    outputs_container m_pqOutputs;                                            // PQ ring-sig output index by amount (twin of m_outputs)
+    MultisignatureOutputsContainer m_pqMultisigOutputs;                       // PQ deposit-cell index by amount (twin of m_multisignatureOutputs)
+
     // Deposit tracking
     cn::DepositIndex m_depositIndex;
 
@@ -450,8 +458,17 @@ namespace cn
                                     block_verification_context &bvc);
     bool markKeyImagesSpent(const Transaction &tx, uint32_t blockHeight);
     void markMultisigInputsSpent(const Transaction &tx);
+    // PQ input-spend helpers (CIP-0001) — twins of markKeyImagesSpent / markMultisigInputsSpent,
+    // operating on m_spent_pq_nullifiers / m_pqMultisigOutputs. markPqNullifiersSpent rolls back on
+    // failure exactly like markKeyImagesSpent.
+    bool markPqNullifiersSpent(const Transaction &tx, uint32_t blockHeight);
+    void markPqMultisigInputsSpent(const Transaction &tx);
     void popKeyOutput(uint64_t amount, const TransactionIndex &txIndex, size_t outputIndex);
     void popMultisigOutput(uint64_t amount, const TransactionIndex &txIndex, size_t outputIndex);
+    // PQ output-index pop helpers (CIP-0001) — twins of popKeyOutput / popMultisigOutput, operating
+    // on m_pqOutputs / m_pqMultisigOutputs. Same LIFO consistency guards so a reorg pops symmetrically.
+    void popPqKeyOutput(uint64_t amount, const TransactionIndex &txIndex, size_t outputIndex);
+    void popPqMultisigOutput(uint64_t amount, const TransactionIndex &txIndex, size_t outputIndex);
     void notifyUpgradeDetectorsBlockPushed();
     void notifyUpgradeDetectorsBlockPopped();
 
@@ -482,6 +499,19 @@ namespace cn
     bool verifyMultisigSignatures(const std::vector<crypto::PublicKey> &outputKeys,
                                   const std::vector<crypto::Signature> &signatures,
                                   size_t requiredCount, const crypto::Hash &txPrefixHash);
+
+    //  Private methods — Post-quantum input validation (CIP-0001 / UPGRADE_HEIGHT_V10). Defined in
+    //  BlockchainPq.cpp. check_pq_tx_input resolves the ring from m_pqOutputs and verifies the lattice
+    //  linkable ring signature via the ccx-pqc FFI; check_pq_multisig gathers keys from the
+    //  m_pqMultisigOutputs deposit cell and verifies the ML-DSA-65 m-of-n signatures.
+    bool check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash,
+                           uint32_t *pmax_related_block_height = nullptr);
+    bool check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash,
+                           const crypto::Hash &transactionPrefixHash);
+    // Hash signed by every PQ signature in a tx: the prefix with every PqKeyInput.ringSig and every
+    // inline PqMultisigInput.signatures cleared (a signature cannot commit to itself). Injector and
+    // validator MUST compute this identically.
+    crypto::Hash getTransactionPqSigningHash(const Transaction &tx) const;
 
     bool prevalidate_miner_transaction(const Block &b, uint32_t height) const;
     bool validate_miner_transaction(const Block &b, uint32_t height,
