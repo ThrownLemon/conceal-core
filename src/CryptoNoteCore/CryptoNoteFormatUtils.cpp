@@ -616,23 +616,24 @@ bool lookup_acc_outs(const AccountKeys& acc, const Transaction& tx, std::vector<
 
 bool lookup_acc_outs(const AccountKeys& acc, const Transaction& tx, const PublicKey& tx_pub_key, std::vector<size_t>& outs, uint64_t& money_transfered) {
   money_transfered = 0;
-  size_t keyIndex = 0;
   size_t outputIndex = 0;
 
   KeyDerivation derivation;
   generate_key_derivation(tx_pub_key, acc.viewSecretKey, derivation);
 
+  // Underive each KeyOutput at its OUTPUT POSITION (outputIndex), matching the construction side which
+  // derives every output key at its position. A key-slot counter that skipped non-Key outputs
+  // (PqKeyOutput/PqMultisigOutput) underived a Key output FOLLOWING a non-Key output at the wrong
+  // index and missed it — e.g. the testnet PQ-coinbase classical remainder after the leading
+  // PqKeyOutput. Non-Key outputs are skipped here (PQ outputs are scanned via the KEM path).
   for (const TransactionOutput& o : tx.outputs) {
-    assert(o.target.type() == typeid(KeyOutput) || o.target.type() == typeid(MultisignatureOutput));
+    assert(o.target.type() == typeid(KeyOutput) || o.target.type() == typeid(MultisignatureOutput) ||
+           o.target.type() == typeid(PqKeyOutput) || o.target.type() == typeid(PqMultisigOutput));
     if (o.target.type() == typeid(KeyOutput)) {
-      if (is_out_to_acc(acc, boost::get<KeyOutput>(o.target), derivation, keyIndex)) {
+      if (is_out_to_acc(acc, boost::get<KeyOutput>(o.target), derivation, outputIndex)) {
         outs.push_back(outputIndex);
         money_transfered += o.amount;
       }
-
-      ++keyIndex;
-    } else if (o.target.type() == typeid(MultisignatureOutput)) {
-      keyIndex += boost::get<MultisignatureOutput>(o.target).keys.size();
     }
 
     ++outputIndex;
