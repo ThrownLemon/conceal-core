@@ -1,0 +1,33 @@
+**Review Opinion: BLOCKER**
+
+This change integrates a complex, consensus-critical cryptographic primitive (Raptor/Falcon) by vendoring C code and bridging it to Rust. While the implementation appears competent and addresses a critical linking collision, a fundamental safety mechanism for cross-platform determinism is implemented but **never invoked**.
+
+### Critical Findings
+
+**1. Inactive Determinism Tripwire (BLOCKER)**
+*   **File:** `pqc/ccx-pqc/src/raptor.rs`
+*   **Lines:** 140–200 (`keygen_kat_digest`, `assert_keygen_kat`)
+*   **Issue:** The code defines a Known Answer Test (KAT) to detect cross-platform floating-point non-determinism in the Falcon keygen logic (`assert_keygen_kat`).
+*   **Why it fails:** The function is **public but never called** in the provided `lib.rs` or visible test harnesses. For a consensus library, relying on "manual verification" of determinism (as noted in `STATUS.md`) is insufficient. The `assert_keygen_kat` function must be invoked at library initialization or during a rigorous unit test suite to act as a tripwire. As it stands, a compiler/architecture drift causing different public keys from the same seed would go undetected by the software itself, leading to chain splits or wallet incompatibility.
+*   **Fix:** Call `assert_keygen_kat()` in a unit test (`#[cfg(test)]`) or a lazy-static initializer to ensure the build is deterministic before the library is usable.
+
+**2. Symbol Collision Mitigation is Brittle (SECURITY RISK)**
+*   **File:** `pqc/ccx-pqc/build.rs`
+*   **Lines:** 42–56
+*   **Issue:** The fix for the `fips202` symbol collision relies on manually enumerating every public symbol in `build.rs` (`rename_syms`).
+*   **Risk:** If `vendor/falcon/fips202.c` is updated (e.g., via a dependency bump) and exposes a new symbol not in this list, the collision (and resulting stack smash) returns silently or causes linker errors.
+*   **Recommendation:** While acceptable for a fixed POC vendoring, this requires a comment warning future maintainers that any update to the Falcon vendored source requires an audit of `build.rs`.
+
+**3. Dependency Bloat**
+*   **File:** `pqc/ccx-pqc/Cargo.toml`
+*   **Lines:** 50–55
+*   **Issue:** Adds `rand` and `rand_chacha` as dependencies.
+*   **Context:** While `rand` is used deterministically here (seeding `ChaCha20Rng` with the secret key), pulling in the entire `rand` ecosystem and `getrandom` bindings into the consensus crate adds significant surface area and build complexity for what is effectively a deterministic RNG loop. A pure-Rust ChaCha20 implementation (like the one already used elsewhere or the vendored C RNG) would be lighter and safer for a core crypto crate.
+
+### Positive Observations
+*   **ABI Compatibility:** The `ccx_pq_*` ABI changes (scheme ID, key sizes) are handled correctly with size checks and rejection of legacy buffers, preventing undefined behavior in C++ callers.
+*   **Canonicality Enforcement:** `raptor_abi::unpack` correctly rejects trailing garbage (`if pos != inp.len()`), enforcing strict canonical signatures which is crucial for consensus.
+*   **DoS Guards:** Variable-length signatures are bounded by `sig_upper_bound`, preventing memory exhaustion attacks in `verify`.
+
+Verdict: **BLOCKER** (Inactive tripwire violates the "engineering-hardened" claim).
+GLM exit=0

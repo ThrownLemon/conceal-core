@@ -1,0 +1,437 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deposit freeze (impl) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class="active"><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1
+id="option-3-classical-deposit-freeze--implementation-cip-0001-upgrade_height_v9">Option-3
+classical-deposit freeze — implementation (CIP-0001
+UPGRADE_HEIGHT_V9)</h1>
+<p><em>Implements the decision in <a
+href="deposit-term-policy-decision.md"><code>deposit-term-policy-decision.md</code></a>
+(Option 3, "PQ-only deposits after the fork"). Commit
+<code>9c49864</code> on <code>pqc/testnet-poc</code>. This is the
+consensus half of Option 3; the end-to-end demonstration and measured
+cost are in the §Verification and §Cost sections below.</em></p>
+<h2 id="the-rule">The rule</h2>
+<p>Once the chain reaches <code>UPGRADE_HEIGHT_V9</code> — <strong>the
+same block on which PQ deposits open</strong> — creation of any new
+<strong>classical (Ed25519) deposit output</strong> (a
+<code>MultisignatureOutput</code> with <code>term != 0</code>) is
+rejected. From that height, <code>PqMultisigOutput</code> (ML-DSA-65) is
+the only new deposit path. The rule is <strong>creation-side
+only</strong>: spending / withdrawing an already-existing classical
+deposit stays valid forever, so deposits minted before the fork are
+never stranded.</p>
+<p>This is the symmetric twin of the existing PQ-enable gate (which
+<em>rejects</em> PQ deposits <strong>below</strong> V9, i.e.
+<em>opens</em> them at <code>height &gt;= upgradeHeight(V9)</code>). The
+freeze <em>closes</em> classical deposits at the same boundary:</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Below <code>upgradeHeight(V9)</code></th>
+<th>At / above <code>upgradeHeight(V9)</code></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Classical deposit (<code>MultisignatureOutput</code>,
+<code>term!=0</code>)</td>
+<td><strong>allowed</strong></td>
+<td><strong>frozen (rejected)</strong></td>
+</tr>
+<tr>
+<td>PQ deposit (<code>PqMultisigOutput</code>)</td>
+<td>rejected (PQ-enable gate)</td>
+<td><strong>allowed</strong></td>
+</tr>
+</tbody>
+</table>
+<p>The classical path closes on exactly the block the PQ path opens — an
+atomic swap, no one-block gap.</p>
+<h2 id="the-predicate">The predicate</h2>
+<pre class="cpp"><code>// True iff the tx CREATES a classical deposit output (MultisignatureOutput with term != 0).
+static bool transactionContainsClassicalDeposit(const Transaction &amp;tx) {
+  for (const auto &amp;out : tx.outputs)
+    if (out.target.type() == typeid(MultisignatureOutput) &amp;&amp;
+        boost::get&lt;MultisignatureOutput&gt;(out.target).term != 0)
+      return true;
+  return false;
+}</code></pre>
+<p>Defined <strong>once</strong> as a shared free function in
+<code>CryptoNoteFormatUtils.{h,cpp}</code> (single source of truth,
+commit <code>0b1c79f</code>), called from both the authoritative
+<code>pushBlock</code> gate and the mempool/template policy gates so
+they can't drift apart. A non-deposit multisig (<code>term == 0</code>)
+is unaffected. It inspects <strong>outputs only</strong> — a withdraw tx
+(which carries a <code>MultisignatureInput</code> and only normal
+<code>term==0</code> outputs) is <em>not</em> matched, which is why
+withdrawing an existing deposit is never frozen.</p>
+<h2 id="the-four-gate-sites">The four gate sites</h2>
+<table>
+<thead>
+<tr>
+<th>Site</th>
+<th>File:line</th>
+<th>Condition</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Per-tx block-connection</strong></td>
+<td><code>Blockchain.cpp</code> (in <code>pushBlock</code>)</td>
+<td><code>transactionContainsClassicalDeposit(tx) &amp;&amp; block.height &gt;= upgradeHeight(V9)</code>
+→ <code>isTransactionValid = false</code></td>
+<td><strong>Authoritative consensus rejection.</strong> Directly mirrors
+the PQ-enable per-tx gate a few lines above.</td>
+</tr>
+<tr>
+<td><strong>Coinbase guard</strong></td>
+<td><code>Blockchain.cpp</code> (in <code>pushBlock</code>)</td>
+<td>same, on <code>blockData.baseTransaction</code>,
+<code>m_blocks.size() &gt;= upgradeHeight(V9)</code> →
+<code>m_verification_failed</code></td>
+<td>Rejects a malicious post-V9 coinbase that tries to mint a classical
+deposit cell to bypass the freeze. A genuine coinbase never carries one.
+Mirrors the PQ coinbase guard.</td>
+</tr>
+<tr>
+<td><strong>Mempool acceptance</strong></td>
+<td><code>TransactionPool.cpp</code> (in <code>add_tx</code>)</td>
+<td><code>!keptByBlock &amp;&amp; transactionContainsClassicalDeposit(tx) &amp;&amp; height &gt;= upgradeHeight(V9)</code>
+→ <code>tvc.m_verification_failed</code>, reject</td>
+<td>Rejects a frozen deposit at submission/relay so it never enters the
+local pool. Loose txs only — a tx returning from a popped block
+(<code>keptByBlock</code>) was valid when mined and must not be
+re-rejected.</td>
+</tr>
+<tr>
+<td><strong>Block-template skip</strong></td>
+<td><code>TransactionPool.cpp</code> (in
+<code>fill_block_template</code>)</td>
+<td><code>transactionContainsClassicalDeposit(tx) &amp;&amp; height &gt;= upgradeHeight(V9)</code>
+→ skip (don't select)</td>
+<td>Anti-stall (commit <code>c9fb3bb</code>): a deposit created just
+before V9, still in the pool when the chain crosses the boundary (or
+relayed from a non-enforcing peer), is never selected into a template —
+otherwise the block would fail at <code>pushBlock</code> and mining
+would stall. Liveness-only; cannot fork the chain.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="why--and-never-">Why <code>&gt;=</code> (and never
+<code>&gt;</code>)</h3>
+<p>The freeze uses
+<code>height &gt;= upgradeHeight(BLOCK_MAJOR_VERSION_9)</code>,
+mirroring the PQ-enable gate's <code>&lt;</code> so the two activate on
+the same block. Changing it to <code>&gt;</code> would shift the freeze
+one block relative to PQ-enable and create a one-block window that is
+either double-open or double-closed — <strong>a chain split.</strong>
+This deliberately differs from the adjacent deposit-term-band gate
+(<code>height &gt; m_depositHeightV4</code>, <code>Currency.cpp</code>);
+the two must not be "harmonized." (See the decision doc's "Concrete
+sketch" for the full rationale.)</p>
+<h3 id="what-is-deliberately-not-gated-or-pre-fork-funds-strand">What is
+deliberately NOT gated (or pre-fork funds strand)</h3>
+<p>The freeze touches only the creation/output path. These remain
+untouched for already-existing classical deposits:</p>
+<ul>
+<li><strong>Spend/withdraw</strong> —
+<code>Blockchain::validateInput(MultisignatureInput)</code> and the
+deposit-lock rule inside it
+(<code>output.term != 0 &amp;&amp; createBlock + term &gt; height =&gt; reject</code>).
+The withdraw tx is not matched by the predicate (output-only), so it
+flows normally.</li>
+<li><strong>Interest accrual</strong> — <code>getInterestForInput</code>
+/ <code>calculateInterest*</code> / the
+<code>input_amount_visitor</code> deposit branch keep computing
+<code>amount + interest</code>.</li>
+<li><strong>The PQ output validator</strong>
+(<code>validateOutput(PqMultisigOutput)</code>) — must stay the open
+path; the freeze is never applied to it, or <em>all</em> new deposits
+would be closed.</li>
+</ul>
+<h2 id="activation">Activation</h2>
+<p>No new constant. The freeze rides the existing
+<code>UPGRADE_HEIGHT_V9</code> / <code>BLOCK_MAJOR_VERSION_9</code>
+gate.</p>
+<ul>
+<li><strong>Mainnet:</strong> <code>UPGRADE_HEIGHT_V9 = 5000000</code> —
+a far-future, audit-gated sentinel past the last checkpoint. The freeze
+is therefore inert on mainnet until V9 is deliberately lowered (an
+audit-gated, coordinated, hardcoded-height fork — no voting safety net;
+see decision doc §"Hard dependency sequencing").</li>
+<li><strong>Testnet:</strong>
+<code>TESTNET_UPGRADE_HEIGHT_V9 = 80</code> — the freeze (and PQ
+deposits) activate at height 80, which is what the e2e demo
+exercises.</li>
+</ul>
+<h2 id="verification">Verification</h2>
+<ul>
+<li><p><strong>Regression:</strong> <code>UnitTests</code>,
+<code>CoreTests</code>, <code>DifficultyTests</code>,
+<code>HashTargetTests</code> — <strong>100% pass</strong> with the
+freeze compiled in (no behavioral change below V9; the 1007-gtest
+PQ-deposit suite still green).</p></li>
+<li><p><strong>End-to-end (live 2-node isolated testnet,
+<code>TESTNET_UPGRADE_HEIGHT_V9 = 80</code>):</strong> <a
+href="../../../pqc/verify-deposit-freeze.sh"><code>verify-deposit-freeze.sh</code></a>
+— <strong>PASS, 3 consecutive green runs</strong> (and a 4th after the
+anti-stall hardening). The three Option-3 behaviors, all live:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Behavior</th>
+<th>Result</th>
+<th>Proof</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><strong>Pre-V9</strong> create classical deposit
+(<code>MultisignatureOutput</code>, term=30)</td>
+<td><strong>ACCEPTED</strong></td>
+<td>submitted height 15, mined by 17;
+<code>sendrawtransaction → status OK</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td><strong>Post-V9</strong> withdraw of the pre-V9 deposit</td>
+<td><strong>ACCEPTED</strong></td>
+<td><code>withdraw</code> at height 84 → confirmed, deposit status
+<code>Withdrawn</code> (the withdraw tx makes only <code>term==0</code>
+outputs, so the freeze does not catch it)</td>
+</tr>
+<tr>
+<td>3</td>
+<td><strong>Post-V9</strong> create a <em>new</em> classical
+deposit</td>
+<td><strong>REJECTED</strong></td>
+<td>submitted at height 84 → <code>status Failed</code>, never
+confirmed</td>
+</tr>
+</tbody>
+</table>
+<p>Literal daemon proof of behavior #3:</p>
+<pre><code>INFO [txpool] Transaction &lt;dd5b20d4…070d&gt; rejected: classical deposit creation is frozen
+at/after height 80; use a PQ deposit</code></pre>
+<p>Funding note: the demo builds the classical deposit tx with
+<code>pqc/tools/classical_deposit_injector</code> (a harness tool,
+classical twin of <code>pq_injector</code>). It was originally needed
+because a wallet scanner output-index bug hid the miner's classical
+coinbase — that bug is now <strong>fixed</strong> (see <a
+href="#scanner-output-index-bug-surfaced-here-now-fixed--commit-dc5ef31">§Scanner
+output-index bug</a>), so the coinbase is wallet-visible; the injector
+is retained in the harness for deterministic, timing-controlled deposit
+construction. Orthogonal to the freeze either way.</p></li>
+</ul>
+<h2 id="cost-option-3">Cost (Option 3)</h2>
+<p>The freeze itself is a predicate check — <strong>zero size/throughput
+cost</strong>. The cost of Option 3 is that the only post-fork deposit
+is a <strong>PQ (ML-DSA-65) deposit</strong>, larger than the classical
+Ed25519 multisig it replaces. Crucially, deposits use
+<strong>standardized ML-DSA-65 (FIPS 204)</strong> — <em>not</em> the
+experimental lattice ring sig — so the deposit cost is modest next to a
+PQ <em>spend</em>:</p>
+<table>
+<thead>
+<tr>
+<th>Deposit op</th>
+<th>Classical</th>
+<th>PQ (ML-DSA-65)</th>
+<th>Ratio</th>
+<th>Basis</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Create deposit tx (1-in, 1 deposit out + change)</td>
+<td><strong>217 B</strong></td>
+<td><strong>≈ 2.1 KB</strong></td>
+<td>~10×</td>
+<td>classical <strong>[live]</strong> (injector); PQ adds
+<code>1952 − 32 = 1920 B</code> for the ML-DSA pubkey <strong>[FFI-live
+component]</strong></td>
+</tr>
+<tr>
+<td>Withdraw signature</td>
+<td>64 B (Ed25519)</td>
+<td><strong>3309 B</strong> (ML-DSA-65)</td>
+<td>~52×</td>
+<td><strong>[FFI-live]</strong> (<code>measured-numbers.md</code>
+§D)</td>
+</tr>
+</tbody>
+</table>
+<p>For comparison a PQ <em>spend</em> (lattice ring sig) is ~25–61 KB
+(~68× a classical spend); a PQ <em>deposit</em> is only ~10× a classical
+deposit, because deposits need no anonymity ring — just one standardized
+signature per key. So "PQ-only deposits after the fork" is one of the
+cheaper PQ surfaces. See <a
+href="measured-numbers.md"><code>measured-numbers.md</code></a> §F for
+the full deposit-size table.</p>
+<h2
+id="scanner-output-index-bug-surfaced-here-now-fixed--commit-dc5ef31">Scanner
+output-index bug (surfaced here, now FIXED — commit
+<code>dc5ef31</code>)</h2>
+<p>Surfaced while building the e2e demo (independently confirmed by an
+adversarial code review): the testnet coinbase
+(<code>Currency::constructMinerTx</code>, <code>m_testnet</code> branch)
+emits a PQ stealth output at output-index 0 plus a classical "remainder"
+<code>KeyOutput</code> to the miner at index 1. The three wallet output
+scanners (<code>TransfersConsumer::findMyOutputs</code>,
+<code>CryptoNoteFormatUtils::lookup_acc_outs</code>,
+<code>TransactionUtils</code>) derived <code>KeyOutput</code> one-time
+keys at a <code>keyIndex</code> counter that advanced only for
+Key/Multisig outputs — so it skipped the leading PQ output and underived
+the remainder at index 0 instead of its true output position 1, making
+the miner's classical coinbase <strong>invisible to every
+wallet</strong>.</p>
+<p><strong>Root cause:</strong> construction
+(<code>TransactionImpl::addOutput</code> and the coinbase) always
+derives at the <strong>output position</strong>; the scanners used a
+key-slot counter that only equals the position when no non-Key output
+precedes. <strong>Mainnet was unaffected</strong> — the PQ coinbase
+output is testnet-only (mainnet emits only <code>KeyOutput</code>s,
+indices aligned) — but it was a latent landmine for any future
+non-Key-leading layout.</p>
+<p><strong>Fix (the proper, mainnet-grade one):</strong> all three
+scanners now underive <code>KeyOutput</code>s at their <strong>output
+position</strong>, matching construction and the already-correct
+Multisignature branch. <strong>Provably non-regressing</strong> — any
+output recognized by the old scan had <code>keyIndex == position</code>,
+so the new scan recognizes the same set plus the previously-missed
+PQ-preceded outputs. Wallet-side only, not consensus. Regression test
+<code>TestFormatUtils.lookup_acc_outs.finds_testnet_pq_coinbase_remainder</code>
+(fails before the fix); UnitTests/ CoreTests 100% + live e2e green. The
+injector tool remains in the demo harness, but the miner's classical
+coinbase is now wallet-visible.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

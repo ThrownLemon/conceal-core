@@ -1,0 +1,827 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wallet address v2 — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class="active"><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="pq-wallet-keys--address-format-v2--design-blueprint">PQ Wallet
+Keys + Address Format v2 — Design Blueprint</h1>
+<p>Status: <strong>DESIGN / advisory</strong> (no source edited).
+Targets the working PoC on <code>pqc/testnet-poc</code>. Goal: replace
+the hardcoded testnet keys + <code>pq_injector</code> tool with a real
+wallet that derives PQ keys from a mnemonic seed, publishes a PQ
+address, scans PQ stealth outputs, and builds/signs a PQ spend
+natively.</p>
+<p>This is consensus- and money-critical. Everything here is
+<strong>testnet-gated</strong> until the underlying ring signature is
+audited (CIP-0001 C1). The address format is the durable, user-facing
+surface — get the framing/versioning right now even though the crypto
+under it is demo-grade.</p>
+<hr />
+<h2 id="0-where-the-poc-stands-the-gap-this-closes">0. Where the PoC
+stands (the gap this closes)</h2>
+<p>Grounded in the real branch:</p>
+<ul>
+<li><strong>PQ key material today is hardcoded.</strong> A single
+ML-KEM-768 recipient keypair is baked into
+<code>pqc/include/pq_testnet_kem_keypair.h</code>
+(<code>PQ_TESTNET_KEM_PK</code> / <code>PQ_TESTNET_KEM_SK</code>),
+minted once via <code>ccx_pq_kem_keypair</code>. The testnet coinbase
+(<code>Currency.cpp</code>) encapsulates to that fixed PK;
+<code>pq_injector.cpp</code> decapsulates with that fixed SK. There is
+<strong>no per-user key, no address, no mnemonic</strong> in the PQ
+path.</li>
+<li><strong>The injector is a stand-in wallet.</strong>
+<code>pqc/tools/pq_injector.cpp</code> does the four jobs a wallet must
+do: (1) parse coinbase txs for <code>PqKeyOutput{key, kemCt}</code>
+(<code>parseCoinbasePq</code>), (2)
+<code>ccx_pq_kem_scan(PQ_TESTNET_KEM_SK, kemCt) -&gt; seed</code>, (3)
+<code>ccx_pq_keygen(seed) -&gt; (otPk, otSk)</code> to recover the
+one-time spend keypair, (4) assemble a ring from on-chain keys and
+<code>ccx_pq_sign(...)</code> -&gt; <code>PqKeyInput</code>.</li>
+<li><strong>The crypto ABI already exists</strong> in
+<code>pqc/ccx-pqc/src/lib.rs</code> (C-ABI) and is what the wallet will
+call. Relevant sizes from the real code:
+<ul>
+<li><code>ccx_pq_pubkey_bytes()</code> = <code>ringsig::PK_BYTES</code>
+= <code>K*N*4</code> = <code>4*256*4</code> = <strong>4096 B</strong>
+(the lattice ring-sig public key <code>t</code>).</li>
+<li><code>ccx_pq_seckey_bytes()</code> = <strong>32 B</strong> (a seed;
+the short secret <code>s</code> is re-derived).</li>
+<li><code>ccx_pq_nullifier_bytes()</code> = <strong>32 B</strong>.</li>
+<li><code>ccx_pq_kem_pubkey_bytes()</code> = <strong>1184 B</strong>
+(ML-KEM-768 PK), <code>ccx_pq_kem_seckey_bytes()</code> = <strong>2400
+B</strong> (SK), <code>ccx_pq_kem_ct_bytes()</code> = <strong>1088
+B</strong> (<code>kemCt</code>).</li>
+<li><code>ccx_pq_scheme_id()</code> = <code>0xC0DE_0003</code>.</li>
+</ul></li>
+</ul>
+<p>These sizes drive the address size (see §2) and storage (§4).</p>
+<hr />
+<h2 id="1-cryptographic-roles-a-pq-address-must-carry">1. Cryptographic
+roles a PQ address must carry</h2>
+<p>A legacy CCX address (<code>AccountPublicAddress</code>,
+<code>include/CryptoNote.h:91</code>) is two 32-byte Ed25519 points:
+<strong>spend</strong> + <strong>view</strong>, Base58 with a 2-byte
+varint prefix (<code>0x7ad4</code> = <code>ccx7…</code>) and a 4-byte
+<code>cn_fast_hash</code> checksum (<code>Base58.cpp</code>
+<code>encode_addr</code>).</p>
+<p>The PQ analogue needs <strong>three</strong> distinct key roles,
+because in the PoC two different primitives do two different jobs:</p>
+<table>
+<thead>
+<tr>
+<th>Role</th>
+<th>Legacy</th>
+<th>PQ v2</th>
+<th>Primitive</th>
+<th>Pub size</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Detect/receive</strong> (recipient-unlinkability)</td>
+<td>view key</td>
+<td><strong>KEM key</strong></td>
+<td>ML-KEM-768</td>
+<td>1184 B</td>
+</tr>
+<tr>
+<td><strong>Authorise spend</strong> (ownership + ring anonymity +
+nullifier)</td>
+<td>spend key</td>
+<td><strong>ring-sig key</strong></td>
+<td>lattice AOS/LSAG</td>
+<td>4096 B (per-output, derived)</td>
+</tr>
+<tr>
+<td><strong>(optional) Hybrid EC</strong></td>
+<td>—</td>
+<td>legacy Ed25519 spend+view</td>
+<td>Ed25519</td>
+<td>32+32 B</td>
+</tr>
+</tbody>
+</table>
+<p>Key separation, mirroring the PoC's two primitives:</p>
+<ul>
+<li>The <strong>KEM keypair</strong> is the <em>long-term account
+key</em>. It is the one whose <strong>public</strong> part goes in the
+address (senders encapsulate to it), and whose <strong>secret</strong>
+part the wallet keeps to scan (<code>ccx_pq_kem_scan</code>). This is
+the "view-key-like" role but it is also spend-enabling: whoever holds
+the KEM secret can recover the one-time seed.</li>
+<li>The <strong>ring-sig keypair is NOT a long-term account
+key.</strong> In the PoC every output has a <em>distinct, one-time</em>
+lattice keypair derived from the KEM shared secret
+(<code>ccx_pq_keygen(seed) -&gt; otPk/otSk</code>), so the
+<strong>4096-byte <code>t</code> never appears in the address</strong> —
+only on-chain in <code>PqKeyOutput.key</code>. This is the crucial size
+win: the address carries the 1184-byte KEM PK, not the 4096-byte ring
+PK.</li>
+</ul>
+<blockquote>
+<p><strong>Design decision (important):</strong> the v2 address carries
+<strong>only the ML-KEM-768 public key</strong> as its PQ component (+
+optional legacy EC for hybrid). The ring-sig public key is per-output
+and derived, so it must NOT be embedded. This keeps the address ~1.2 KB
+instead of ~5.3 KB and matches how the PoC actually works.</p>
+</blockquote>
+<h3 id="11-hybrid-mode-optional-recommended-default-for-migration">1.1
+Hybrid mode (optional, recommended default for migration)</h3>
+<p>A <strong>hybrid</strong> address additionally carries the legacy
+Ed25519 spend+view keys so:</p>
+<ul>
+<li>the same address can receive both legacy <code>KeyOutput</code> (via
+Ed25519 stealth) and PQ <code>PqKeyOutput</code> (via ML-KEM stealth)
+during the transition;</li>
+<li>funds are protected by EC today and PQ after the fork, with no
+re-issuing of addresses. (Security is <code>max(EC, PQ)</code> for
+confidentiality of <em>new</em> outputs.)</li>
+</ul>
+<p>Three address kinds, selected by prefix (§2.2):</p>
+<ul>
+<li><strong><code>ccxpq</code></strong> — PQ-only (KEM PK [+ ring-sig
+domain tag]).</li>
+<li><strong><code>ccxh</code></strong> — hybrid (legacy spend+view
+<em>and</em> KEM PK).</li>
+<li>(<code>ccx7…</code> legacy unchanged.)</li>
+</ul>
+<hr />
+<h2 id="2-address-format-v2">2. Address format v2</h2>
+<h3 id="21-reuse-the-existing-base58-address-machinery">2.1 Reuse the
+existing Base58 address machinery</h3>
+<p>Do <strong>not</strong> invent a new encoder.
+<code>tools::base_58::encode_addr/decode_addr</code>
+(<code>src/Common/Base58.cpp:216-246</code>) already gives: varint tag
+prefix + payload + 4-byte <code>cn_fast_hash</code> checksum, block-wise
+Base58. It is payload-length-agnostic, so a 1.2 KB payload encodes fine
+(it will just produce a long string, ~1.6k Base58 chars — acceptable for
+a copy/paste/QR address; see §7 risk on UX).</p>
+<p>The only constraints <code>parseAccountAddressString</code> adds
+today (<code>CryptoNoteBasicImpl.cpp:73</code>) are
+<code>check_key()</code> on the two Ed25519 points — those calls do not
+apply to the PQ payload, so v2 needs a <strong>separate parse/format
+path</strong> keyed on the prefix, not a modification of the legacy one
+(keep legacy untouched).</p>
+<h3
+id="22-new-prefixes-consensus-adjacent-constant--cryptonoteconfigh">2.2
+New prefixes (consensus-adjacent constant —
+<code>CryptoNoteConfig.h</code>)</h3>
+<p>Add alongside
+<code>CRYPTONOTE_PUBLIC_ADDRESS_BASE58_PREFIX = 0x7ad4</code>:</p>
+<pre class="cpp"><code>// PQ address prefixes — chosen so Base58 human-readable prefix reads &quot;ccxpq&quot;/&quot;ccxh&quot;.
+// Tune the numeric value the same way 0x7ad4 was tuned to render &quot;ccx7&quot;.
+const uint64_t CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX     = /* tune -&gt; &quot;ccxpq&quot; */;
+const uint64_t CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = /* tune -&gt; &quot;ccxh&quot;  */;
+// Parallel TESTNET_* values (testnet uses a distinct human prefix, e.g. &quot;tccxpq&quot;).</code></pre>
+<blockquote>
+<p>The numeric prefix that yields a desired leading string must be
+<strong>computed</strong>, not guessed: write a tiny one-off that
+brute-forces the varint tag whose Base58 of <code>[tag || zeros]</code>
+starts with the target letters (how
+<code>0x7ad4</code>→<code>ccx7</code> was found). Document the chosen
+value + the script in this folder.</p>
+</blockquote>
+<h3 id="23-payload-struct-new-serialized-type">2.3 Payload struct (new
+serialized type)</h3>
+<p>Add to <code>include/CryptoNote.h</code> (next to
+<code>AccountPublicAddress</code>):</p>
+<pre class="cpp"><code>struct PqAccountPublicAddress {
+  uint8_t  pqVersion;                 // = 2; format/versioning byte inside the payload
+  uint8_t  flags;                     // bit0: hybrid, bit1: reserved …
+  uint32_t kemSchemeId;               // pin = ccx_pq_kem scheme (ML-KEM-768) for agility
+  uint32_t ringSchemeId;              // pin = ccx_pq_scheme_id() (0xC0DE0003) for agility
+  std::vector&lt;uint8_t&gt; kemPublicKey;  // 1184 B (ML-KEM-768 PK) — length-validated on parse
+  // hybrid only (present iff flags.hybrid):
+  crypto::PublicKey legacySpendPublicKey; // 32 B
+  crypto::PublicKey legacyViewPublicKey;  // 32 B
+};</code></pre>
+<p>Serialize via the existing <code>ISerializer</code> pattern
+(<code>serializeAsBinary</code> for <code>kemPublicKey</code>, exactly
+like <code>PqKeyOutput.kemCt</code> in
+<code>CryptoNoteSerialization.cpp:295</code>). <strong>Validate on
+parse</strong>:
+<code>kemPublicKey.size() == ccx_pq_kem_pubkey_bytes()</code>,
+<code>kemSchemeId</code>/<code>ringSchemeId</code> match the daemon's
+compiled-in values, <code>pqVersion == 2</code>. Fail fast
+(coding-style: input validation at boundaries). This is the analogue of
+legacy's <code>check_key()</code>.</p>
+<p><code>pqVersion</code> + the two <code>schemeId</code>s give
+<strong>crypto-agility</strong>: when the ring sig is recalibrated for
+production (CIP C1), bump <code>ringSchemeId</code>; old addresses stay
+parseable and rejectable with a clear "unsupported scheme" error rather
+than silent misuse.</p>
+<h3 id="24-new-formatparse-functions">2.4 New format/parse
+functions</h3>
+<p>In <code>CryptoNoteBasicImpl.{h,cpp}</code> (new functions, legacy
+ones untouched):</p>
+<pre class="cpp"><code>std::string getPqAccountAddressAsStr(uint64_t prefix, const PqAccountPublicAddress&amp;);
+bool parsePqAccountAddressString(uint64_t&amp; prefix, PqAccountPublicAddress&amp;, const std::string&amp;);</code></pre>
+<p>A dispatcher (e.g. in the wallet / RPC layer) peeks the decoded
+varint tag and routes to legacy vs PQ vs hybrid parse. <strong>Do
+not</strong> overload the legacy <code>AccountPublicAddress</code> path
+— a longer payload there would currently fail
+<code>fromBinaryArray</code>/<code>check_key</code>.</p>
+<hr />
+<h2 id="3-wallet-keygen-from-a-mnemonic-seed">3. Wallet keygen from a
+mnemonic seed</h2>
+<h3 id="31-todays-seed-path-legacy-to-mirror">3.1 Today's seed path
+(legacy, to mirror)</h3>
+<p><code>AccountBase::generate()</code> (<code>Account.cpp:29</code>)
+does <code>generate_keys(spendPub, spendSec)</code> then
+<code>generateViewFromSpend(spendSec, viewSec, viewPub)</code> where the
+view key is <strong>deterministically derived</strong> from the spend
+secret (<code>generate_keys_from_seed</code>,
+<code>crypto.cpp:73</code>). The CLI 25-word mnemonic
+(<code>Mnemonics::mnemonicToPrivateKey</code>) encodes the
+<strong>32-byte spend secret</strong>; the view key falls out
+deterministically. So one 256-bit seed reconstructs the whole legacy
+account.</p>
+<h3 id="32-pq-deterministic-derivation-the-core-new-primitive">3.2 PQ
+deterministic derivation (the core new primitive)</h3>
+<p>Keep the <strong>same UX</strong>: one mnemonic = one 32-byte master
+seed. Derive <em>all</em> PQ material deterministically from it via
+domain-separated SHAKE256 (the module already uses
+SHAKE/<code>seed32</code>). Proposed derivation (to add as a thin Rust
+ABI on top of existing <code>ccx_pq_*</code> so the C++ wallet stays
+simple — see §6):</p>
+<pre><code>master32          = mnemonicToSeed(words)                 // 32 B, reuse CLI 25-word path
+kem_seed          = SHAKE256(&quot;ccx-pq-kem-acct&quot;  || master32)   // 32 B
+ringacct_seed     = SHAKE256(&quot;ccx-pq-ring-acct&quot; || master32)   // 32 B (reserved/agility)
+legacy_spend_sec  = SHAKE256(&quot;ccx-legacy-spend&quot; || master32)   // 32 B (hybrid only)
+(KEM_PK, KEM_SK)  = MLKEM768_keygen_deterministic(kem_seed)    // NEW: needs det. keygen
+legacy_view       = generateViewFromSpend(legacy_spend_sec)     // existing path</code></pre>
+<blockquote>
+<p><strong>CRITICAL gap to flag:</strong> the current
+<code>ccx_pq_kem_keypair</code> (lib.rs:181) uses
+<code>kyber768::keypair()</code> — <strong>RNG-based,
+non-deterministic</strong>. Deterministic ML-KEM key generation from a
+seed is <strong>required</strong> for mnemonic recovery and is
+<strong>not yet implemented</strong>. Two options:</p>
+<ol type="1">
+<li>Use a KEM library exposing seed-based keygen (FIPS 203 ML-KEM
+<code>KeyGen(d,z)</code> takes a 64-byte seed → fully deterministic).
+<code>pqcrypto-kyber</code> may not expose this;
+<code>ml-kem</code>/<code>libcrux-ml-kem</code>/<code>fips203</code>
+crates do. <strong>Verify the chosen crate exposes
+<code>keygen_deterministic(seed)</code> before committing</strong>
+(research-first).</li>
+<li>Fallback: store the raw KEM secret in the encrypted wallet file and
+treat the mnemonic as a <em>backup of a stored blob</em>, not a
+from-seed regenerator — weaker UX (mnemonic alone can't restore),
+acceptable only as an interim.</li>
+</ol>
+<p>Recommend option 1. This is the single biggest new-crypto dependency
+in this design.</p>
+</blockquote>
+<p>The lattice <strong>ring-sig account</strong> keypair is <em>not</em>
+a long-term key (§1), so no per-account ring keypair is strictly needed;
+<code>ringacct_seed</code> is reserved for a future "spend authorisation
+root" if the design moves away from KEM-derived one-time keys.</p>
+<h3 id="33-mnemonic-encoding-of-the-master-seed">3.3 Mnemonic encoding
+of the master seed</h3>
+<p>Reuse the existing 25-word list/CRC (<code>src/Mnemonics</code>). The
+master 32-byte seed maps to words exactly as the legacy spend secret
+does — <strong>no new wordlist, no new checksum</strong>. The difference
+is purely <em>what we derive from it</em>. This keeps backup/restore
+identical for users and means a legacy seed can be <em>upgraded in
+place</em> to a hybrid wallet (same words, new derived KEM key) — a nice
+migration property; call it out in UX.</p>
+<hr />
+<h2 id="4-wallet-storage-encrypted-container">4. Wallet storage
+(encrypted container)</h2>
+<h3 id="41-what-must-persist">4.1 What must persist</h3>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Size</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>master32</code> (or mnemonic)</td>
+<td>32 B</td>
+<td>root; everything else derivable</td>
+</tr>
+<tr>
+<td>KEM secret key</td>
+<td>2400 B</td>
+<td>needed every scan; cache to avoid re-keygen per block</td>
+</tr>
+<tr>
+<td>KEM public key</td>
+<td>1184 B</td>
+<td>for address display</td>
+</tr>
+<tr>
+<td>legacy spend/view (hybrid)</td>
+<td>64 B</td>
+<td>existing record</td>
+</tr>
+<tr>
+<td>per-output recovered one-time <code>otSk</code> seeds</td>
+<td>32 B each</td>
+<td>cache of spendable PQ outputs</td>
+</tr>
+<tr>
+<td>ring/kem <code>schemeId</code>s</td>
+<td>8 B</td>
+<td>agility/version pinning</td>
+</tr>
+</tbody>
+</table>
+<h3 id="42-reuse-walletgreen-container-add-a-pq-record">4.2 Reuse
+<code>WalletGreen</code> container, add a PQ record</h3>
+<p>The container today stores fixed-size
+<code>EncryptedWalletRecord</code>s (chacha8, IV chain;
+<code>WalletGreen.h:204</code> <code>ContainerStoragePrefix</code>,
+<code>encryptKeyPair</code>). The KEM keypair is <strong>variable/large
+(1184+2400 B)</strong> and does not fit the fixed Ed25519 record shape,
+so:</p>
+<ul>
+<li><strong>Do not shoehorn</strong> the KEM key into
+<code>EncryptedWalletRecord</code> (it's sized for 32-byte keys).
+Instead add a <strong>versioned PQ side-section</strong> in the wallet
+cache (<code>WalletSerializationV2</code>) that holds:
+<code>master32</code>, <code>kemSchemeId</code>,
+<code>ringSchemeId</code>, encrypted KEM SK/PK blob, and the
+spendable-PQ-output cache.</li>
+<li>Bump the wallet <strong>container/cache version</strong> so old
+daemons/wallets reject a PQ wallet cleanly and a PQ wallet refuses a
+legacy-only build with a clear message (compatibility surface — call it
+out).</li>
+<li>Encrypt the PQ section with the <strong>same chacha8 key</strong>
+derived from the wallet password, continuing the existing IV chain
+(<code>getNextIv</code>/<code>incIv</code>), so password change/rekey
+(<code>copyContainerStorageKeys</code>) re-encrypts it uniformly. No new
+KDF.</li>
+</ul>
+<h3 id="43-view-only--scan-only-pq-wallet">4.3 View-only / scan-only PQ
+wallet</h3>
+<p>The KEM secret is <em>both</em> detect and spend-enabling, so unlike
+legacy there is no "view-only that can't spend" variant for PQ unless
+the design later splits a detect-only sub-key. For v2: a PQ "tracking"
+wallet would hold the KEM PK only and can <strong>recognise</strong>
+outputs <strong>it cannot recover the one-time seed for</strong> — i.e.
+it can show incoming amounts only if we additionally publish a detect
+tag. <strong>Flag as a limitation</strong>; legacy view-key semantics do
+not map 1:1 onto a single KEM key. (A future detect/spend split would
+mirror Monero's view/spend; out of scope here.)</p>
+<hr />
+<h2 id="5-scanning-pq-stealth-outputs">5. Scanning PQ stealth
+outputs</h2>
+<p>This replaces <code>pq_injector</code>'s parse+scan loop
+(<code>pq_injector.cpp:48-117</code>) with wallet code, driven off the
+existing blockchain-sync/<code>TransfersSynchronizer</code> path.</p>
+<p>For each new block's transactions, for each output of type
+<code>PqKeyOutput{key, kemCt}</code>:</p>
+<pre><code>1. seed = ccx_pq_kem_scan(myKemSk, kemCt)            // 32 B; cheap, one decapsulation
+2. (otPk, otSk) = ccx_pq_keygen(seed)                // re-derive one-time keypair
+3. if otPk == output.key:                            // 4096-B compare -&gt; it&#39;s ours
+      record spendable output { globalIndex, amount, otSk(=seed) }
+   else: not ours, skip</code></pre>
+<p>Notes / correctness:</p>
+<ul>
+<li><strong>Step 3 is the ownership test</strong> — same as the
+injector's
+<code>ccx_pq_kem_scan -&gt; ccx_pq_keygen -&gt; compare key</code>
+logic, now per-output during sync.</li>
+<li><strong>Performance:</strong> one ML-KEM decapsulation per PQ output
+scanned. Decaps is fast (µs), but <code>ccx_pq_keygen</code> runs the
+lattice keygen (poly arithmetic) — measure on the WSL host; if hot, gate
+step 2 behind a cheap pre-filter. A natural pre-filter: publish a short
+<strong>detect tag</strong>
+<code>t = SHAKE256("ccx-pq-detect" || ss)[..8]</code> in the output and
+compare 8 bytes before doing the 4096-byte keygen+compare. (Requires a
+tiny output format addition; optional optimisation, testnet-gated.)</li>
+<li><strong>Amount + global index</strong> come from the existing output
+indexing the daemon already maintains (<code>m_pqOutputs[amount]</code>
+— see <code>Blockchain.{h,cpp}</code>); the wallet needs the
+<strong>global index within <code>m_pqOutputs[amount]</code></strong> to
+later name ring members in <code>PqKeyInput.outputIndexes</code>. A
+testnet <code>get_pq_outputs</code> RPC (noted in POC-RESULTS as a next
+step) should expose this so the wallet doesn't re-parse coinbase
+hex.</li>
+<li>Store recovered spendable outputs in the PQ section (§4); on rescan,
+re-derive.</li>
+</ul>
+<hr />
+<h2 id="6-building--signing-a-pq-spend-replacing-pq_injector">6.
+Building + signing a PQ spend (replacing <code>pq_injector</code>)</h2>
+<p>The injector's spend path (<code>pq_injector.cpp:91-160</code>)
+becomes a wallet method, e.g.
+<code>WalletGreen::createPqTransaction(...)</code>. Steps:</p>
+<pre><code>INPUTS (per output being spent):
+1. pick the spendable output (amount A, our otSk seed).
+2. choose ring: fetch ringSize-1 decoys of the SAME amount A from m_pqOutputs[A]
+   (via get_pq_outputs RPC), + our real member; record their global outputIndexes.
+3. ring buffer = concat(member.key)  // each 4096 B, stride = ccx_pq_pubkey_bytes()
+4. msg = the tx prefix hash bound to this input (MUST match what the daemon&#39;s
+   check_pq_tx_input verifies — bind to tx contents to stop replay/malleability).
+5. sig: two-call ccx_pq_sign size query then sign (sk = our seed, signer_index = our
+   position in the ring).  -&gt; ringSig bytes.
+6. nullifier = ccx_pq_nullifier(otSk)  -&gt; 32 B.
+7. emit PqKeyInput{ amount:A, outputIndexes:[…], nullifier, ringSig }.
+
+OUTPUTS (paying a PQ/hybrid recipient):
+8. parse recipient address -&gt; recipient KEM PK.
+9. (ct, seed) = ccx_pq_kem_derive_output(recipientKemPk)   // sender side stealth
+10. (otPk, _) = ccx_pq_keygen(seed)
+11. emit PqKeyOutput{ key:otPk, kemCt:ct }, amount = denomination.
+   (change handled the same way back to our own KEM PK.)
+
+12. set tx.version = 3 (PQ); serialize; submit to mempool.</code></pre>
+<p>Correctness / consensus alignment (must match the daemon, else the
+spend is rejected):</p>
+<ul>
+<li><strong><code>msg</code> binding is the most safety-critical
+choice.</strong> The injector signs some message; the wallet
+<strong>must</strong> sign exactly the bytes
+<code>Blockchain::check_pq_tx_input</code> recomputes and feeds to
+<code>ccx_pq_verify</code> (ring members in the same order, same amount,
+same prefix-hash domain). Mismatch ⇒ silent rejection; a <em>loose</em>
+binding ⇒ malleability. <strong>Verify against the real
+<code>check_pq_tx_input</code> before coding</strong> and document the
+exact message construction in the spec.</li>
+<li><strong>Ring member ordering</strong> must be deterministic and
+reproduced verbatim by the daemon from <code>outputIndexes</code> (the
+daemon resolves keys from <code>m_pqOutputs</code>). The wallet sends
+indexes; the daemon rebuilds the ring bytes — so the wallet must order
+its local ring buffer to match index order, and
+<code>signer_index</code> must point at the real member's slot.</li>
+<li><strong>Unlock window:</strong> <code>check_pq_tx_input</code>
+enforces an unlock/maturity window; the wallet must not select outputs
+that are too recent (mirror the legacy coinbase-maturity check). Surface
+"not yet spendable" rather than building a doomed tx.</li>
+<li><strong>Fixed denomination (PoC):</strong> the testnet coinbase
+emits a single fixed amount
+(<code>PQ_TESTNET_COINBASE_AMOUNT = 100000</code>). Until variable PQ
+amounts/change exist, the wallet can only spend whole fixed-denomination
+outputs and must select enough of them; change goes to a fresh PQ output
+of the same denomination (or a legacy <code>KeyOutput</code> remainder,
+as the coinbase already does). Document the denomination model as a
+known limitation.</li>
+</ul>
+<h3 id="61-thin-rust-helper-abi-recommended">6.1 Thin Rust helper ABI
+(recommended)</h3>
+<p>To keep C++ free of crypto detail, add (in <code>pqc/ccx-pqc</code>)
+a few <strong>deterministic</strong> account-level entry points the
+wallet calls, wrapping existing primitives:</p>
+<ul>
+<li><code>ccx_pq_kem_keygen_det(seed32, pk_out, sk_out)</code> —
+<strong>the missing deterministic KEM keygen (§3.2); blocking
+dependency.</strong></li>
+<li><code>ccx_pq_account_from_seed(master32, kem_pk_out, kem_sk_out, scheme_ids_out)</code>
+— one call to derive the whole PQ account.</li>
+<li>(scan/sign/nullifier already exist and are reused unchanged.)</li>
+</ul>
+<p>Everything else (<code>ccx_pq_kem_scan</code>,
+<code>ccx_pq_keygen</code>, <code>ccx_pq_sign</code>,
+<code>ccx_pq_nullifier</code>, <code>ccx_pq_kem_derive_output</code>) is
+already in <code>lib.rs</code> and reused as-is.</p>
+<hr />
+<h2 id="7-concrete-filestep-plan">7. Concrete file/step plan</h2>
+<table>
+<thead>
+<tr>
+<th>Step</th>
+<th>File(s)</th>
+<th>Change</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>pqc/ccx-pqc/src/lib.rs</code></td>
+<td>Add <code>ccx_pq_kem_keygen_det</code> (deterministic ML-KEM keygen)
++ <code>ccx_pq_account_from_seed</code>; verify the KEM crate supports
+seed-based keygen, swap crate if not. <strong>(blocking)</strong></td>
+</tr>
+<tr>
+<td>2</td>
+<td><code>src/CryptoNoteConfig.h</code></td>
+<td>Add <code>CRYPTONOTE_PUBLIC_PQ_/HYBRID_ADDRESS_BASE58_PREFIX</code>
+(+ <code>TESTNET_*</code>); document numeric→string tuning.</td>
+</tr>
+<tr>
+<td>3</td>
+<td><code>include/CryptoNote.h</code></td>
+<td>Add <code>PqAccountPublicAddress</code> struct.</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>src/CryptoNoteCore/CryptoNoteSerialization.{h,cpp}</code></td>
+<td><code>serialize(PqAccountPublicAddress&amp;, …)</code> mirroring
+<code>PqKeyOutput</code> (serializeAsBinary for KEM PK).</td>
+</tr>
+<tr>
+<td>5</td>
+<td><code>src/CryptoNoteCore/CryptoNoteBasicImpl.{h,cpp}</code></td>
+<td><code>getPqAccountAddressAsStr</code> /
+<code>parsePqAccountAddressString</code> (+ length/scheme validation); a
+prefix dispatcher. Leave legacy fns untouched.</td>
+</tr>
+<tr>
+<td>6</td>
+<td><code>src/CryptoNoteCore/Account.{h,cpp}</code></td>
+<td>Extend <code>AccountBase</code> (or a new
+<code>PqAccountBase</code>) to hold KEM keypair + scheme ids;
+<code>generatePqFromSeed(master32)</code>.</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>src/Mnemonics/*</code></td>
+<td>No format change; add a helper that returns the 32-byte master seed
+(already implicit in <code>mnemonicToPrivateKey</code>) for PQ
+derivation.</td>
+</tr>
+<tr>
+<td>8</td>
+<td><code>src/Wallet/WalletGreen.{h,cpp}</code> +
+<code>WalletSerializationV2.*</code></td>
+<td>Versioned encrypted PQ section (master32, KEM SK/PK, scheme ids,
+spendable-PQ-output cache); bump cache version.</td>
+</tr>
+<tr>
+<td>9</td>
+<td><code>src/Wallet/WalletGreen.cpp</code> (sync path)</td>
+<td>PQ output scanning (§5): per <code>PqKeyOutput</code>,
+<code>kem_scan→keygen→compare</code>, record spendable.</td>
+</tr>
+<tr>
+<td>10</td>
+<td><code>src/Wallet/WalletGreen.cpp</code></td>
+<td><code>createPqTransaction</code> (§6): ring select, sign, nullifier,
+build v3 tx; replace <code>pq_injector</code>.</td>
+</tr>
+<tr>
+<td>11</td>
+<td><code>src/Rpc/*</code> (testnet-gated)</td>
+<td><code>get_pq_outputs</code> RPC: list
+<code>m_pqOutputs[amount]</code> entries {globalIndex, key, kemCt,
+height} for ring selection + scanning.</td>
+</tr>
+<tr>
+<td>12</td>
+<td><code>src/ConcealWallet/*</code></td>
+<td>CLI: <code>pq_address</code>, <code>pq_balance</code>,
+<code>pq_transfer</code>; show hybrid/PQ address.</td>
+</tr>
+<tr>
+<td>13</td>
+<td><code>pqc/tools/pq_injector.cpp</code></td>
+<td>Demote to a test fixture / delete once wallet path works.</td>
+</tr>
+</tbody>
+</table>
+<p>Suggested ordering: <strong>1 → 2-5 (address) → 6-8 (keygen+storage)
+→ 11 (RPC) → 9 (scan) → 10 (spend) → 12 → 13.</strong> Address + keygen
+are independent of consensus and safe to land first.</p>
+<hr />
+<h2 id="8-risks">8. Risks</h2>
+<ol type="1">
+<li><strong>Deterministic ML-KEM keygen is unbuilt and
+load-bearing.</strong> Without it, mnemonic recovery of the KEM key is
+impossible (POC uses RNG <code>kyber768::keypair()</code>). Must confirm
+a FIPS-203 seed-keygen path in the chosen crate
+(<code>ml-kem</code>/<code>libcrux</code>/<code>fips203</code>) or the
+whole "restore from words" UX fails. <em>Highest risk.</em></li>
+<li><strong>Address size / UX.</strong> A 1184-byte (PQ) or 1248-byte
+(hybrid) payload Base58-encodes to ~1.6k characters — far longer than a
+95-char legacy address. QR codes get dense; copy/paste is fine. Consider
+an integrated-address-style short alias or a versioned compression
+later. Not a blocker; flag for product.</li>
+<li><strong><code>msg</code> binding mismatch (consensus).</strong> If
+the wallet signs a different message than <code>check_pq_tx_input</code>
+verifies, every spend is silently rejected; if too loose, txs are
+malleable. Must be derived from the real daemon code, not the injector,
+and tested round-trip.</li>
+<li><strong>Single KEM key conflates detect + spend</strong> — no clean
+legacy-style view-only PQ wallet; tracking wallets can't recognise
+outputs without an extra detect tag. Scope limitation, document it.</li>
+<li><strong>Wallet file compatibility.</strong> New PQ section + version
+bump means PQ wallets won't open in old builds and vice-versa;
+rekey/password-change must re-encrypt the PQ section through the
+existing IV chain or funds become unrecoverable. Test
+save→load→rekey→load.</li>
+<li><strong>Scheme-agility churn.</strong> Pinning
+<code>kemSchemeId</code>/<code>ringSchemeId</code> in the address is
+correct, but when CIP C1 recalibrates the ring sig (new
+<code>0xC0DE_xxxx</code>), all PQ-only addresses minted against the old
+ring scheme are conceptually fine (ring key isn't in the address) — but
+any <em>outputs/spends</em> are not; ensure the agility story is
+"address survives, spend rules height-gate." Document.</li>
+<li><strong>Consensus blast radius.</strong> New address types touch
+<code>CryptoNoteConfig.h</code>, serialization, RPC. Keep strictly
+testnet-gated; no mainnet prefix until the ring sig is audited. The
+address format itself can stabilise earlier than the crypto (it's just
+an envelope), which is the point of the
+<code>pqVersion</code>/<code>schemeId</code> fields.</li>
+<li><strong>Performance of per-output scan.</strong>
+<code>kem_scan + lattice keygen</code> per PQ output during sync may be
+heavy on large chains; add the 8-byte detect-tag pre-filter (§5) if WSL
+measurements show it. Measure before optimising.</li>
+</ol>
+<hr />
+<h2 id="9-test-plan">9. Test plan</h2>
+<p><strong>Rust (<code>pqc/ccx-pqc</code>, <code>cargo test</code> /
+selftests):</strong></p>
+<ul>
+<li><code>ccx_pq_kem_keygen_det(seed)</code> is deterministic: same seed
+→ identical PK/SK across calls and processes; different seed → different
+keys.</li>
+<li><code>ccx_pq_account_from_seed</code> round-trips: derive →
+<code>kem_derive_output</code> → <code>kem_scan</code> →
+<code>keygen</code> → recovered <code>otPk</code> matches (extends
+existing <code>ccx_pq_kem_stealth_selftest</code>).</li>
+<li>master-seed derivation domain-separation: KEM seed ≠ legacy spend
+seed ≠ ringacct seed.</li>
+</ul>
+<p><strong>C++ unit tests (gtest,
+<code>-DBUILD_TESTS=ON</code>):</strong></p>
+<ul>
+<li>Address round-trip: <code>getPqAccountAddressAsStr</code> →
+<code>parsePqAccountAddressString</code> returns the same struct;
+corrupt 1 char ⇒ checksum/decode fails; wrong prefix ⇒ routed away;
+wrong <code>kemPublicKey.size()</code>/<code>schemeId</code> ⇒
+rejected.</li>
+<li>Hybrid address carries+restores legacy spend/view AND KEM PK;
+PQ-only omits EC.</li>
+<li>Mnemonic→account: words → master32 → KEM keypair; same words
+reproduce the same KEM PK (recovery). Upgrading a legacy seed yields a
+stable hybrid address.</li>
+<li>Wallet storage: create PQ wallet → save → load → keys identical →
+spendable-output cache intact; password change re-encrypts PQ section
+and reloads.</li>
+</ul>
+<p><strong>Integration (WSL 2-node testnet,
+<code>pqc/run-poc-testnet.sh</code>):</strong></p>
+<ul>
+<li>Mine coinbase PQ outputs to a <em>wallet-derived</em> KEM key
+(replace the hardcoded <code>pq_testnet_kem_keypair.h</code> with the
+wallet's address in the coinbase recipient path).</li>
+<li>Wallet <strong>scans</strong> the chain and reports the correct PQ
+balance (matches what the injector found).</li>
+<li>Wallet <strong>builds+signs</strong> a PQ spend via
+<code>createPqTransaction</code>; daemon accepts it (parity with
+<code>pq_injector</code>'s accepted ring-of-4 spend).</li>
+<li>Double-spend: second tx reusing the nullifier rejected by mempool +
+chain (re-confirm the PoC's three rejection paths still hold from the
+wallet).</li>
+<li>Negative: spend an immature output ⇒ wallet refuses / daemon rejects
+(unlock window).</li>
+<li><strong>A/B parity test:</strong> for the same coinbase set,
+wallet-produced <code>PqKeyInput</code> bytes are consensus-equivalent
+to injector-produced ones (both accepted) — the regression gate for
+retiring <code>pq_injector</code>.</li>
+</ul>
+<p><strong>Measurement (WSL):</strong> time per-output scan (kem_scan +
+keygen) over N outputs; ring-of-4 spend build time; wallet save/load
+time with the larger PQ section. Decide whether the detect-tag
+pre-filter is needed.</p>
+<hr />
+<h2 id="10-summary">10. Summary</h2>
+<p>The wallet v2 design carries the <strong>ML-KEM-768 public
+key</strong> (not the 4096-byte ring key) as the PQ component of a new
+Base58 address, behind new <code>ccxpq</code>/<code>ccxh</code>
+prefixes, encoded with the <strong>existing</strong>
+<code>encode_addr</code> machinery + a
+<code>pqVersion</code>/<code>schemeId</code> envelope for
+crypto-agility. All PQ key material derives deterministically from the
+<strong>same 25-word mnemonic</strong> users already have, stored in a
+new versioned encrypted section of the <code>WalletGreen</code>
+container. Scanning and spending reuse the already-working
+<code>ccx_pq_kem_scan / keygen / sign / nullifier</code> ABI — the four
+jobs <code>pq_injector</code> does today — moved into the wallet sync +
+transaction paths. The one genuinely new crypto dependency is
+<strong>deterministic ML-KEM keygen</strong> (the PoC's KEM keygen is
+RNG-based); the one most safety-critical detail is <strong>matching the
+daemon's <code>check_pq_tx_input</code> message binding</strong>
+exactly. Everything stays testnet-gated until the ring signature is
+audited.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

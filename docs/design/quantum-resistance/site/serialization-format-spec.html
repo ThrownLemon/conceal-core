@@ -1,0 +1,672 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Serialization format spec — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class="active"><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1
+id="conceal-consensus-serialization-format--canonical-byte-layout-pq-additions--variant-tag-table">Conceal
+Consensus Serialization Format — Canonical Byte Layout (PQ additions +
+variant tag table)</h1>
+<p>Status: SPEC / normative reference for the on-wire + on-disk +
+consensus-hash binary format. Scope: documents the exact byte layout
+produced by <code>src/CryptoNoteCore/CryptoNoteSerialization.cpp</code>
+and <code>src/CryptoNoteCore/TransactionExtra.cpp</code>, with emphasis
+on the post-quantum additions (<code>PqKeyInput/Output</code>,
+<code>PqMultisigInput/Output</code>, tx-extra <code>0x06</code> PQ
+message). The golden-vector and round-trip guard for this format lives
+at <code>tests/UnitTests/TestTransactionSerializationGolden.cpp</code>
+(suites <code>TransactionSerializationGolden</code>,
+<code>TransactionExtraGolden</code>) and
+<code>tests/UnitTests/TestPqMessage.cpp</code>.</p>
+<blockquote>
+<p><strong>Why this is a spec, not tribal knowledge.</strong> The
+homemade KV binary serializer is simultaneously (a) the P2P wire format,
+(b) the on-disk blockchain/wallet format, and (c)
+<strong>consensus-hash-observable</strong> —
+<code>getObjectHash(tx)</code> and <code>getObjectHash(block)</code>
+hash these exact bytes. The PQ fields were added to it BY HAND. Any byte
+drift silently forks the chain and invalidates every hardcoded
+checkpoint. Treat every layout below as frozen unless you are making a
+deliberate, height-gated, hard-fork consensus change.</p>
+</blockquote>
+<hr />
+<h2 id="1-primitive-encodings">1. Primitive encodings</h2>
+<table>
+<thead>
+<tr>
+<th>Primitive</th>
+<th>Encoding</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>uint8/16/32/64</code>, <code>int*</code></td>
+<td><strong>varint</strong> (LEB128, base-128, little-endian, 7 data
+bits/byte, high bit = continuation) via
+<code>Common/Varint.h::writeVarint</code>.</td>
+</tr>
+<tr>
+<td><code>bool</code></td>
+<td>one raw byte (<code>0x00</code>/<code>0x01</code>).</td>
+</tr>
+<tr>
+<td>POD blob (<code>crypto::PublicKey</code>,
+<code>crypto::SecretKey</code>, <code>crypto::Hash</code>,
+<code>crypto::KeyImage</code>, <code>crypto::Signature</code>,
+<code>chacha8_iv</code>)</td>
+<td><strong>raw fixed-size bytes, NO length prefix</strong>
+(<code>ISerializer::binary(ptr, size)</code>).
+PublicKey/SecretKey/Hash/KeyImage/Signature are 32 bytes each except
+<code>Signature</code> = 64 bytes.</td>
+</tr>
+<tr>
+<td><code>std::string</code></td>
+<td><code>varint(size)</code> then <code>size</code> raw bytes
+(<code>operator()(std::string&amp;)</code>).</td>
+</tr>
+<tr>
+<td><code>std::vector&lt;uint8_t&gt;</code> via
+<code>serializeAsBinary</code></td>
+<td>packed into a blob then emitted as a string:
+<code>varint(size)</code> + raw bytes.
+<strong>Length-prefixed.</strong></td>
+</tr>
+<tr>
+<td><code>std::vector&lt;uint32_t&gt;</code> via
+<code>serializeVarintVector</code></td>
+<td><code>varint(count)</code> then each element as a varint.</td>
+</tr>
+<tr>
+<td><code>std::vector&lt;T&gt;</code> (array of objects, e.g.
+<code>std::vector&lt;PublicKey&gt;</code>)</td>
+<td><code>beginArray</code> writes <code>varint(count)</code>, then each
+element serialized in order. For POD element types each element is its
+raw fixed-size blob (no per-element length).</td>
+</tr>
+<tr>
+<td>variant element (<code>TransactionInput</code>,
+<code>TransactionOutputTarget</code>)</td>
+<td>one <strong>raw</strong> tag byte (NOT a varint — written via
+<code>binary(&amp;tag, 1)</code>) followed by the tagged value's
+body.</td>
+</tr>
+</tbody>
+</table>
+<p><code>block.nonce</code> is the one integer written as a <strong>raw
+4-byte</strong> field (<code>binary(&amp;nonce, 4)</code>), not a varint
+— see §5.</p>
+<hr />
+<h2 id="2-variant-tag-table">2. Variant tag table</h2>
+<h3
+id="21-transaction-input-tag-transactioninput-leading-byte-of-each-vin-element">2.1
+Transaction input tag (<code>TransactionInput</code>, leading byte of
+each <code>vin</code> element)</h3>
+<table>
+<thead>
+<tr>
+<th>Tag (raw byte)</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0xff</code></td>
+<td><code>BaseInput</code></td>
+<td>coinbase / miner input</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td><code>KeyInput</code></td>
+<td>ordinary ring-signature spend</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td><code>MultisignatureInput</code></td>
+<td>legacy Ed25519 multisig / deposit</td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td><strong><code>PqKeyInput</code></strong></td>
+<td>PQ linkable-ring-signature spend (CIP-0001)</td>
+</tr>
+<tr>
+<td><code>0x05</code></td>
+<td><strong><code>PqMultisigInput</code></strong></td>
+<td>PQ ML-DSA-65 multisig / deposit (CIP-0001 UPGRADE_HEIGHT_V9)</td>
+</tr>
+</tbody>
+</table>
+<h3
+id="22-transaction-output-target-tag-transactionoutputtarget-leading-byte-of-each-output-target">2.2
+Transaction output target tag (<code>TransactionOutputTarget</code>,
+leading byte of each output <code>target</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Tag (raw byte)</th>
+<th>Type</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x02</code></td>
+<td><code>KeyOutput</code></td>
+<td>one-time public key output</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td><code>MultisignatureOutput</code></td>
+<td>legacy multisig output</td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td><strong><code>PqKeyOutput</code></strong></td>
+<td>PQ one-time output (ML-KEM stealth)</td>
+</tr>
+<tr>
+<td><code>0x05</code></td>
+<td><strong><code>PqMultisigOutput</code></strong></td>
+<td>PQ ML-DSA-65 multisig output</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Note the input/output tag namespaces are <strong>separate</strong>.
+Tag <code>0x04</code> means <code>PqKeyInput</code> in <code>vin</code>
+and <code>PqKeyOutput</code> in <code>vout</code>; tag <code>0x05</code>
+means <code>PqMultisigInput</code> vs <code>PqMultisigOutput</code>. The
+decoder dispatches on position (<code>getVariantValue</code> has one
+overload per side).</p>
+</blockquote>
+<h3 id="23-tx-extra-field-tag-leading-byte-of-each-tx-extra-field">2.3
+tx-extra field tag (leading byte of each tx-extra field)</h3>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Field</th>
+<th>Body</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>0x00</code></td>
+<td>padding</td>
+<td>run of zero bytes (no explicit length; consumed until non-zero /
+end, capped at 255)</td>
+</tr>
+<tr>
+<td><code>0x01</code></td>
+<td>public key</td>
+<td>32 raw bytes (no length prefix)</td>
+</tr>
+<tr>
+<td><code>0x02</code></td>
+<td>nonce</td>
+<td>1 raw length byte + that many raw bytes</td>
+</tr>
+<tr>
+<td><code>0x03</code></td>
+<td>merge-mining tag</td>
+<td>length-prefixed string blob of
+<code>{varint depth, Hash merkleRoot}</code></td>
+</tr>
+<tr>
+<td><code>0x04</code></td>
+<td>legacy message</td>
+<td>length-prefixed string <code>data</code> (chacha8 ciphertext, see
+§6)</td>
+</tr>
+<tr>
+<td><code>0x05</code></td>
+<td>TTL</td>
+<td><code>varint(size)</code> + <code>varint(ttl)</code></td>
+</tr>
+<tr>
+<td><code>0x06</code></td>
+<td><strong>PQ message</strong></td>
+<td><code>{serializeAsBinary kemCt, string data}</code> — see §4.3</td>
+</tr>
+<tr>
+<td><code>0x07</code></td>
+<td><strong>authenticated message</strong></td>
+<td><code>tx_extra_authenticated_message</code> — classical Curve25519
+ECDH + ChaCha20-Poly1305 AEAD; body is a single length-prefixed
+<code>string data</code> (the sealed blob). See §4.6 / §6.</td>
+</tr>
+</tbody>
+</table>
+<p>The extra parser (<code>parseTransactionExtra</code>) has <strong>no
+<code>default</code> case</strong>: an unknown tag stops further field
+recognition, and a field that over-reads its declared length consumes
+bytes belonging to the next field. New variable-length fields therefore
+MUST be bounded at parse time (see the 0x06 guard in §4.3) before being
+added.</p>
+<blockquote>
+<p><strong>Known limitation — no <code>default:</code> rejection
+(consensus-sensitive).</strong> Because the <code>switch</code> has no
+<code>default</code>, an unrecognised tag byte fails <em>soft</em>
+(field recognition stops; foreign/unknown tx-extra is tolerated). This
+is the legacy parser design and affects every tag. Adding a blanket
+<code>default: return false</code> would reject tx-extra the network
+currently accepts — a <strong>consensus change</strong> that could fork
+the chain — so it is deliberately NOT done here. The correct fix is a
+future, height-gated, length-framed tx-extra container format (every
+field self-describes its length, so unknown fields are skippable without
+desync) behind a new <code>UPGRADE_HEIGHT_*</code> + block major
+version. See
+<code>docs/reviews/tier1/serializer-review-response.md</code>. The
+fields we own (0x06, 0x07) are each explicitly length-bounded
+<strong>before allocation</strong> at parse time so a hostile length
+prefix can neither over-read into following fields nor force a large
+allocation (DoS-hardened — review FIX 1).</p>
+</blockquote>
+<hr />
+<h2 id="3-input-layouts-body-after-the-tag-byte">3. Input layouts (body
+after the tag byte)</h2>
+<h3 id="31-baseinput-tag-0xff">3.1 <code>BaseInput</code> (tag
+<code>0xff</code>)</h3>
+<pre><code>varint blockIndex            // uint32</code></pre>
+<h3 id="32-keyinput-tag-0x02">3.2 <code>KeyInput</code> (tag
+<code>0x02</code>)</h3>
+<pre><code>varint amount                // uint64
+varint count, varint[count]  // outputIndexes (serializeVarintVector)
+32 raw bytes                 // keyImage (POD, no length)</code></pre>
+<h3 id="33-multisignatureinput-tag-0x03">3.3
+<code>MultisignatureInput</code> (tag <code>0x03</code>)</h3>
+<pre><code>varint amount                // uint64
+varint signatureCount        // uint8
+varint outputIndex           // uint32
+varint term                  // uint32</code></pre>
+<h3 id="34-pqkeyinput-tag-0x04">3.4 <code>PqKeyInput</code> (tag
+<code>0x04</code>)</h3>
+<pre><code>varint amount                       // uint64
+varint count, varint[count]         // outputIndexes (serializeVarintVector)
+varint len, len raw bytes           // nullifier   (serializeAsBinary, length-prefixed)
+varint len, len raw bytes           // ringSig      (serializeAsBinary, length-prefixed)</code></pre>
+<p>PQ ring sigs are carried INLINE in the input;
+<code>getSignaturesCount(PqKeyInput) == 0</code>, so this input
+contributes NO entries to the positional <code>tx.signatures</code>
+array.</p>
+<h3 id="35-pqmultisiginput-tag-0x05">3.5 <code>PqMultisigInput</code>
+(tag <code>0x05</code>)</h3>
+<pre><code>varint amount                       // uint64
+varint signatureCount               // uint8  (== output.requiredSignatureCount, m)
+varint outputIndex                  // uint32
+varint term                         // uint32
+varint m, then m × {varint len, len raw bytes}   // signatures (PQ multisig array, see §3.7)</code></pre>
+<p><code>getSignaturesCount(PqMultisigInput) == 0</code> — the m
+ML-DSA-65 detached sigs (~3.3 KB each) live inline here, not in the
+fixed-size <code>crypto::Signature</code> slots.</p>
+<h3 id="36-pq-multisig-array-serializepqmultisigarray">3.6 PQ multisig
+array (<code>serializePqMultisigArray</code>)</h3>
+<pre><code>varint count                        // bounded to PQ_MULTISIG_MAX_KEYS on the INPUT path
+count × { varint len, len raw bytes }   // each element via serializeAsBinary</code></pre>
+<p>The count is checked against <code>PQ_MULTISIG_MAX_KEYS</code> BEFORE
+allocation on decode, so a hostile length prefix cannot drive an
+OOM.</p>
+<hr />
+<h2 id="4-output-layouts-body-after-the-tag-byte">4. Output layouts
+(body after the tag byte)</h2>
+<h3 id="41-keyoutput-tag-0x02">4.1 <code>KeyOutput</code> (tag
+<code>0x02</code>)</h3>
+<pre><code>32 raw bytes                 // key (POD PublicKey)</code></pre>
+<h3 id="42-multisignatureoutput-tag-0x03">4.2
+<code>MultisignatureOutput</code> (tag <code>0x03</code>)</h3>
+<pre><code>varint count, count × 32 raw bytes   // keys (array of POD PublicKey)
+varint requiredSignatureCount        // uint8
+varint term                          // uint32</code></pre>
+<h3 id="43-pqkeyoutput-tag-0x04">4.3 <code>PqKeyOutput</code> (tag
+<code>0x04</code>)</h3>
+<pre><code>varint len, len raw bytes    // key   (serializeAsBinary, variable-length PQ one-time pubkey)
+varint len, len raw bytes    // kemCt (serializeAsBinary, ML-KEM ciphertext)</code></pre>
+<h3 id="44-pqmultisigoutput-tag-0x05">4.4 <code>PqMultisigOutput</code>
+(tag <code>0x05</code>)</h3>
+<pre><code>varint n, then n × {varint len, len raw bytes}   // keys (PQ multisig array, §3.6)
+varint requiredSignatureCount                    // uint8 (m)
+varint term                                       // uint32</code></pre>
+<blockquote>
+<p><strong>The full <code>vout</code> element</strong> wraps the target:
+<code>varint amount</code> then <code>target</code> (tag byte + body
+above). The golden vectors in the test encode the bare
+<code>TransactionOutputTarget</code> variant (tag + body), i.e. without
+the leading <code>amount</code>, which is the unit under test for the
+variant serializers.</p>
+</blockquote>
+<h3
+id="46-tx-extra-0x07-authenticated-message-body-tx_extra_authenticated_message">4.6
+tx-extra <code>0x07</code> authenticated message body
+(<code>tx_extra_authenticated_message</code>)</h3>
+<p>After the <code>0x07</code> tag:</p>
+<pre><code>varint len, len raw bytes    // data (string) — ChaCha20-Poly1305 sealed blob = plaintext || 16-byte Poly1305 tag</code></pre>
+<p>No KEM ciphertext is carried (unlike <code>0x06</code>): the
+recipient re-derives the 32-byte AEAD seed from the tx public key +
+their spend secret via classical Curve25519 ECDH
+(<code>generate_key_derivation</code>, then
+<code>cn_fast_hash(derivation || 0x80 || 0x07)</code>). The key
+agreement is the same as the legacy <code>0x04</code> field, but the
+seed is <strong>domain-separated</strong> by the second magic byte:
+<code>0x07</code> uses <code>0x07</code> where <code>0x04</code> uses
+<code>0x00</code>, so a <code>0x04</code> and a <code>0x07</code> to the
+same recipient + index can never derive the same seed or share a
+keystream (review FIX 3). The seed + the per-message index then key
+<code>ccx_pq_msg_seal/open</code>. Parse-time bound (declared length
+bounded before allocation, same rationale as <code>0x06</code>):
+<code>TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE (16) &lt;= data.size() &lt;= TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE (8192)</code>.</p>
+<h3 id="45-tx-extra-0x06-pq-message-body-tx_extra_pq_message">4.5
+tx-extra <code>0x06</code> PQ message body
+(<code>tx_extra_pq_message</code>)</h3>
+<p>After the <code>0x06</code> tag:</p>
+<pre><code>varint len, len raw bytes    // kemCt (serializeAsBinary) — must equal ccx_pq_kem_ct_bytes() (1088)
+varint len, len raw bytes    // data  (string) — ChaCha20-Poly1305 sealed blob = plaintext || 16-byte Poly1305 tag</code></pre>
+<p>Parse-time bounds (defense-in-depth, enforced in
+<code>parseTransactionExtra</code>):
+<code>kemCt.size() == ccx_pq_kem_ct_bytes()</code>, and
+<code>TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE (16) &lt;= data.size() &lt;= TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE (8192)</code>.
+A field violating any bound makes the whole parse fail (returns
+<code>false</code>) rather than over-reading. The declared length
+prefixes are bounded against
+<code>min(field max, bytes remaining in the stream)</code>
+<strong>before any allocation</strong>, so a tiny tx with a huge varint
+length prefix is rejected without forcing a large allocation (review FIX
+1).</p>
+<hr />
+<h2 id="5-transaction--block-layout">5. Transaction &amp; Block
+layout</h2>
+<h3 id="51-transactionprefix">5.1 <code>TransactionPrefix</code></h3>
+<pre><code>varint version               // uint8, must be &lt;= TRANSACTION_VERSION_3
+varint unlockTime            // uint64
+varint count, count × input  // inputs (vin); each input = tag byte + body (§3)
+varint count, count × output // outputs (vout); each = varint amount + (tag byte + target body, §4)
+varint len, len raw bytes    // extra (serializeAsBinary over the raw extra byte vector)</code></pre>
+<h3 id="52-transaction">5.2 <code>Transaction</code></h3>
+<p><code>TransactionPrefix</code> (above) followed by positional
+signatures. For each input i, in order,
+<code>getSignaturesCount(inputs[i])</code>
+<code>crypto::Signature</code> values (64 raw bytes each) are written
+with NO count prefix:</p>
+<table>
+<thead>
+<tr>
+<th>Input type</th>
+<th>Signatures contributed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BaseInput</code></td>
+<td>0</td>
+</tr>
+<tr>
+<td><code>KeyInput</code></td>
+<td><code>outputIndexes.size()</code></td>
+</tr>
+<tr>
+<td><code>MultisignatureInput</code></td>
+<td><code>signatureCount</code></td>
+</tr>
+<tr>
+<td><code>PqKeyInput</code></td>
+<td>0 (inline ring sig)</td>
+</tr>
+<tr>
+<td><code>PqMultisigInput</code></td>
+<td>0 (inline ML-DSA sigs)</td>
+</tr>
+</tbody>
+</table>
+<p>If <code>tx.signatures</code> is empty the signature section is
+omitted entirely; otherwise its layout must match the per-input counts
+exactly or serialization throws.</p>
+<h3 id="53-block">5.3 <code>Block</code></h3>
+<pre><code>varint majorVersion          // uint8, must be &lt;= BLOCK_MAJOR_VERSION_9
+varint minorVersion          // uint8
+varint timestamp             // uint64
+32 raw bytes                 // previousBlockHash (POD Hash)
+4 raw bytes                  // nonce (raw uint32, NOT varint)
+Transaction baseTransaction  // miner tx (§5.2)
+varint count, count × 32 raw bytes   // transactionHashes (array of POD Hash)</code></pre>
+<hr />
+<h2 id="6-the-legacy-0x04-message-construction-for-contrast">6. The
+legacy <code>0x04</code> message construction (for contrast)</h2>
+<p><code>tx_extra_message</code> (<code>0x04</code>) symmetric layer:
+<code>chacha8(msg || 4 zero bytes)</code>, key =
+<code>cn_fast_hash(Curve25519-ECDH-derivation || 0x80 || 0x00)</code>,
+nonce = <code>SWAP64LE(index)</code>. The 4 trailing zero bytes are a
+<strong>probabilistic owner check (~1-in-2³²), NOT a MAC</strong> — the
+stream cipher is malleable and tampering is generally undetected. This
+field is now treated as frozen legacy (decrypt-only) at the
+serialization layer. The <code>0x06</code> PQ message and the
+<code>0x07</code> authenticated classical message (§4.6) both replace
+this with real ChaCha20-Poly1305 AEAD integrity; <code>0x07</code> keeps
+the same classical ECDH key agreement as <code>0x04</code> (but a
+domain-separated seed, §4.6), so it is the drop-in classical
+successor.</p>
+<blockquote>
+<p><strong>Send-path migration (done):</strong> the wallet send path now
+<em>emits</em> the authenticated <code>0x07</code> field for new
+encrypted messages instead of the legacy <code>0x04</code> field.
+<code>src/CryptoNoteCore/CryptoNoteFormatUtils.cpp</code>
+(<code>constructTransaction</code>, WalletLegacy path) and
+<code>src/Wallet/WalletGreen.cpp</code> both build a
+<code>tx_extra_authenticated_message</code> via
+<code>append_authenticated_message_to_extra</code> whenever a message
+has a recipient (<code>tx_message_entry::encrypt == true</code>). The
+legacy <code>0x04</code> field is <strong>decrypt-only</strong>: it is
+no longer emitted for encrypted messages, only still produced for the
+rare <em>unencrypted broadcast</em> message
+(<code>encrypt == false</code>, no recipient ECDH) which cannot use the
+authenticated field. The receive path (<code>TransfersConsumer</code>,
+<code>WalletGreen::getMessagesFromExtra</code>,
+<code>PaymentGate/WalletService</code>) reads both <code>0x04</code>
+(history) and <code>0x07</code> (new) and merges the results. tx-extra
+is not consensus-validated, so the migration is backward-compatible and
+non-consensus. See
+<code>docs/reviews/tier1/serializer-review-response.md</code>.</p>
+</blockquote>
+<hr />
+<h2 id="7-the-no-canonicalisation-invariant-consensus-critical">7. The
+no-canonicalisation invariant (consensus-critical)</h2>
+<p>The transaction hash is taken over the <strong>raw
+<code>tx.extra</code> byte vector</strong> exactly as it appears on the
+wire. <code>parseTransactionExtra</code> is a <em>reader</em>; it does
+NOT reorder, deduplicate, pad, or otherwise canonicalise
+<code>extra</code>. Therefore:</p>
+<ul>
+<li>Two transactions with the same logical fields but different
+<code>extra</code> byte orderings are DIFFERENT transactions with
+DIFFERENT hashes.</li>
+<li>A wallet/daemon must never "rewrite" <code>extra</code> to a
+canonical form before hashing — it would change the txid. The
+<code>TransactionExtraGolden.HashIsOverRawExtraBytesNoCanonicalisation</code>
+test pins this.</li>
+</ul>
+<hr />
+<h2 id="8-golden-vectors-fixed-examples">8. Golden vectors (fixed
+examples)</h2>
+<p>These are the exact byte strings the guard asserts. Each uses the
+deterministic filler <code>byte[i] = (base + i) &amp; 0xff</code>. They
+encode the bare variant (tag byte + body). If any of these change, the
+serializer output changed — investigate before touching the expected
+hex.</p>
+<table>
+<thead>
+<tr>
+<th>Variant</th>
+<th>Golden hex</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>BaseInput</code> (blockIndex=0x01020304)</td>
+<td><code>ff84868808</code></td>
+</tr>
+<tr>
+<td><code>KeyInput</code> (amount=1000000, idx=[1,2,3], keyImage base
+0x10)</td>
+<td><code>02c0843d03010203</code> + keyImage32</td>
+</tr>
+<tr>
+<td><code>MultisignatureInput</code> (amount=2000000, sigCount=2,
+outIdx=7, term=11)</td>
+<td><code>0380897a02070b</code></td>
+</tr>
+<tr>
+<td><code>PqKeyInput</code> (amount=3000000, idx=[4,5], nullifier
+8B@0xA0, ringSig 12B@0xB0)</td>
+<td><code>04c08db70102040508…0c…</code></td>
+</tr>
+<tr>
+<td><code>PqMultisigInput</code> (amount=4000000, sigCount=2, outIdx=9,
+term=13, sigs 6B@0xC0 + 7B@0xD0)</td>
+<td><code>058092f40102090d0206…07…</code></td>
+</tr>
+<tr>
+<td><code>KeyOutput</code> (key 32B@0x20)</td>
+<td><code>02</code> + key32</td>
+</tr>
+<tr>
+<td><code>MultisignatureOutput</code> (2 keys @0x30/@0x40, reqSig=2,
+term=5)</td>
+<td><code>03022…2…0205</code></td>
+</tr>
+<tr>
+<td><code>PqKeyOutput</code> (key 10B@0x50, kemCt 14B@0x60)</td>
+<td><code>040a…0e…</code></td>
+</tr>
+<tr>
+<td><code>PqMultisigOutput</code> (keys 5B@0x70 + 6B@0x80, reqSig=3,
+term=17)</td>
+<td><code>0502057071727374068081828384850311</code></td>
+</tr>
+</tbody>
+</table>
+<p>The authoritative, full-length strings live in
+<code>TestTransactionSerializationGolden.cpp</code>; the table above is
+a human-readable digest. The test is the source of truth.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

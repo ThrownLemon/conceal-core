@@ -1,0 +1,7 @@
+**/target/
+build/
+Cargo.lock
+# Exception: the PQ crate's lockfile IS committed. It pins ml-kem/ml-dsa/hybrid-array exactly so a
+# `cargo update` can never silently change the deterministic wallet-key byte encoding (mnemonics must
+# stay restorable — a drift here is funds loss). Keep this tracked.
+!ccx-pqc/Cargo.lock

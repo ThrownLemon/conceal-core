@@ -1,0 +1,60 @@
+[package]
+name = "ccx-pqc"
+version = "0.1.0"
+edition = "2021"
+description = "Conceal post-quantum crypto module (C-ABI). Real ML-KEM/ML-DSA; ring-sig is an unaudited clean-room Raptor PoC (eprint 2018/857) over PQClean Falcon-512 — NOT production-ready (see docs raptor-integration-plan.md sec 5)."
+
+[lib]
+name = "ccx_pqc"
+crate-type = ["staticlib"]
+
+# The FFI panic guards (std::panic::catch_unwind in src/lib.rs) only work if panics unwind. Pin
+# unwind so a future "panic = abort" optimisation can't silently turn every extern "C" guard into a
+# process abort, breaking the on-panic error-code contract the C++ daemon relies on.
+[profile.release]
+panic = "unwind"
+
+[profile.dev]
+panic = "unwind"
+
+[dependencies]
+sha3 = "0.10"
+# ChaCha20-Poly1305 AEAD for the PQ message field (tx-extra 0x06): real authenticated encryption so
+# tampering ANY byte is detected. Matches the RustCrypto 0.10 generation used by sha3. The key/nonce
+# are derived deterministically (SHAKE256), so no RNG feature is needed.
+chacha20poly1305 = "0.10"
+pqcrypto-kyber = "0.8"
+pqcrypto-dilithium = "0.5"
+pqcrypto-traits = "0.3"
+# Seedable (deterministic) FIPS-203/204 keygen for mnemonic-restorable wallet PQ keys. pqcrypto's
+# keypair() is RNG-only (OS entropy), so a mnemonic backup cannot restore the PQ half of a wallet
+# (funds-loss regression). The RustCrypto ml-kem/ml-dsa crates expose the standardized deterministic
+# KeyGen-from-seed entry points (ML-KEM: 64-byte d||z; ML-DSA: 32-byte xi). We export the keys in the
+# SAME byte encoding pqcrypto uses (FIPS pk; expanded sk) and prove interop in a selftest, so the
+# existing pqcrypto-based encap/decap/sign/verify path is unchanged and on-chain formats are identical.
+# EXACT pins (FIX 4): detkeygen's #[allow(deprecated)] rides ml-kem 0.3 / ml-dsa 0.1 encoding entry
+# points (to_expanded_bytes / to_expanded) that upstream WILL change next minor. A silent `cargo update`
+# that altered the wallet-key byte encoding would make mnemonics unrestorable => funds loss. Pin the
+# exact versions Cargo.lock resolves to; the committed Cargo.lock + the detkeygen-through-pqcrypto
+# interop selftest are the belt-and-suspenders. Bump these deliberately, with a re-run of the selftest.
+ml-kem = "=0.3.2"
+ml-dsa = "=0.1.1"
+# Both ml-kem and ml-dsa expose their seed/key byte buffers as hybrid_array::Array; we construct the
+# fixed-size FIPS seed arrays through it. Pinned exact to the version the PQ crates resolve to.
+hybrid-array = "=0.4.12"
+rand_core = "0.6"
+# Wallet-file at-rest KDF (CIP-0001 Q2 §1b): Argon2id (RFC 9106) replaces the unsalted single-pass
+# cn_slow_hash_v0 wallet KDF. Same RustCrypto family as the AEAD above. Client-side only (no fork).
+argon2 = "0.5"
+# Raptor (clean-room lattice linkable ring sig over PQClean Falcon-512) needs a CSPRNG for the
+# per-signature throwaway Falcon key + random targets used to sample genuine non-signer preimages.
+# rand 0.8 / rand_chacha 0.3 both ride rand_core 0.6 (the version ml-kem/ml-dsa already pin), so no
+# conflict. The Falcon C itself is compiled by build.rs (cc) and seeds its own SHAKE PRNG.
+rand = "0.8"
+rand_chacha = "0.3"
+
+# Compile the vendored PQClean Falcon-512 "clean" C (integer-FP only) + the clean-room raptor_falcon.c
+# shim into the staticlib. All vendored C is MIT (Falcon Project) / public-domain (fips202, randombytes)
+# — see vendor/falcon/LICENSE.falcon. NO GPL.
+[build-dependencies]
+cc = "1.0"

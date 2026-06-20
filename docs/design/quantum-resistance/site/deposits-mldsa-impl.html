@@ -1,0 +1,574 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ML-DSA deposits (impl) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class="active"><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="pq-deposits--ml-dsa-65-implementation-report-cip-0001">PQ
+Deposits — ML-DSA-65 Implementation Report (CIP-0001)</h1>
+<p>Status: <strong>IMPLEMENTED on the worktree branch (testnet-gated,
+mainnet-sentinel-gated).</strong> Built + tested on the WSL x86_64 host.
+Money-critical consensus code — pushed as an UNAUDITED backup branch to
+the fork + org (<code>pqc/testnet-poc</code>); NOT merged, NOT mainnet,
+still pending human review + audit.</p>
+<p>Implements the blueprint
+<code>docs/design/quantum-resistance/deposits-mldsa.md</code> exactly: a
+dedicated <code>PqMultisigInput</code>/<code>PqMultisigOutput</code>
+variant pair (tag <strong>0x5</strong>,
+<code>BLOCK_MAJOR_VERSION_9</code> / <code>UPGRADE_HEIGHT_V9</code>)
+that is a faithful PQ analogue of the Ed25519 deposit path — only the
+signature primitive is swapped to ML-DSA-65 (FIPS 204,
+<code>dilithium3</code>). Term / interest / lock / double-spend
+semantics are byte-identical; the only crypto change is
+<code>crypto::check_signature</code> →
+<code>ccx_pq_multisig_verify</code>.</p>
+<hr />
+<h2 id="1-what-was-built">1. What was built</h2>
+<h3 id="ffi-pqcccx-pqcsrclibrs-pqcincludepq_ring_sigh">FFI
+(<code>pqc/ccx-pqc/src/lib.rs</code>,
+<code>pqc/include/pq_ring_sig.h</code>)</h3>
+<p>New ML-DSA-65 (dilithium3) DETACHED-signature C-ABI, distinct from
+the experimental lattice ring sig:</p>
+<table>
+<thead>
+<tr>
+<th>Function</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>ccx_pq_multisig_pubkey_bytes()</code></td>
+<td>dilithium3 public-key length (deposit key length)</td>
+</tr>
+<tr>
+<td><code>ccx_pq_multisig_seckey_bytes()</code></td>
+<td>dilithium3 secret-key length</td>
+</tr>
+<tr>
+<td><code>ccx_pq_sig_bytes()</code></td>
+<td>dilithium3 detached-signature length (deposit sig length)</td>
+</tr>
+<tr>
+<td><code>ccx_pq_multisig_keypair(...)</code></td>
+<td>RNG keypair (injector / tests; daemon never calls it)</td>
+</tr>
+<tr>
+<td><code>ccx_pq_multisig_sign(msg, sk, ...)</code></td>
+<td>detached sign over the prefix hash</td>
+</tr>
+<tr>
+<td><code>ccx_pq_multisig_verify(msg, pk, sig)</code></td>
+<td>detached verify; returns 0 iff valid</td>
+</tr>
+<tr>
+<td><code>ccx_pq_multisig_selftest()</code></td>
+<td>roundtrip + tamper / wrong-key / wrong-message reject</td>
+</tr>
+</tbody>
+</table>
+<p>Detached signatures keep the sig fixed-size and the message
+un-embedded — the daemon verifies against the supplied prefix hash. The
+dilithium3 primitive is the standardized NIST scheme used as-is (no
+ring, no nullifier).</p>
+<h3 id="types--serialization">Types + serialization</h3>
+<ul>
+<li><code>include/CryptoNote.h</code>:
+<code>PqMultisigInput { amount, signatureCount, outputIndex, term, signatures }</code>
+and
+<code>PqMultisigOutput { keys, requiredSignatureCount, term }</code>,
+appended to both variants (<code>TransactionInput</code>,
+<code>TransactionOutputTarget</code>) — append-only, tag
+<strong>0x5</strong>.</li>
+<li><code>CryptoNoteSerialization.cpp</code>: tag 0x5 in
+<code>BinaryVariantTagGetter</code> + both <code>getVariantValue</code>
+dispatches; <code>getSignaturesCount(PqMultisigInput) == 0</code>
+(inline sigs, like <code>PqKeyInput</code>);
+<code>serialize(PqMultisigInput/Output)</code> using a bounded
+<code>beginArray</code> helper; block-header version cap bumped to
+<code>BLOCK_MAJOR_VERSION_9</code>.</li>
+</ul>
+<h3 id="config-cryptonoteconfigh">Config
+(<code>CryptoNoteConfig.h</code>)</h3>
+<ul>
+<li><code>BLOCK_MAJOR_VERSION_9 = 9</code>.</li>
+<li><code>UPGRADE_HEIGHT_V9 = 5000000</code> — a far-future
+<strong>sentinel</strong> well past the last hardcoded checkpoint
+(~2,070,000), so PQ deposits never auto-activate on mainnet and are
+never auto-trusted in the checkpoint zone until audited.</li>
+<li><code>TESTNET_UPGRADE_HEIGHT_V9 = 80</code> — testnet PoC activation
+(after the existing PoC PQ activation).</li>
+<li><code>PQ_MULTISIG_MAX_KEYS = 16</code> — bounds the
+attacker-controlled key/sig arrays.</li>
+<li><code>Currency</code> wires <code>m_upgradeHeightV9</code> (builder
++ mainnet/testnet defaults +
+<code>upgradeHeight(BLOCK_MAJOR_VERSION_9)</code>).</li>
+</ul>
+<h3 id="validation-blockchainhcpp">Validation
+(<code>Blockchain.{h,cpp}</code>)</h3>
+<ul>
+<li><code>check_pq_multisig()</code> — a line-for-line port of
+<code>validateInput(MultisignatureInput)</code> with the primitive
+swapped (see §2). Wired into the <code>checkTransactionInputs</code>
+switch, gated by checkpoint zone, advancing <code>inputIndex</code> like
+<code>PqKeyInput</code> (mixed-input alignment).</li>
+<li><code>getTransactionPqSigningHash()</code> extended to also clear
+inline <code>PqMultisigInput.signatures</code> before hashing (a
+signature cannot commit to itself).</li>
+<li><code>check_tx_outputs_visitor::operator()(PqMultisigOutput)</code>
+— v3 + <code>validateOutput</code> + <code>m in [1,n]</code>.</li>
+<li>Height gate in <code>pushBlock</code> rejects any tx containing a PQ
+multisig variant below <code>UPGRADE_HEIGHT_V9</code>.</li>
+</ul>
+<h3 id="index-reorg-mempool">Index, reorg, mempool</h3>
+<ul>
+<li><code>m_pqMultisigOutputs</code>
+(<code>MultisignatureOutputsContainer</code>, mirror of
+<code>m_multisignatureOutputs</code>) with per-cell <code>isUsed</code>.
+Push / mark / pop / clear-isUsed are symmetric with the Ed25519 path;
+persisted in the on-disk index (<code>pq_multisig_outputs</code>) and
+rebuilt on initial scan (<code>rebuildCache</code>).</li>
+<li>Mempool: a dedicated <code>m_spentPqDeposits</code>
+<code>(amount, outputIndex)</code> set for in-pool conflict rejection,
+plus <code>checkMultisignatureInputsDiff</code> extended to catch
+intra-tx duplicate deposit cells.</li>
+</ul>
+<h3
+id="interest--amount-accounting-currencyhcpp-cryptonoteformatutilscpp-transactionutilscpp-cryptonotetoolscpp">Interest
+/ amount accounting (<code>Currency.{h,cpp}</code>,
+<code>CryptoNoteFormatUtils.cpp</code>,
+<code>TransactionUtils.cpp</code>,
+<code>CryptoNoteTools.cpp</code>)</h3>
+<ul>
+<li><code>input_amount_visitor::operator()(PqMultisigInput)</code>,
+<code>getInterestForInput(PqMultisigInput)</code>,
+<code>calculateTotalTransactionInterest</code>,
+<code>get_inputs_money_amount</code>,
+<code>getTransactionInputAmount</code> (both the Currency visitor and
+the legacy free helper),
+<code>getInputAmount</code>/<code>getInputsAmounts</code> — all dispatch
+the new variant identically to the Ed25519
+<code>MultisignatureInput</code>, producing byte-identical values.</li>
+<li><code>Currency::validateOutput(PqMultisigOutput)</code> — identical
+term band + <code>depositMinAmount</code> rules.</li>
+</ul>
+<hr />
+<h2 id="2-how-each-critical-risk-is-handled">2. How each CRITICAL risk
+is handled</h2>
+<h3
+id="1-interest-minting--inputterm-bound-to-outputterm-before-interest">(1)
+Interest minting — <code>input.term</code> BOUND to
+<code>output.term</code> before interest</h3>
+<p><code>check_pq_multisig</code> (Blockchain.cpp) — the term bind is
+the same line as the Ed25519 path, executed <em>before</em> any interest
+is ever computed:</p>
+<pre class="cpp"><code>    if (input.signatureCount != output.requiredSignatureCount) { ... return false; }
+
+    // BIND the input&#39;s term to the on-chain output&#39;s term BEFORE any interest is computed. This is
+    // the interest-minting safety guarantee: input_amount_visitor derives interest from input.term,
+    // and output.term has already passed validateOutput&#39;s term band — so an attacker cannot mint
+    // arbitrary interest by declaring a larger term than the deposit actually has.
+    if (input.term != output.term)
+    {
+      logger(DEBUGGING) &lt;&lt; &quot;Transaction &lt;&lt; &quot; &lt;&lt; transactionHash &lt;&lt; &quot; contains PQ multisignature input with invalid term.&quot;;
+      return false;
+    }</code></pre>
+<p>Interest is then derived from <code>input.term</code> (now ==
+validated <code>output.term</code>) by the <strong>same</strong>
+<code>calculateInterest(amount, term, lockHeight)</code> used by the
+Ed25519 path:</p>
+<pre class="cpp"><code>  uint64_t Currency::getInterestForInput(const PqMultisigInput &amp;input, uint32_t height) const
+  {
+    uint32_t lockHeight = height - input.term;
+    if (height == m_blockWithMissingInterest) { lockHeight = height; }
+    return calculateInterest(input.amount, input.term, lockHeight);
+  }</code></pre>
+<p>Unit test
+<code>PqDepositCurrencyTest.InputAmountParityWithEd25519</code> asserts
+the PQ deposit value EQUALS the Ed25519 deposit value for the same
+amount/term across the full multiplier-band height set, and
+<code>TotalTransactionInterestParity</code> asserts the same for
+<code>calculateTotalTransactionInterest</code>.</p>
+<h3
+id="2-reorg-index-corruption--symmetric-pushpop-of-m_pqmultisigoutputs--isused">(2)
+Reorg index corruption — symmetric push/pop of
+<code>m_pqMultisigOutputs</code> + <code>isUsed</code></h3>
+<p>Push (output indexed <code>isUsed=false</code>) in
+<code>pushTransaction</code>, mark <code>isUsed=true</code> in the
+separate input loop, and the <strong>symmetric</strong> unwind in
+<code>popTransaction</code>:</p>
+<pre class="cpp"><code>      else if (output.target.type() == typeid(PqMultisigOutput))
+      {
+        // REORG SYMMETRY (CRITICAL): pop the PQ deposit cell from m_pqMultisigOutputs exactly the way
+        // the MultisignatureOutput branch above pops m_multisignatureOutputs — same consistency
+        // guards, same isUsed check, same LIFO order. An asymmetric pop corrupts the deposit index on
+        // a reorg (the PoC hit this class of bug for m_pqOutputs, fixed in commit 4af0ec2).
+        auto amountOutputs = m_pqMultisigOutputs.find(output.amount);
+        ...
+        if (amountOutputs-&gt;second.back().isUsed) { ...continue; }
+        if (amountOutputs-&gt;second.back().transactionIndex.block != transactionIndex.block || ...) { ...continue; }
+        if (amountOutputs-&gt;second.back().outputIndex != transaction.outputs.size() - 1 - outputIndex) { ...continue; }
+        amountOutputs-&gt;second.pop_back();
+        if (amountOutputs-&gt;second.empty()) { m_pqMultisigOutputs.erase(amountOutputs); }
+      }</code></pre>
+<p>and the spent-flag is cleared on the input side of
+<code>popTransaction</code>:</p>
+<pre class="cpp"><code>      else if (input.type() == typeid(PqMultisigInput))
+      {
+        // REORG SYMMETRY (CRITICAL): clear the spent flag on the PQ deposit cell exactly the way the
+        // MultisignatureInput branch does, so a rolled-back spend frees the cell for re-spend after a
+        // reorg. Asymmetry here would wedge a legitimate deposit (cell stuck isUsed=true forever).
+        const PqMultisigInput &amp;in = ::boost::get&lt;PqMultisigInput&gt;(input);
+        auto &amp;amountOutputs = m_pqMultisigOutputs[in.amount];
+        if (!amountOutputs[in.outputIndex].isUsed) { logger(ERROR,...) &lt;&lt; &quot;...not marked as used.&quot;; }
+        amountOutputs[in.outputIndex].isUsed = false;
+      }</code></pre>
+<p><code>rebuildCache</code> repopulates both the deposit cells (output
+loop) and the <code>isUsed</code> flags (input loop), and the index is
+persisted (<code>pq_multisig_outputs</code>) so a restart keeps spent
+cells spent.</p>
+<h3
+id="3-deposit-lock-bypass--block--term--height-ported-byte-for-byte">(3)
+Deposit-lock bypass — <code>block + term &gt; height</code>, ported
+byte-for-byte</h3>
+<pre class="cpp"><code>    // DEPOSIT LOCK (ported byte-for-byte): a deposit (term != 0) cannot be spent until its term has
+    // fully elapsed since the block that created it. Off-by-one here allows early withdrawal and
+    // over-credits interest, so the comparison must match the Ed25519 path exactly.
+    if (output.term != 0 &amp;&amp; outputIndex.transactionIndex.block + output.term &gt; getCurrentBlockchainHeight())
+    {
+      logger(DEBUGGING) &lt;&lt; &quot;Transaction &lt;&lt; &quot; &lt;&lt; transactionHash &lt;&lt; &quot; contains PQ multisignature input that spends locked deposit output&quot;;
+      return false;
+    }</code></pre>
+<h3 id="4-dos--bounded-length-prefixed-arrays--exact-lengths">(4) DoS —
+bounded length-prefixed arrays + exact lengths</h3>
+<p><code>serialize</code> bounds the array count to
+<code>PQ_MULTISIG_MAX_KEYS</code> <em>before</em> <code>resize</code> on
+the INPUT path:</p>
+<pre class="cpp"><code>void serializePqMultisigArray(std::vector&lt;std::vector&lt;uint8_t&gt;&gt;&amp; items, cn::ISerializer&amp; s, common::StringView name) {
+  size_t n = items.size();
+  s.beginArray(n, name);
+  if (s.type() == cn::ISerializer::INPUT) {
+    if (n &gt; cn::PQ_MULTISIG_MAX_KEYS) { throw serialization_error(&quot;PQ multisig array exceeds PQ_MULTISIG_MAX_KEYS&quot;); }
+    items.resize(n);
+  }
+  ...
+}</code></pre>
+<p><code>check_outs_valid</code> re-checks
+<code>keys.size() in [1, PQ_MULTISIG_MAX_KEYS]</code>,
+<code>m in [1,n]</code>, and every key length
+<code>== ccx_pq_multisig_pubkey_bytes()</code>.
+<code>check_pq_multisig</code> re-checks the key length at the verify
+boundary so a corrupt index can never reach the FFI with a wrong-length
+buffer.</p>
+<h3 id="coinbase-height-gate-review-finding--fixed">Coinbase height-gate
+(review finding — FIXED)</h3>
+<p>The Codex pre-PR review found a HIGH issue: the per-tx height gate in
+<code>pushBlock</code> only iterates the non-coinbase
+<code>transactions[i]</code>, so a hand-crafted pre-V9
+<strong>coinbase</strong> could mint a <code>PqMultisigOutput</code>
+deposit cell (spendable after V9). Fixed by also gating
+<code>blockData.baseTransaction</code> before it is pushed:</p>
+<pre class="cpp"><code>    // HEIGHT GATE (CIP-0001 UPGRADE_HEIGHT_V9) for the COINBASE: the per-tx gate below only covers
+    // non-coinbase transactions, so guard the miner tx here too — otherwise a hand-crafted pre-V9
+    // coinbase could mint a PqMultisigOutput deposit cell that becomes spendable after V9. ...
+    if (transactionContainsPqMultisig(blockData.baseTransaction) &amp;&amp;
+        static_cast&lt;uint32_t&gt;(m_blocks.size()) &lt; m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_9))
+    {
+      ... bvc.m_verification_failed = true; return false;
+    }</code></pre>
+<p>A genuine coinbase never carries one (<code>constructMinerTx</code>
+emits only KeyOutput/PqKeyOutput), so this only rejects malicious
+blocks. Codex confirmed interest-minting, reorg symmetry, signing hash,
+deposit-lock/double-spend, and DoS bounds are all clean.</p>
+<h3 id="mixed-input-txsignatures-alignment">Mixed-input
+<code>tx.signatures</code> alignment</h3>
+<p><code>getSignaturesCount(PqMultisigInput) == 0</code> (inline sigs),
+and the switch branch advances <code>inputIndex</code> exactly like
+<code>PqKeyInput</code>, so a mixed
+<code>KeyInput + PqMultisigInput</code> tx reads the correct signature
+slot.</p>
+<h3 id="self-reference-of-inline-signatures">Self-reference of inline
+signatures</h3>
+<p>The signed message is <code>getTransactionPqSigningHash(tx)</code> —
+the prefix with every inline <code>PqMultisigInput.signatures</code>
+(and <code>PqKeyInput.ringSig</code>) cleared, so a signature never
+commits to itself. The signer (injector / future wallet) must compute
+the identical hash.</p>
+<hr />
+<h2 id="3-test-results">3. Test results</h2>
+<p>Built on the WSL x86_64 host (Mac arm64 cannot build). Rust lib +
+CryptoNoteCore + Daemon + UnitTests all compile clean (only pre-existing
+deprecation warnings).</p>
+<p><code>ctest -R UnitTests</code> (with the repo's baked-in skip
+filter): <strong>1 test PASSED, 0 failed (66.67 s)</strong>. Full gtest
+run: <strong>1007 / 1007 tests pass</strong> (88 suites), including the
+11 new PQ deposit tests.</p>
+<p>New tests (<code>tests/UnitTests/TestPqDeposits.cpp</code>):</p>
+<table>
+<thead>
+<tr>
+<th>Test</th>
+<th>Covers</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PqDepositPrimitive.SelftestPasses</code></td>
+<td>FFI selftest ok=1 (roundtrip + tamper/wrong-key/wrong-msg)</td>
+</tr>
+<tr>
+<td><code>PqDepositPrimitive.SignVerifyRoundtripAndRejections</code></td>
+<td>direct sign/verify + tamper + wrong-key + wrong-message reject</td>
+</tr>
+<tr>
+<td><code>PqDepositSerialization.InputRoundtrip</code></td>
+<td>PqMultisigInput binary in→out→in equality</td>
+</tr>
+<tr>
+<td><code>PqDepositSerialization.OutputRoundtrip</code></td>
+<td>PqMultisigOutput binary in→out→in equality</td>
+</tr>
+<tr>
+<td><code>PqDepositSerialization.OversizedInputArrayRejected</code></td>
+<td>sig array &gt; PQ_MULTISIG_MAX_KEYS rejected at boundary</td>
+</tr>
+<tr>
+<td><code>PqDepositSerialization.OversizedOutputArrayRejected</code></td>
+<td>key array &gt; PQ_MULTISIG_MAX_KEYS rejected at boundary</td>
+</tr>
+<tr>
+<td><code>PqDepositCurrencyTest.InputAmountParityWithEd25519</code></td>
+<td>PQ deposit value == Ed25519 deposit value (amount + interest)</td>
+</tr>
+<tr>
+<td><code>PqDepositCurrencyTest.NonDepositInputIsPrincipalOnly</code></td>
+<td>term==0 ⇒ principal only</td>
+</tr>
+<tr>
+<td><code>PqDepositCurrencyTest.TotalTransactionInterestParity</code></td>
+<td>calculateTotalTransactionInterest parity</td>
+</tr>
+<tr>
+<td><code>PqDepositCurrencyTest.ValidateOutputParityTermBand</code></td>
+<td>term band accept/reject parity with Ed25519</td>
+</tr>
+<tr>
+<td><code>PqDepositCurrencyTest.ValidateOutputParityMinAmount</code></td>
+<td>depositMinAmount accept/reject parity</td>
+</tr>
+</tbody>
+</table>
+<p>Rust selftest (<code>ccx_pq_multisig_selftest</code>) also runs in
+isolation (ok=1).</p>
+<hr />
+<h2 id="3a-pre-pr-review-outcomes-coderabbit--codex--glm">3a. Pre-PR
+review outcomes (CodeRabbit + Codex + GLM)</h2>
+<ul>
+<li><strong>CodeRabbit</strong>
+(<code>coderabbit review --plain -t all</code>): <strong>no
+findings</strong>.</li>
+<li><strong>Codex</strong> (critical pass on
+interest/reorg/signing-hash/lock/DoS): one <strong>HIGH</strong> — the
+coinbase height-gate gap (fixed, §2 "Coinbase height-gate"). Explicitly
+confirmed CLEAN: interest minting, reorg index symmetry, signing hash +
+mixed-input alignment, deposit-lock/double-spend, DoS bounds.</li>
+<li><strong>GLM</strong> (<code>openrouter/z-ai/glm-5</code>): all 5
+critical paths <strong>CORRECT</strong> (term binding, reorg symmetry,
+signing-hash self-reference, deposit-lock + double-spend parity,
+serialization DoS bounds). One valid hygiene finding — the
+block-template builder (<code>TransactionPool.cpp</code>
+<code>BlockTemplate</code>) shared the
+<code>(amount, outputIndex)</code> keyspace between PQ and Ed25519
+deposit cells; <strong>fixed</strong> by giving it a separate
+<code>m_usedPqDeposits</code> set (a same-numbered cell in both indexes
+would otherwise have benignly deferred one tx to a later block template
+— never a consensus error). GLM's two other notes were false positives
+(the <code>m_spentPqDeposits</code>/<code>m_spentOutputs</code>
+separation it then calls correct, and a misread of the pre-existing
+Ed25519 <code>isUsed=false</code> line as an addition — verified
+pre-existing in the base commit).</li>
+</ul>
+<blockquote>
+<p><strong>Build status of the two post-review fixes (coinbase gate +
+block-template set):</strong> the WSL build host became unreachable
+(Tailscale SSH re-auth required, interactive) after the main build, so
+these two small follow-up edits are <strong>not yet recompiled on the
+remote</strong>. Both use only already-compiled symbols
+(<code>transactionContainsPqMultisig</code>, <code>upgradeHeight</code>,
+a new <code>std::set</code> of the existing type). Re-run
+<code>make -j4 CryptoNoteCore UnitTests</code> +
+<code>ctest -R UnitTests</code> once the host is reachable to confirm.
+The pre-fix tree (everything except these two edits) built clean and
+passed 1007/1007.</p>
+</blockquote>
+<h2 id="4-deferred--follow-up-precisely-scoped">4. Deferred / follow-up
+(precisely scoped)</h2>
+<ul>
+<li><strong>Chain-level CoreTests for PQ deposits</strong> (spend after
+lock, reject early withdrawal at <code>term-1</code>, accept at
+<code>term</code>, double-spend via reused outputIndex, deep reorg
+across a deposit create+spend leaves the index/isUsed clean, pre-gate
+height reject, version&lt;3 reject). These require a <strong>PQ-aware
+<code>tests/CoreTests/TransactionBuilder</code></strong> (ML-DSA
+keygen/sign) mirroring <code>tests/CoreTests/Deposit.cpp</code> (988
+lines, Ed25519-specific). The consensus logic for all of these is a
+line-for-line port of the Ed25519 path already covered by
+<code>Deposit.cpp</code> (only the primitive differs), so the unit tests
+above cover the <em>divergent</em> surface; the chain-level harness is
+the recommended next step, matching how the PoC deferred ring-sig chain
+coverage to the end-to-end testnet runner.</li>
+<li><strong>End-to-end testnet deposit injector</strong>
+(<code>pqc/tools/pq_deposit_injector.cpp</code>): build a v3 tx with a
+<code>PqMultisigOutput</code> deposit, mine past <code>term</code>,
+spend with m <code>ccx_pq_multisig_sign</code> sigs over the prefix
+hash, observe interest credited. Mirrors
+<code>pqc/run-poc-testnet.sh</code>. Not built here.</li>
+<li><strong>Wallet integration</strong> (<code>concealwallet</code>
+deposit create/withdraw with ML-DSA keypairs) — follow-up, out of the
+consensus scope (the injector stands in, as in the PoC).</li>
+<li><strong>Block-explorer RPC</strong>
+(<code>BlockchainExplorerDataBuilder</code>) returns <code>false</code>
+for PQ-multisig txs (the same safe behaviour it already has for
+<code>PqKeyInput</code>/<code>PqKeyOutput</code>) — full PQ explorer
+support deferred.</li>
+<li><strong>Mainnet activation</strong> stays disabled
+(<code>UPGRADE_HEIGHT_V9</code> far-future sentinel) until the ML-DSA
+deposit <em>integration</em> (detached-sig handling, constant-time, side
+channels) is audited (CIP-0001 C1). The dilithium3 primitive is
+production-grade; the integration is unaudited.</li>
+</ul>
+<hr />
+<h2 id="5-risk-note-consensus--money--crypto">5. Risk note (consensus /
+money / crypto)</h2>
+<p>All edits are testnet-gated (height gate + testnet block allowance)
+and the mainnet height is a sentinel past the last checkpoint, so this
+<strong>cannot</strong> affect mainnet consensus until a deliberate,
+audited fork lowers <code>UPGRADE_HEIGHT_V9</code>. The serialization
+tag (0x5) is append-only; an old daemon rejects v3 PQ-multisig txs as an
+unknown variant tag. Interest and reorg paths are byte-identical ports
+of the audited Ed25519 deposit logic with only the signature primitive
+swapped. Left for human review; <strong>not</strong> pushed to the
+fork.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

@@ -1,0 +1,445 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ML-KEM messages (impl) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class="active"><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1
+id="pq-messages-ml-kem-768--implementation-notes-steps-13--default-routing">PQ
+Messages (ML-KEM-768) — implementation notes (steps 1–3 + default
+routing)</h1>
+<p>Implements the self-contained, low-risk core of
+<code>messages-mlkem.md</code>: a new additive tx-extra field under
+<strong>tag <code>0x06</code></strong> that protects Conceal's encrypted
+on-chain messages with an ML-KEM-768 KEM instead of the Shor-broken
+Curve25519 ECDH. The legacy <code>0x04</code> path is untouched.</p>
+<p>Blueprint steps <strong>1, 2, 3</strong> are done, and the send path
+now <strong>defaults to <code>0x06</code></strong> for encrypted
+messages whenever a recipient KEM pubkey is obtainable (Step 3b below) —
+replacing the original opt-in <code>CCX_PQ_MESSAGES</code> env flag. The
+remaining step <strong>4</strong> items (wallet-format KEM-key
+persistence</p>
+<ul>
+<li>full per-recipient mainnet key distribution) are still
+<strong>not</strong> done — see "Remaining (step 4)".</li>
+</ul>
+<h2 id="what-was-built">What was built</h2>
+<h3
+id="step-1--rust-message-domain-kem-pqcccx-pqcsrclibrs-pqcincludepq_ring_sigh">Step
+1 — Rust message-domain KEM (<code>pqc/ccx-pqc/src/lib.rs</code>,
+<code>pqc/include/pq_ring_sig.h</code>)</h3>
+<ul>
+<li><code>ccx_pq_msg_kem_encap(kem_pk, …, ct_out, key_out)</code> —
+encapsulate to a 1184-byte ML-KEM-768 public key; writes the 1088-byte
+Kyber ciphertext and a 32-byte secret
+<code>key = SHAKE256("ccx-msg-kem-v1" || ss)</code>.</li>
+<li><code>ccx_pq_msg_kem_decap(kem_sk, …, ct, key_out)</code> —
+decapsulate and re-derive the same 32-byte secret.</li>
+<li><code>ccx_pq_msg_kem_selftest()</code> — encap→decap round-trips to
+the same secret; a wrong KEM secret yields a different secret; the
+message domain does <strong>not</strong> collide with the stealth domain
+(<code>"ccx-stealth-otk"</code>) for the same ciphertext.</li>
+<li>The two functions mirror <code>ccx_pq_kem_derive_output</code> /
+<code>ccx_pq_kem_scan</code> exactly but with a distinct domain string,
+so a KEM key reused for both stealth outputs and messages never yields
+the same secret (domain separation lives inside the audited crypto
+module). The secret is <strong>index-independent</strong>; the
+per-message index is mixed in C++-side.</li>
+<li>Also declared the pre-existing <code>ccx_pq_kem_keypair</code> in
+the header (it was exported from Rust but not declared in
+<code>pq_ring_sig.h</code>).</li>
+</ul>
+<p><strong>ChaCha20-Poly1305 AEAD (integrity upgrade for 0x06).</strong>
+Adds the <code>chacha20poly1305</code> crate (0.10, matching the
+RustCrypto 0.10 generation used by <code>sha3</code>) and:</p>
+<ul>
+<li><code>ccx_pq_msg_seal(seed32, index, pt, …, ct_out, ct_len_out)</code>
+— derive a 32-byte key + 12-byte nonce from <code>(seed32, index)</code>
+via one SHAKE256 with domain <code>"ccx-msg-aead-v1"</code> (index bound
+into <strong>both</strong> key and nonce → no nonce reuse across
+indices), then ChaCha20-Poly1305 seal. Writes <code>pt_len + 16</code>
+bytes (ciphertext || Poly1305 tag).</li>
+<li><code>ccx_pq_msg_open(seed32, index, ct, …, pt_out, pt_len_out)</code>
+— same derivation, then AEAD open; returns a negative code and writes
+<strong>nothing</strong> to <code>pt_out</code> on authentication
+failure (no plaintext on failure). Null/length guards on all raw
+pointers; <code>pt_out</code> may be null only for an empty
+plaintext.</li>
+<li><code>ccx_pq_msg_aead_selftest()</code> — seal→open round-trip;
+flipping <strong>any</strong> sealed byte (ciphertext or tag) makes open
+fail; wrong seed fails; wrong index fails.</li>
+</ul>
+<h3 id="step-2--c-core-srccryptonotecoretransactionextrahcpp">Step 2 —
+C++ core (<code>src/CryptoNoteCore/TransactionExtra.{h,cpp}</code>)</h3>
+<ul>
+<li><code>#define TX_EXTRA_PQ_MESSAGE_TAG 0x06</code>,
+<code>TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE 16</code>, and
+<code>TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE 8192</code> (the latter bounds
+the AEAD-sealed <code>data</code> blob).</li>
+<li><code>struct tx_extra_pq_message { std::vector&lt;uint8_t&gt; kemCt; std::string data; encrypt/decrypt/serialize }</code>
+added to the <code>TransactionExtraField</code> boost::variant.</li>
+<li>Parser case for <code>0x06</code>
+(<code>ar(pqMessage, "pq_message")</code>) with a <strong>size
+bound</strong>: rejects the field (parser returns <code>false</code>,
+fail-closed) if <code>kemCt.size() != ccx_pq_kem_ct_bytes()</code>
+(1088), or <code>data</code> is shorter than the 16-byte tag, or
+<code>data.size() &gt; TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE</code>. This is
+required because the extra parser has no <code>default:</code> case
+(blueprint R1/R4) — an unbounded/wrong- length field could mis-frame
+later fields.</li>
+<li><code>ExtraSerializerVisitor::operator()(const tx_extra_pq_message&amp;)</code>
+→ <code>append_pq_message_to_extra</code>.</li>
+<li><code>append_pq_message_to_extra</code> (mirrors
+<code>append_message_to_extra</code>) and
+<code>get_pq_messages_from_extra(extra, recipientKemSec)</code> (mirrors
+<code>get_messages_from_extra</code>, but takes only the recipient's KEM
+secret — the KEM ciphertext is self-contained, no tx pubkey
+needed).</li>
+<li><code>encrypt</code>/<code>decrypt</code>: the KEM
+(<code>ccx_pq_msg_kem_encap</code>/<code>decap</code>) derives a 32-byte
+seed; that seed + the per-message index then key
+<strong>ChaCha20-Poly1305 AEAD</strong>
+(<code>ccx_pq_msg_seal</code>/<code>open</code>). <code>data</code>
+carries the sealed blob
+(<code>plaintext || 16-byte Poly1305 tag</code>). This replaces the
+original chacha8 + 4-zero-byte owner-test for 0x06 with <strong>real
+authenticated encryption</strong> — tampering any byte is detected. The
+legacy 0x04 path (chacha8 + checksum, in <code>tx_extra_message</code>)
+is untouched.</li>
+</ul>
+<p>Wire format:
+<code>0x06 [varint len_kemCt][kemCt 1088][varint len_data][data]</code>,
+via <code>serializeAsBinary(kemCt)</code> + <code>s(data)</code> (same
+precedent as <code>PqKeyOutput::kemCt</code>), where <code>data</code>
+is the AEAD-sealed ciphertext (<code>|msg| + 16</code>).</p>
+<h3 id="step-3--sendscan-glue-testnet-gated-option-b-hardcoded-key">Step
+3 — send/scan glue (testnet-gated, Option B hardcoded key)</h3>
+<ul>
+<li><code>tx_message_entry</code> (<code>CryptoNoteFormatUtils.h</code>)
+gains <code>bool pq</code> +
+<code>std::vector&lt;uint8_t&gt; kemPub</code> (kept an aggregate;
+existing brace-init sites value-initialize the new trailing
+members).</li>
+<li><code>constructTransaction</code>
+(<code>CryptoNoteFormatUtils.cpp</code>): if
+<code>msg.pq &amp;&amp; !msg.kemPub.empty()</code>, emit a
+<code>tx_extra_pq_message</code> (0x06) and <strong>not</strong> a
+legacy <code>0x04</code> copy (no transcript downgrade, §5).</li>
+<li><code>WalletTransactionSender.cpp</code>: originally gated behind
+env flag <strong><code>CCX_PQ_MESSAGES</code></strong> (testnet opt-in).
+<strong>Superseded by Step 3b</strong> — <code>0x06</code> is now the
+<strong>default</strong> (env flag removed); see Step 3b for the current
+recipient-key resolution.</li>
+<li><code>TransfersConsumer.cpp</code>: on testnet, additionally scan
+with <code>get_pq_messages_from_extra(extra, PQ_TESTNET_KEM_SK)</code>
+and merge into the legacy result.</li>
+<li>CMake: added <code>${CCX_PQC_INCLUDE}</code> to the
+<code>Wallet</code> and <code>Transfers</code> libs (they now reference
+the testnet KEM-key header) and to the test include dirs.</li>
+</ul>
+<h3
+id="step-3b--0x06-is-now-the-default-for-encrypted-messages-not-opt-in">Step
+3b — 0x06 is now the DEFAULT for encrypted messages (not opt-in)</h3>
+<p><strong>Rationale.</strong> Conceal's encrypted on-chain messages are
+<strong>permanent</strong>: a message written today is stored on the
+chain forever. Under the classical authenticated field
+(<code>0x07</code>) the key agreement is still Curve25519 ECDH —
+<strong>Shor-breakable</strong> — so <code>0x07</code> protects
+<strong>integrity but not confidentiality</strong> against a future
+CRQC. That makes every permanent <code>0x07</code> message a
+<strong>harvest-now-decrypt-later</strong> target: an adversary records
+the chain now and decrypts once a CRQC exists. Only the
+<code>0x06</code> ML-KEM field gives <strong>true post-quantum
+confidentiality</strong>. So the send path now <strong>defaults to
+<code>0x06</code></strong> whenever a recipient ML-KEM public key is
+obtainable, and only falls back to <code>0x07</code> when none is.</p>
+<p><strong>Recipient-KEM-key resolution</strong> (new shared helper
+<code>cn::resolveMessageRecipientKemPub(recipientAddress, testnet, kemPub)</code>
+in <code>CryptoNoteCore/CryptoNoteBasicImpl.{h,cpp}</code>), per
+encrypted, non-broadcast message:</p>
+<ul>
+<li><strong>(a)</strong> the message's recipient address parses as a
+PQ/hybrid address (<code>parsePqAccountAddressString</code> succeeds) →
+use its <code>kemPublicKey</code> (works on <strong>any</strong>
+network, including mainnet);</li>
+<li><strong>(b)</strong> else on <strong>testnet</strong>
+(<code>m_currency.isTestnet()</code>) → use the fixed
+<code>PQ_TESTNET_KEM_PK</code> (Option-B bootstrap), so testnet
+permanent messages are PQ-encrypted by default;</li>
+<li><strong>(c)</strong> else (mainnet, no PQ key obtainable for the
+recipient) → <strong>no</strong> KEM key → the caller falls back to the
+authenticated classical <code>0x07</code> field.</li>
+</ul>
+<p>For (a)/(b) the send path sets
+<code>tx_message_entry.pq = true</code> +
+<code>kemPub = &lt;that key&gt;</code>, so
+<code>constructTransaction</code> emits a
+<code>tx_extra_pq_message</code> (<code>0x06</code>) and
+<strong>not</strong> <code>0x07</code>/<code>0x04</code>.</p>
+<p><strong>Call sites changed:</strong></p>
+<ul>
+<li><code>WalletLegacy/WalletTransactionSender.cpp</code> (concealwallet
+/ WalletLegacy path): the per-message loop calls
+<code>resolveMessageRecipientKemPub(message.address, m_testnet, …)</code>
+and sets <code>entry.pq</code> + <code>entry.kemPub</code> from the
+result. <strong>The <code>CCX_PQ_MESSAGES</code> env-flag gate is
+removed</strong> — <code>0x06</code> is the default, not opt-in. (The
+legacy <code>parseAccountAddressString</code> is still required for
+<code>entry.addr</code> and the <code>0x07</code> fallback.)</li>
+<li><code>Wallet/WalletGreen.cpp::makeTransaction</code> (walletd /
+PaymentGate path, which builds <code>tx.extra</code> directly instead of
+via <code>tx_message_entry</code>): the message loop now first calls
+<code>resolveMessageRecipientKemPub(messages[i].address, m_currency.isTestnet(), …)</code>;
+on success it encrypts a <code>tx_extra_pq_message</code> and
+<code>append_pq_message_to_extra</code> (<code>0x06</code>); otherwise
+it falls back to the existing authenticated
+<code>tx_extra_authenticated_message</code> (<code>0x07</code>). The PQ
+ciphertext is self-contained (no tx-pubkey /
+<code>AccountPublicAddress</code> needed), so a PQ-only recipient the
+legacy parser rejects is still served.</li>
+</ul>
+<p><strong>Where <code>0x07</code>/<code>0x04</code> are still
+legitimately emitted:</strong> <code>0x07</code> for an encrypted
+message to a <strong>mainnet legacy recipient</strong> with no
+obtainable KEM key (case c — integrity-only classical fallback);
+<code>0x04</code> for an <strong>unencrypted / broadcast</strong>
+message (no recipient ECDH, so neither <code>0x06</code> nor
+<code>0x07</code> can be produced). The receive path is unchanged and
+already decodes <code>0x06</code>
+(<code>get_pq_messages_from_extra</code>) + <code>0x07</code> +
+<code>0x04</code>. Wire formats and the consensus serializer are
+untouched — this is an add-only routing change.</p>
+<h2 id="tests">Tests</h2>
+<p>Rust: <code>ccx_pq_msg_kem_selftest</code> and
+<code>ccx_pq_msg_aead_selftest</code> (exercised from C++ —
+<code>cargo build/test --release</code> is clean).</p>
+<p>C++ (<code>tests/UnitTests/TestPqMessage.cpp</code>, auto-globbed
+into <code>UnitTests</code>; run <code>ctest -R UnitTests</code>):</p>
+<ul>
+<li><code>RustMsgKemSelftestPasses</code> /
+<code>RustAeadSelftestPasses</code> — both FFI selftests ok=1, sizes
+correct.</li>
+<li><code>RoundTripVariousSizesAndIndices</code> — empty / short / odd /
+4 KB / NUL messages × indices {0,1,5,123,65535}, each through
+<code>writeTransactionExtra</code>→<code>parseTransactionExtra</code>→<code>decrypt</code>
+(asserts <code>data.size() == |msg| + 16</code>).</li>
+<li><code>WrongIndexFailsDecrypt</code> — index is bound into the AEAD
+key + nonce, so a wrong index fails the tag.</li>
+<li><code>WrongRecipientReturnsFalseNoCrash</code> — different KEM
+secret → tag fails → <code>false</code>, no crash, no plaintext
+exposed.</li>
+<li><code>MixedExtraParsesAllAndFiltersPqOnly</code> —
+<code>[pubkey, 0x04, 0x06, TTL]</code> parses all four;
+<code>get_pq_messages_from_extra</code> returns only the PQ payload,
+<code>get_messages_from_extra</code> only the legacy.</li>
+<li><code>TamperedAnyByteFailsNoFfiPanic</code> — <strong>full
+sweep</strong>: flipping ANY byte of the sealed <code>data</code>
+(ciphertext or Poly1305 tag), or any KEM-ciphertext byte, makes
+<code>decrypt</code> return <code>false</code> with no FFI panic. This
+is the integrity guarantee the AEAD upgrade provides.</li>
+<li><code>OversizeDataRejectedByParser</code> /
+<code>WrongKemCtLengthRejectedByParser</code> /
+<code>ShortSealedDataRejectedByParser</code> — the bound rejects all
+three (over-max, wrong kemCt length, and shorter than the 16-byte
+tag).</li>
+<li><code>RawExtraBytesAreCanonicalAndHashStable</code> —
+parse→re-serialize reproduces identical bytes and an identical
+<code>cn_fast_hash</code>, confirming the tx hash (taken over raw
+<code>tx.extra</code>) is unaffected by 0x06.</li>
+</ul>
+<p>Result: 11/11 PqMessage tests pass; full
+<code>ctest -R UnitTests</code> passes (with the repo's baked-in skip
+list), no regressions.</p>
+<h2 id="security-notes--limitations-carried-from-the-blueprint">Security
+notes / limitations (carried from the blueprint)</h2>
+<ul>
+<li><strong>Confidentiality</strong> now rests on ML-KEM-768 (NIST L3,
+IND-CCA2), not on the on-chain tx pubkey → closes the Shor break for
+messages.</li>
+<li><strong>Integrity is now provided</strong> for the 0x06 field via
+<strong>ChaCha20-Poly1305 AEAD</strong>: tampering ANY byte of the
+sealed ciphertext (including the Poly1305 tag) makes
+<code>decrypt</code>/<code>open</code> fail, and no plaintext is exposed
+on failure. This closes the no-MAC limitation that the original chacha8
++ 4-zero-byte owner-test had. <strong>The legacy 0x04 path still has
+that weak owner-test</strong> but is now <strong>decrypt-only</strong>:
+the classical successor is the authenticated <code>0x07</code> field
+(<code>tx_extra_authenticated_message</code>, same Curve25519 ECDH key
+agreement as 0x04 but ChaCha20-Poly1305 AEAD with a domain-separated
+seed). The wallet send path (<code>CryptoNoteFormatUtils.cpp</code>,
+<code>WalletGreen.cpp</code>) now <strong>defaults to
+<code>0x06</code></strong> (true PQ confidentiality) whenever a
+recipient KEM pubkey is obtainable (PQ address, or the fixed testnet key
+on testnet — see Step 3b), emits the authenticated <code>0x07</code>
+only as the classical fallback for a mainnet legacy recipient, and falls
+back to <code>0x04</code> only for unencrypted broadcast messages (no
+recipient ECDH); the receive path decodes all three. 0x04 is kept for
+wire compatibility with historical messages.</li>
+<li><strong>Consensus posture:</strong> <code>tx.extra</code> is opaque
+to block validation and carried verbatim, so adding <code>0x06</code>
+does not change block acceptance. <code>0x06</code> emission is the
+default on testnet (Option-B bootstrap key) and on mainnet whenever a
+recipient PQ address supplies a KEM key; otherwise the classical
+<code>0x07</code> is used. The parser bound mitigates R1 mis-framing;
+for mainnet rollout the <code>0x06</code> parser handler should ship to
+all nodes before any wallet emits the tag (quiet client update), or PQ
+messages should be placed last in <code>extra</code>.</li>
+</ul>
+<h2
+id="remaining-step-4--not-done-larger-consensuscompat-surface">Remaining
+(step 4 — NOT done, larger consensus/compat surface)</h2>
+<p>Key distribution so a real recipient (not the hardcoded testnet key)
+can be addressed:</p>
+<ul>
+<li><strong>Address format:</strong> publish the recipient's 1184-byte
+ML-KEM public key — either a new Base58 prefix carrying
+<code>AccountPublicAddress + kemPub</code> (Option A) or derive
+<code>kemPub</code> from the wallet seed
+(<code>SHAKE("ccx-msg-kem-id" || spendSecretKey)</code>) and expose it
+on the address (derivation alternative).</li>
+<li><strong>Wallet format:</strong> persist the KEM keypair (2400 B sk /
+1184 B pk) on <code>AccountKeys</code>, behind a wallet-format version
+bump (optional field, generate-on-first-load), so
+<code>TransfersConsumer</code> scans with the account's own KEM secret
+instead of <code>PQ_TESTNET_KEM_SK</code>.</li>
+<li><strong>Send glue:</strong> <em>(done in Step 3b)</em> both send
+paths now resolve the recipient KEM key from a parsed PQ address (case
+a) or the testnet bootstrap key (case b) via
+<code>resolveMessageRecipientKemPub</code>, with the env-flag shortcut
+removed. Still open: threading a dedicated PQ recipient field through
+<code>IWalletLegacy::TransactionMessage</code> /
+<code>WalletMessage</code> and the RPC surfaces so a caller can target a
+PQ recipient distinct from the fund-recipient address, and the
+wallet-format KEM-secret persistence above (so mainnet receivers can
+scan their own <code>0x06</code> messages without
+<code>PQ_TESTNET_KEM_SK</code>).</li>
+</ul>
+<p>Search markers: <code>TODO</code> comments in
+<code>WalletTransactionSender.cpp</code> and
+<code>TransfersConsumer.cpp</code> point at the testnet shortcuts to
+replace. This shares <code>CryptoNoteConfig.h</code> (new Base58 prefix)
+and wallet serialization with other PQ work — coordinate per
+<code>REMAINING-WORK.md</code>.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Decisions for the team — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class="active"><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="post-quantum-migration--decisions-for-the-team">Post-quantum
+migration — decisions for the team</h1>
+<p><em>A single dashboard of the open strategic choices for Conceal's
+post-quantum (CIP-0001) work. Each links to the detailed doc that backs
+it. Numbers are live/measured where marked — see <a
+href="measured-numbers.md"><code>measured-numbers.md</code></a>.</em></p>
+<blockquote>
+<p><strong>Nothing here is decided.</strong> Each item below has a
+<strong>selected default</strong> — a working assumption chosen
+<em>only</em> so the PoC could keep moving — and every default
+<strong>awaits team consensus</strong> and is
+<strong>reversible</strong>. Where the PoC already <em>implements</em> a
+default (e.g. the deposit freeze), that is an engineering convenience to
+unblock testing, <strong>not</strong> a ratified choice; the team can
+still change it. The "firmness" tag says how settled a default feels,
+not that it is final: <strong>firm</strong> (clear best option, low
+controversy) · <strong>lean</strong> (a real trade-off to weigh) ·
+<strong>placeholder</strong> (chosen just to unblock; expect
+debate).</p>
+</blockquote>
+<blockquote>
+<p><strong>One framing for all of these:</strong> the PoC has removed
+the <em>integration</em> risk (tx format, serialization, double-spend
+set, stealth, wallet send/receive, deposits, messages, the swappable
+backend slot). What remains is <strong>policy + the production crypto +
+an audit</strong>. Every default below should be confirmed or changed
+<em>before</em> <code>UPGRADE_HEIGHT_V9</code> is lowered to a real
+height — they converge on that one fork.</p>
+</blockquote>
+<hr />
+<h2
+id="d1--production-privacy-scheme--default-resolved-small-ring-pq-lattice-linkable-ring-sig--raptor-leading-pending-consensus">D1
+— Production privacy scheme · <strong>default (resolved): small-ring PQ
+lattice linkable ring sig — <em>Raptor leading</em>; pending
+consensus</strong></h2>
+<blockquote>
+<p><strong>RING-SIZE FORK DECIDED (team input): keep current ring size
+(small, ~mixin 6).</strong> That selects the <strong>small-ring
+branch</strong> — <strong>ELRS is out</strong> (its flat ~25 KB STARK
+floor is <em>wasted flatness</em> at ring-6), and the scheme is a
+<strong>small-ring lattice/NTRU linkable ring signature, plaintext
+amounts</strong>. Leaderboard at Conceal's ring size (confirm the exact
+KB against the real PDFs — eprint was blocked, see <a
+href="pq-ringsig-verdict.md"><code>pq-ringsig-verdict.md</code></a>):</p>
+<ul>
+<li><strong>Raptor</strong> (Falcon-512 / NTRU, ACNS 2019) —
+<strong>leading, now MEASURED</strong> (built + ran the C reference; see
+<a href="measured-numbers.md"><code>measured-numbers.md</code></a> §I).
+<strong>10.2 KB @ ring-6 = 4.1× smaller</strong> than the in-house
+stand-in (42 KB), and <strong>~2.5× faster verify</strong> (0.79 ms vs
+1.97 ms — and verify is the consensus hot path). <strong>NIST cat-1,
+<em>calibrated</em></strong> (Falcon-512 — the NIST FN-DSA lineage), vs
+the stand-in's <em>uncalibrated demo-grade</em> params — so the win is
+<em>not</em> bought by lowering security. <strong>Confirmed
+LINKABLE</strong> (OTS-tag → key-image/nullifier). Linear size, fine at
+small rings. <strong>Real catches:</strong> (1) the 10 KB is the
+paper-compact size — the reference binary emits a <strong>~4× bloated
+encoding</strong>; production must implement the compact packing (~14
+bits/coeff, a TODO in the repo); (2) <strong>LICENSE — RESOLVED into a
+path:</strong> upstream Raptor is <strong>GPL +
+patent-asserted</strong>, so it <strong>cannot be copied</strong> into
+MIT Conceal — but the <em>construction</em> is a published algorithm
+(eprint 2018/857) and <strong>Falcon is NIST FIPS 206 (FN-DSA),
+patent-free/royalty-free</strong>, so the shippable route is a
+<strong>clean-room reimplementation over permissive (PQClean,
+public-domain) Falcon</strong> — MIT- clean, no GPL. ✅ <em>Built,
+vetted (4 reviewers), and INTEGRATED into the daemon</em> (behind the
+<code>ccx_pq_*</code> ABI — build + 72 PQ unit tests + e2e consensus
+green; ring-6 9.7 KB measured); (3) Raptor needs Falcon's
+<strong>low-level trapdoor preimage sampler</strong>, not just stock
+FN-DSA sign/verify; (4) Falcon's sampler is a <strong>constant-time /
+side-channel</strong> review item (the <em>consensus-determinism</em>
+worry is <strong>resolved</strong> — the vendored PQClean falcon-512
+"clean" is integer-FP only, <code>uint64_t fpr</code>, verified by a
+<code>-ffast-math</code>-invariant KAT sweep, so keygen is bit-identical
+cross-platform by construction; a cross-arch aarch64/MSVC KAT
+confirmation is the only residual); (5) unaudited research code.</li>
+<li><strong>Harden the in-house lattice stand-in</strong> (the PoC's
+K=L=6 LSAG) — fallback. Already integrated + working end-to-end, but
+<strong>demo-grade</strong>: biased sampling, not constant-time, params
+not a calibrated 128-bit level, and ~42 KB @ ring-6 (≈4× Raptor,
+measured). Would need a security-level recalibration + constant-time
+rewrite for mainnet anyway — so "adopt Raptor" vs "harden the stand-in"
+is the real choice.</li>
+<li><strong>MatRiCT+ ring component</strong> (Module-SIS/MLWE, C++, fast
+verify) — alternative with the <em>cleanest</em> assumption (ML-DSA
+family) and the most mature code, <strong>but</strong> RingCT-coupled
+(must extract just the plaintext linkable-membership proof; its
+standalone size isn't isolated in the paper).</li>
+</ul>
+<p><strong>Net:</strong> ELRS demoted; the production target is a
+small-ring lattice linkable ring sig, <strong>Raptor the leading
+candidate to replace the demo-grade stand-in</strong> — now benchmarked
+(the GPL C reference) at 4.1× smaller / 2.5× faster verify.
+<strong>DONE:</strong> the clean-room Raptor (over permissive PQClean
+Falcon, MIT-clean) was built, adversarially vetted (4 reviewers; 1
+CRITICAL + 3 HIGH fixed), and <strong>integrated into the
+daemon</strong> behind the <code>ccx_pq_*</code> ABI — build + 72 PQ
+unit tests + e2e consensus green; pushed as an unaudited backup branch
+(not merged, not mainnet).</p>
+</blockquote>
+<blockquote>
+<p><strong>DIRECTION UPDATE (team input + this session's
+benchmarks).</strong> Conceal keeps <strong>plaintext amounts</strong> —
+its <strong>verify-funds feature needs visible amounts</strong> — so
+<strong>confidential-amount RingCT (MatRiCT-Au) is the wrong
+target</strong>: it <em>hides</em> amounts (breaking verify-funds) and
+costs ~107 KB for a feature Conceal does not want. The real PQ job is
+narrower: make the <strong>ring signature</strong> (untraceability) +
+<strong>stealth one-time keys</strong> (unlinkability, already ML-KEM in
+the PoC) + <strong>nullifier</strong> post-quantum, <strong>amounts stay
+plaintext</strong>. That is a <strong>PQ linkable ring
+signature</strong>, not RingCT. So the decision flips from "which
+RingCT" to "<strong>which PQ ring sig</strong>", and the candidates are:
+the PoC <strong>lattice stand-in</strong> (incumbent, ~6.1 KB/member
+linear, unaudited), <strong>ELRS</strong> (measured flat ~25–29 KB, the
+size win — gated on the single-verify experiment, §G), and other PQ ring
+sigs from the scan (SPRING, RingSLIP, …). <strong>MatRiCT-Au is
+demoted</strong> to "only if Conceal ever wants confidential amounts —
+which conflicts with verify-funds." This is a <em>much cheaper,
+smaller</em> PQ path than the RingCT route the doc previously defaulted
+to.</p>
+</blockquote>
+<p><strong>The choice (what signs a <em>spend</em> on mainnet).</strong>
+The three original families (A/B/C) plus <strong>B′ — Raptor</strong>,
+the production linkable ring sig that emerged as the D1 default;
+measured/cited in <a
+href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
+§3. Note A (MatRiCT-Au) is demoted by the update above (hides amounts),
+and <strong>C is the only option without sender anonymity</strong> (a
+plain signature — rejected):</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Privacy</th>
+<th>Spend size</th>
+<th>Verify</th>
+<th>Storage/yr</th>
+<th>Maturity</th>
+<th>Notes</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>A — MatRiCT-Au</strong> (lattice RingCT, log-size)</td>
+<td><strong>full ring + confidential amounts</strong></td>
+<td><strong>~107 KB</strong> <em>(58 KB only w/ compression — see
+note)</em></td>
+<td>~45 ms</td>
+<td><strong>~33–35 GB</strong></td>
+<td>research code, builds; <strong>library-ized this session</strong>
+(<code>~/matrict-lib</code>)</td>
+<td><strong>DEMOTED</strong> — the confidential-amounts option; not
+selected, because amounts are kept plaintext (verify-funds)</td>
+</tr>
+<tr>
+<td>B — keep the lattice <strong>stand-in</strong></td>
+<td>full ring, plaintext amounts</td>
+<td>25–61 KB (ring 2–8)</td>
+<td>~1 ms</td>
+<td>~13 GB</td>
+<td><strong>experimental, unaudited, demo-grade</strong></td>
+<td>the current PoC engine; <strong>not mainnet-safe</strong></td>
+</tr>
+<tr>
+<td><strong>B′ — Raptor</strong> (production linkable ring sig,
+NTRU/Falcon)</td>
+<td><strong>full ring, plaintext amounts</strong> — <strong>sender
+anonymity ✓</strong></td>
+<td><strong>~24 KB/tx</strong> <em>(measured 10.2 KB/sig @
+ring-6)</em></td>
+<td>~1.9 ms/tx</td>
+<td><strong>~7 GB</strong></td>
+<td><strong>C reference, measured; clean-room reimpl over PQClean Falcon
+in progress</strong></td>
+<td>✅ <strong>SELECTED DEFAULT (D1)</strong> — the production-grade,
+calibrated replacement for B's demo-grade stand-in; <em>same privacy as
+B/A's ring (sender anonymity), just without confidential
+amounts</em></td>
+</tr>
+<tr>
+<td>C — <strong>Falcon, no ring</strong> (stealth only)</td>
+<td><strong>no sender anonymity</strong></td>
+<td>6.4 KB</td>
+<td>0.2 ms</td>
+<td>~1.9 GB</td>
+<td>NIST-standardized</td>
+<td>smallest/fastest, but drops Conceal's core privacy —
+<strong>rejected</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Selected default (pending consensus): B′ (Raptor) — keep
+sender anonymity, plaintext amounts.</strong> Raptor is a <em>ring</em>
+signature, so it preserves Conceal's <strong>sender anonymity</strong>
+(signer hidden in the ring) + recipient unlinkability (stealth one-time
+keys); it drops only <em>confidential amounts</em>, which Conceal keeps
+plaintext for the verify-funds feature. It's the production-grade,
+calibrated (NIST cat-1) replacement for B's demo-grade stand-in —
+measured 4.1× smaller / 2.5× faster verify. C is rejected (no sender
+anonymity = forfeits the chain's reason to exist); A (MatRiCT-Au) is
+held in reserve <em>only if confidential amounts are later required</em>
+(its proof-size cost is bigger than first recorded — see the note
+below). The swappable backend (<code>pq_ring_sig.h</code> C-ABI) lets
+the stand-in (B) stay the <strong>testnet</strong> engine while Raptor
+is clean-room-built (over permissive PQClean Falcon), integrated +
+audited; see <a
+href="matrict-integration-plan.md"><code>matrict-integration-plan.md</code></a>.</p>
+<blockquote>
+<p><strong>Proof-size correction (measured this session, two independent
+passes).</strong> The "58 KB" widely quoted for MatRiCT-Au is the
+<strong>paper's <em>compressed</em> proof</strong>, NOT a measurement —
+the reference code ships <strong>no proof serializer</strong> and only
+holds the proof as full in-memory arrays. Library-izing it + a canonical
+packed serializer yields <strong>~107 KB</strong> (n10m1, ring-10/1-in —
+the same params the paper's 58 KB describes), and that is the
+<strong>information-theoretic floor</strong>: a second pass <em>measured
+the realized coefficient distributions</em> and found
+Fiat-Shamir-with-aborts makes every response coefficient near-uniform
+over its full norm interval (entropy = packed width to &lt;1 bit), so
+smarter encoding of the responses — which are <strong>73%</strong> of
+the proof — wins <strong>~0 KB</strong> (only a 304-byte safe split
+exists). <strong>Re-encoding cannot reach 58 KB.</strong> The paper's 58
+KB instead comes from <strong>high-bit <em>truncation of the
+commitments</em> <code>b</code>/<code>c</code> + a hint</strong>
+(Dilithium <code>t1/t0</code>/<code>UseHint</code> style) — a
+<strong>protocol / soundness-statement change</strong>, not
+serialization: the FS hash binds the <em>full</em> commitments, so it
+needs the <strong>verification equation rewritten + the MatRiCT-Au
+extractor proof redone + the audit</strong>. And <strong>truncating
+<code>b</code> breaks auditability</strong> (<code>b</code> is the
+partially-decryptable commitment the audit trapdoor decrypts) — so it
+also collides with the accountability layer. <strong>Plan on ~107 KB /
+~33–35 GB/yr</strong> as the realistic baseline; 58 KB / ~18 GB/yr is a
+<em>cryptographic-research-grade</em> sub-project (re-implement the
+paper's truncated construction + re-prove + audit), not a quick add. A
+PQ spend is **~89×** a classical spend at 107 KB.</p>
+</blockquote>
+<blockquote>
+<p><strong>Newer candidates (research scan this session — see <a
+href="pq-scheme-landscape.md"><code>pq-scheme-landscape.md</code></a>).</strong>
+MatRiCT-Au is PKC 2022; the field moved. The scan surfaced two that
+change this decision:</p>
+<ul>
+<li><strong>Gao et al. (FC/PKC 2025, eprint 2021/1674)</strong> — looked
+like the strongest confidential-amounts successor from the abstract, but
+<strong>benchmarking it this session DID NOT hold up the claim</strong>
+(see <a href="measured-numbers.md"><code>measured-numbers.md</code></a>
+§H): the paper has <strong>no absolute size/time tables</strong> (only
+plots); its "~50% smaller / ~20% faster" is vs the <strong>original
+MatRiCT (2019)</strong> — <em>not</em> MatRiCT-Au, which is newer than
+Gao's baseline — and only ~15–20% vs MatRiCT+; under a shared param set
+the runnable Go ref came out <em>slightly larger</em> (the advantage
+lives entirely in a parameter-set choice the code can't express); the Go
+impl is <strong>partial</strong> (ring-sig only) and its <strong>MatRiCT
+baseline doesn't even verify</strong>, so no apples-to-apples is
+possible. <strong>Verdict: not a demonstrated win over MatRiCT-Au — do
+not treat as a successor without a multi-week port of its param-set +
+balance-proof into the MatRiCT-Au C code.</strong> MatRiCT-Au remains
+the only full, verifying RingCT spend measured here (107.4 KB, ~12 ms
+verify, 63 ms prove on a Ryzen 5950X).</li>
+<li><strong>ELRS / STARK linkable ring sig (ESORICS 2024, eprint
+2024/553)</strong> — <strong>measured this session</strong> (built + ran
+the reference impl): <strong>flat ~25–29 KB at <em>any</em> ring
+size</strong>, 32-byte keys, transparent hash-based. Vs Conceal's
+lattice ring-sig stand-in (~6.1 KB <em>per member</em>, linear) it
+<strong>wins on size at ring ≈ 5 and the gap explodes</strong> (≈14×
+smaller at ring-64, ≈225× at ring-1024). <strong>No confidential
+amounts</strong> — which fits, because <strong>Conceal has
+<em>plaintext</em> amounts today</strong> (confidential was deferred to
+an optional L2). If amounts stay plaintext, the privacy layer reduces to
+<em>PQ linkable ring sig + one-time key + nullifier</em>, and ELRS could
+be a <strong>bigger, cheaper win than confidential-amount RingCT at
+all</strong>. <strong>BUT the focused follow-up sweep (see <a
+href="pq-ringsig-verdict.md"><code>pq-ringsig-verdict.md</code></a>,
+confidence ~65%) walked back "ELRS wins outright" — the answer hinges on
+max ring size, not the crypto:</strong>
+<ul>
+<li><strong>At Conceal's <em>small</em> rings (mixin 5–16) — ELRS does
+NOT win.</strong> Its flat ~25 KB is <em>wasted flatness</em>;
+<strong>linear lattice schemes are SMALLER and have a CLEANER
+assumption</strong> here: <strong>Raptor</strong> (NTRU, natively
+linkable; C reference) <strong>measured 10.2 KB @ ring-6 / 13.1 KB @
+ring-8 / 24.7 KB @ ring-16</strong>; <em>LAPQ-LRS</em> (MLWE/MSIS,
+ML-DSA family) ~4.4 KB @ ring-8 <em>if its numbers hold</em>. ELRS's
+security is <em>conjectured hash/FRI</em> (no reduction); the lattice
+schemes reduce to <strong>Module-SIS/MLWE — the NIST ML-DSA
+assumptions</strong>. Cleaner footing.</li>
+<li><strong>Only if Conceal grows rings to ≥64–1024</strong> does ELRS's
+flatness pay off (linear schemes hit MBs there).</li>
+<li><strong>And the verify advantage is CONTESTED</strong> — measured
+0.3 ms vs the paper's ~128 ms (amortized-vs-cold); unresolved, needs
+re-measurement under Conceal's distinct-ring workload.</li>
+<li><strong>So decide <em>max ring size</em> first.</strong> "Small
+rings forever" → a lattice linkable scheme (Raptor / the in-house
+lattice stand-in), smaller + cleaner-assumption. "Rings may grow" → ELRS
+(or audit a log-size lattice scheme like LAPQ-LRS). Everything here is
+unaudited research either way.</li>
+</ul></li>
+</ul>
+<p><strong>A prior question this forces (decide before locking
+D1):</strong> <em>(i) are confidential amounts required, or can they
+stay plaintext?</em> and <em>(ii) is on-chain auditability in or
+out?</em> Those two answers select Gao-vs-ELRS-vs-MatRiCT-Au more than
+any benchmark. <strong>Reality check:</strong> <em>no</em> PQ
+confidential-anon-payment scheme is audited or standardized anywhere
+(NIST finalized only the FIPS 203/204/205 building blocks) — that gate
+is identical for every option, so it doesn't differentiate.
+<strong>Cheapest de-risking step:</strong> read Gao's real size/verify
+tables (PolyU PDF, reachable) + build/benchmark its Go reference vs the
+in-repo MatRiCT-Au at Conceal's ring size — before committing.</p>
+</blockquote>
+<p><strong>Depends on / unblocks:</strong> the audit
+(<strong>D7</strong>), tx-size + fusion (<strong>D3</strong>), the
+proof-compression sub-decision, and the
+confidential-amounts/auditability fork above. <strong>Who
+confirms:</strong> core team — this is the headline strategic call.
+<strong>Where it stands after this session's benchmarks:</strong> for
+<strong>confidential amounts</strong>, MatRiCT-Au is still the only
+measured, full, verifying RingCT — no scanned alternative (incl. Gao et
+al.) demonstrably beats it without major research effort. For
+<strong>plaintext amounts</strong>, <strong>ELRS is a genuine measured
+win on size</strong> (flat ~25–29 KB vs the lattice stand-in's linear
+growth) — gated on the single-verify experiment. So the live
+sub-decision is the <strong>confidential-vs-plaintext fork</strong>, not
+"which RingCT."</p>
+<hr />
+<h2
+id="d2--upgrade_height_v9-fork-timing--height--default-stay-on-the-sentinel--placeholder-pending-consensus">D2
+— <code>UPGRADE_HEIGHT_V9</code> fork timing &amp; height ·
+<strong>default: stay on the sentinel — placeholder, pending
+consensus</strong></h2>
+<p><strong>The choice.</strong> V9 is the single block on which PQ
+deposits <strong>open</strong> and (under Option 3, <strong>D5</strong>)
+classical deposit creation <strong>freezes</strong> — an atomic swap.
+Mainnet <code>UPGRADE_HEIGHT_V9 = 5000000</code> is a far-future,
+audit-gated <strong>sentinel</strong> (the current default — i.e. PQ
+never activates on mainnet yet); testnet is <code>80</code>. Lowering it
+to a real height <em>is</em> the fork.</p>
+<ul>
+<li><strong>No voting safety net.</strong> Unlike the upgrade-voting
+path (<code>UPGRADE_VOTING_THRESHOLD = 90%</code>), a hardcoded height
+past the last checkpoint has no soft-fork grace — a
+botched/uncoordinated height is an <strong>unrecoverable chain
+split</strong>. Set it with checkpoint-grade coordination.</li>
+<li><strong>It cannot precede its preconditions</strong> (see
+<strong>D7</strong>): the PQ deposit integration audit-cleared,
+chain-level CoreTests passing, and a working PQ deposit wallet
+path.</li>
+</ul>
+<p><strong>Selected default (pending consensus):</strong> keep the
+sentinel until D7's gates clear; then the team sets V9 to a specific
+height, announced with the same discipline as a checkpoint, activating
+PQ deposits + the Option-3 freeze together. <strong>Who
+confirms:</strong> core team + node operators (coordination). Backs: <a
+href="deposit-term-policy-decision.md"><code>deposit-term-policy-decision.md</code></a>
+§"Hard dependency sequencing", <a
+href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a>.</p>
+<hr />
+<h2
+id="d3--tx-size-limit-fusion-redesign--denominations--default-deferred-behind-d1--pending-consensus">D3
+— Tx-size limit, fusion redesign &amp; denominations · <strong>default:
+deferred behind D1 — pending consensus</strong></h2>
+<p><strong>The choice.</strong> PQ txs are tens of KB; the current
+limits don't fit them.</p>
+<ul>
+<li><strong><code>CRYPTONOTE_MAX_TX_SIZE_LIMIT</code> (~99 KB)</strong>
+— a MatRiCT-Au multi-input tx approaches it; must be raised (size budget
+depends on <strong>D1</strong>).</li>
+<li><strong><code>FUSION_TX_MAX_SIZE</code> (~30 KB)</strong> —
+<strong>every</strong> PQ scheme blows it, so dust consolidation breaks.
+Needs a new size budget <em>and</em> likely a <strong>denomination
+scheme</strong> (PQ output keys are ~1–4 KB; many small outputs are
+costly to fuse).</li>
+<li><strong>Free-reward zone</strong> (100 KB) holds ~184 classical
+spends but only ~2 PQ ring-4 spends — fee/throughput model shifts (see
+<a href="measured-numbers.md"><code>measured-numbers.md</code></a>
+§E).</li>
+</ul>
+<p><strong>Selected default (pending consensus):</strong> treat as a
+bundle gated on <strong>D1</strong> (the scheme sets the sizes); design
+the fusion + denomination scheme before any mainnet PQ spend. Nothing is
+set yet — placeholder pending the D1 confirmation. <strong>Who
+confirms:</strong> core team (consensus sizing). <strong>Note:</strong>
+the Option-3 <em>deposit</em> path is cheaper (ML-DSA-65, ~2.1 KB, ~10×)
+and less affected than the <em>spend</em> path.</p>
+<hr />
+<h2
+id="d4--retire-the-fixed-testnet-kem-option-b-for-per-recipient-keys--default-retire-on-mainnet--firm-pending-consensus">D4
+— Retire the fixed testnet KEM ("Option B") for per-recipient keys ·
+<strong>default: retire on mainnet — firm, pending
+consensus</strong></h2>
+<p><strong>The choice.</strong> The PoC's coinbase/stealth path uses a
+<strong>fixed</strong> <code>PQ_TESTNET_KEM</code> so any wallet can
+scan testnet PQ coinbase. Mainnet must use
+<strong>per-recipient</strong> ML-KEM keys (real unlinkability). The
+wallet↔︎wallet PQ send path <strong>already</strong> does per-recipient
+encapsulation; coinbase/stealth must follow on mainnet.</p>
+<p><strong>Selected default (pending consensus):</strong> per-recipient
+keys everywhere for mainnet; the fixed KEM is a testnet-only convenience
+and must not ship. Low controversy — mostly an implementation cleanup,
+but still the team's to confirm. <strong>Who confirms:</strong> core
+team. Backs: <a
+href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
+§"ecosystem changes".</p>
+<hr />
+<h2
+id="d5--classical-deposit-term-policy--default-option-3-built-into-the-poc--pending-ratification">D5
+— Classical deposit-term policy · <strong>default: Option 3 (built into
+the PoC) — pending ratification</strong></h2>
+<p>PQ-only deposits after the fork: classical deposit <em>creation</em>
+is frozen at V9; existing deposits stay withdrawable. This is the
+default the PoC was <strong>built and verified against</strong> this
+session (<a
+href="deposit-freeze-impl.md"><code>deposit-freeze-impl.md</code></a>) —
+chosen to unblock end-to-end testing, <strong>not</strong> ratified. The
+team can still switch to a softer policy (e.g. <strong>Option
+2</strong>, cap classical terms instead of freezing) — the full option
+set + trade-offs are in <a
+href="deposit-term-policy-decision.md"><code>deposit-term-policy-decision.md</code></a>.
+Its activation timing is <strong>D2</strong>.</p>
+<hr />
+<h2
+id="d6--pq-deposit-key-privacy-account-key-vs-per-deposit--default-account-key-testnet--per-deposit-mainnet--pending-consensus">D6
+— PQ deposit key privacy: account-key vs per-deposit · <strong>default:
+account-key (testnet) / per-deposit (mainnet) — pending
+consensus</strong></h2>
+<p><strong>The choice.</strong> ML-DSA has no stealth-derivation
+analogue, so a PQ deposit must name a fixed public key.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Privacy</th>
+<th>Restore</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>D6a — single account ML-DSA key</strong></td>
+<td>deposits to one wallet are <strong>linkable</strong> by the shared
+key</td>
+<td>trivial (re-derive from seed)</td>
+<td>the PoC wallet default</td>
+</tr>
+<tr>
+<td><strong>D6b — per-deposit indexed keys</strong></td>
+<td>unlinkable</td>
+<td>re-derive indices <code>0..N</code> + gap-limit scan on restore</td>
+<td>mainnet target</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Selected default (pending consensus):</strong> D6a for the
+<strong>testnet PoC</strong> (flag the linkability), <strong>D6b for
+mainnet</strong> to preserve deposit privacy. Reversible; team to
+confirm. <strong>Who confirms:</strong> core team. Backs: <a
+href="pq-deposit-wallet-blueprint.md"><code>pq-deposit-wallet-blueprint.md</code></a>
+§3.</p>
+<hr />
+<h2
+id="d7--audit-scope--sequencing-the-hard-mainnet-gate--default-external-audit-gates-mainnet--firm-pending-consensus">D7
+— Audit scope &amp; sequencing (the hard mainnet gate) ·
+<strong>default: external audit gates mainnet — firm, pending
+consensus</strong></h2>
+<p><strong>The choice.</strong> What must be professionally audited, and
+in what order, before mainnet. The non-negotiable gate. Scope at
+minimum:</p>
+<ul>
+<li>the production PQ linkable-ring-sig construction
+(<strong>Raptor</strong> per <strong>D1</strong> — clean-room over
+PQClean Falcon) + its integration;</li>
+<li>the <strong>ML-DSA-65 deposit</strong> money paths
+(interest/lock/reorg) + the consensus PQ-input validators;</li>
+<li><strong>constant-time / side-channel</strong> review of the lattice
+code;</li>
+<li>the wallet money-path scanning (the output-index alignment fixed
+this session is wallet-side, but the whole scan surface should be in
+scope).</li>
+</ul>
+<p><strong>Selected default (pending consensus):</strong> the external
+audit is <strong>the</strong> mainnet gate — nothing PQ activates on
+mainnet before it. Sequence it after the MatRiCT-Au integration
+stabilizes (so the audited artifact is the shipping one), but commission
+auditor selection early (lead time). <strong>Who confirms:</strong> core
+team + funding. Backs: <a
+href="poc-vs-mainnet-report.md"><code>poc-vs-mainnet-report.md</code></a>
+§6, <a href="STATUS.md"><code>STATUS.md</code></a> "Deferred /
+gates".</p>
+<hr />
+<h2
+id="d8--pq-dependency-maturity--default-require-fips-validated10-crates--pending-consensus">D8
+— PQ dependency maturity · <strong>default: require FIPS-validated/1.0
+crates — pending consensus</strong></h2>
+<p><strong>The choice.</strong> The Rust PQ primitives (ML-KEM/ML-DSA
+via RustCrypto) are pre-1.0. Gate mainnet on <strong>FIPS-validated /
+1.0</strong> crates? <strong>Selected default (pending
+consensus):</strong> yes — require FIPS-validated (or equivalently
+audited) PQ crate versions before mainnet activation; track upstream.
+Low-effort to state, real to honor. <strong>Who confirms:</strong> core
+team.</p>
+<hr />
+<h2
+id="d9--repo-organization-for-the-pq-work--default-pq-conceal-rd-fork-in-the-org--pending-setup">D9
+— Repo organization for the PQ work · <strong>default:
+<code>pq-conceal</code> R&amp;D fork in the org — pending
+setup</strong></h2>
+<p><strong>The choice.</strong> Where the PQ work lives. <strong>Hard
+constraint:</strong> the consensus/wallet changes are <em>inline edits
+to the conceal-core daemon</em> (<code>Blockchain.cpp</code>,
+<code>Currency</code>, <code>TransactionPool</code>, …), not a separable
+library — so "all PQ in one repo" can only be a <strong>full fork of
+conceal-core</strong>, and PQ's <em>destination</em> is conceal-core
+itself (height-gated upstream PRs), not a permanent separate coin.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>What</th>
+<th>Pro</th>
+<th>Con</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>A</td>
+<td>stay a personal fork branch (today)</td>
+<td>zero setup</td>
+<td>not an org home</td>
+</tr>
+<tr>
+<td><strong>B (selected)</strong></td>
+<td><strong><code>pq-conceal</code> = full fork in the ConcealNetwork
+org</strong></td>
+<td>one official R&amp;D home; team CI + a PQ testnet build; everything
+together</td>
+<td>a divergent daemon copy → periodic rebases on upstream; eventual
+merge-back effort</td>
+</tr>
+<tr>
+<td>C</td>
+<td><code>pq-conceal</code> = only the <em>separable</em> parts (Rust
+<code>ccx-pqc</code> + MatRiCT lib + docs/site); consensus stays a
+conceal-core branch</td>
+<td>clean, independently-auditable crypto libs</td>
+<td>more repos; an extraction refactor</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Selected default (team: yes to a repo):</strong> <strong>B
+for the active R&amp;D phase</strong> — give the work an org home as
+<code>pq-conceal</code> (fork of conceal-core), understood as a
+<strong>staging fork</strong> that upstreams to conceal-core piecemeal
+and needs periodic rebasing. <strong>Then, as the crypto stabilizes,
+split out <code>ccx-pqc</code> + the MatRiCT lib as standalone
+versioned/auditable libraries</strong> (the part of C worth doing — the
+auditor will want the crypto as a clean artifact anyway). The
+<strong>docs + interactive site</strong> move over immediately as the
+browsable PQ knowledge base. <strong>Action owner:</strong> core team
+creates/transfers the org repo (not done by the assistant). <strong>Who
+confirms:</strong> core team.</p>
+<hr />
+<h2 id="at-a-glance">At-a-glance</h2>
+<p><em>All defaults are provisional and reversible — they await team
+consensus; "firmness" = how settled the default feels, not that it is
+final.</em></p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Decision</th>
+<th>Selected default</th>
+<th>Firmness</th>
+<th>Gates mainnet?</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>D1</td>
+<td>Production privacy scheme</td>
+<td><strong>small-ring PQ lattice linkable ring sig — Raptor
+leading</strong> (ring size decided small; ELRS demoted = wasted
+flatness; MatRiCT-Au demoted = hides amounts)</td>
+<td>lean</td>
+<td>yes (via audit)</td>
+</tr>
+<tr>
+<td>D2</td>
+<td>V9 fork timing/height</td>
+<td>stay on sentinel; set after D7 clears</td>
+<td>placeholder</td>
+<td><strong>is</strong> the fork</td>
+</tr>
+<tr>
+<td>D3</td>
+<td>Tx-size / fusion / denominations</td>
+<td>deferred, gated on D1</td>
+<td>placeholder</td>
+<td>yes (for spends)</td>
+</tr>
+<tr>
+<td>D4</td>
+<td>Retire fixed testnet KEM</td>
+<td>per-recipient everywhere on mainnet</td>
+<td>firm</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>D5</td>
+<td>Deposit-term policy</td>
+<td>Option 3 (built into PoC)</td>
+<td>lean — not ratified</td>
+<td>timing = D2</td>
+</tr>
+<tr>
+<td>D6</td>
+<td>PQ deposit key privacy</td>
+<td>D6a testnet, <strong>D6b mainnet</strong></td>
+<td>lean</td>
+<td>no (privacy)</td>
+</tr>
+<tr>
+<td>D7</td>
+<td>Audit scope &amp; sequencing</td>
+<td>external audit = the gate</td>
+<td>firm</td>
+<td><strong>the</strong> gate</td>
+</tr>
+<tr>
+<td>D8</td>
+<td>PQ dependency maturity</td>
+<td>require FIPS-validated/1.0 crates</td>
+<td>firm</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>D9</td>
+<td>Repo organization</td>
+<td><strong><code>pq-conceal</code> R&amp;D fork in the org</strong>
+(then split out crypto libs)</td>
+<td>lean — team said yes</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<p><strong>The critical path:</strong> D1 (scheme) → integrate + D3
+(sizing) → <strong>D7 (audit)</strong> → D2 (set V9 height) →
+coordinated fork. D4/D6/D8 ride alongside. D5's default is built but
+unratified; it waits only on D2 for timing.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

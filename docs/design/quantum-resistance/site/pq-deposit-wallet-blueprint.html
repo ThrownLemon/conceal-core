@@ -1,0 +1,634 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PQ deposit wallet (blueprint) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class="active"><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1
+id="pq-deposit-ml-dsa-65-wallet-createwithdraw--implementation-blueprint">PQ
+Deposit (ML-DSA-65) wallet create/withdraw — implementation
+blueprint</h1>
+<p><em>Generated by the design workflow (4 parallel code-readers +
+synthesis). Spec for implementing pq_deposit/pq_withdraw under Option 3.
+All file:line refs verified against pqc/testnet-poc at the time of
+writing.</em></p>
+<h1
+id="pq-deposit-ml-dsa-65--wallet-createwithdraw-implementation-blueprint">PQ
+Deposit (ML-DSA-65) — Wallet Create/Withdraw Implementation
+Blueprint</h1>
+<p>Scope: under Option 3 (classical deposit creation frozen at V9, per
+<code>Blockchain.cpp:3121-3158</code>), build the wallet-side CREATE +
+WITHDRAW path for
+<code>PqMultisigOutput</code>/<code>PqMultisigInput</code>. Consensus,
+interest, lock, and double-spend (<code>isUsed</code>) are already done
+daemon-side (<code>Blockchain.cpp:3799-3912</code>,
+<code>Currency.cpp:444-468</code>). <strong>All remaining work is
+wallet-side + one new daemon enumeration RPC.</strong> Testnet-only
+until V9 mainnet audit (<code>UPGRADE_HEIGHT_V9=5000000</code>
+sentinel).</p>
+<hr />
+<h2 id="1-new-wallet-surface">1. New wallet surface</h2>
+<h3
+id="concealwallet-cli--mirror-depositwithdraw-concealwalletcpp3441672-1768-wire-like-pq_transfer-349-3522151-2266">concealwallet
+(CLI) — mirror <code>deposit</code>/<code>withdraw</code>
+(<code>ConcealWallet.cpp:344,1672-1768</code>), wire like
+<code>pq_transfer</code> (<code>:349-352,2151-2266</code>)</h3>
+<pre><code>pq_deposit &lt;months&gt; &lt;amount&gt;      // create a PQ deposit
+pq_withdraw &lt;deposit_id&gt;          // withdraw a matured PQ deposit</code></pre>
+<ul>
+<li><code>pq_deposit</code>: parse <code>months</code> →
+<code>term = months * m_currency.depositMinTermV3()</code> (testnet 30,
+mainnet 21900; <code>Currency.h:476-478</code>,
+<code>CryptoNoteConfig.h:73,134</code>). Validate
+<code>depositMinTermV3 &lt;= term &lt;= depositMaxTermV3 &amp;&amp; term % depositMinTermV3 == 0</code>
+and <code>amount &gt;= depositMinAmount</code> — <strong>byte-identical
+to classical</strong> so the wallet pre-validates exactly what
+<code>Currency::validateOutput</code> enforces
+(<code>Currency.cpp:1419-1443</code>). Resolve the wallet's own PQ
+ML-DSA keys via a new <code>getPqAccountKeys()</code>-style call
+(currently <code>getPqAccountKeys()</code> derives only KEM — see §3).
+Route to the new builder/relay helper (§2) with
+<code>m_dispatcher/m_daemon_host/m_daemon_port</code>, exactly as
+<code>pq_transfer</code> calls <code>pqSpendViaDaemon</code>
+(<code>:2225-2249</code>).</li>
+<li><code>pq_withdraw</code>: parse one <code>uint64</code> id, look it
+up in the wallet's PQ-deposit table (§3 list), require it matured
+(<code>createdHeight + term &lt;= currentHeight</code>) and not already
+spent, build+sign+relay the withdrawal.</li>
+<li>Register both in the command table next to
+<code>pq_balance/pq_transfer/pq_receive</code>
+(<code>:349-352</code>).</li>
+</ul>
+<h3
+id="walletd-rpc--mirror-createdepositwithdrawdeposit-walletservicecpp1559-1638-wired-like-sendpqtransaction-1232-1267">walletd
+(RPC) — mirror <code>createDeposit</code>/<code>withdrawDeposit</code>
+(<code>WalletService.cpp:1559-1638</code>) wired like
+<code>sendPqTransaction</code> (<code>:1232-1267</code>)</h3>
+<pre><code>createPqDeposit   { sourceAddress?, amount, term }  -&gt; { transactionHash }
+withdrawPqDeposit { depositId }                     -&gt; { transactionHash }</code></pre>
+<ul>
+<li>Register handlers in <code>PaymentServiceJsonRpcServer.cpp</code>
+(mirror <code>:58,217-218</code> for <code>sendPqTransaction</code>; the
+classical pair is at <code>:66,68,246,251</code>).</li>
+<li>Add <code>CreatePqDeposit</code>/<code>WithdrawPqDeposit</code>
+Request/Response in <code>PaymentServiceJsonRpcMessages.{h,cpp}</code>
+(mirror <code>SendPqTransaction</code>, <code>:523</code>).</li>
+<li>Reuse the classical validation guards: daemon-synced, term
+<code>% depositMinTermV3()==0</code>, term band,
+<code>amount &gt;= depositMinAmount</code>
+(<code>WalletService.cpp:1559-1600</code>).</li>
+</ul>
+<hr />
+<h2 id="2-construction-path">2. Construction path</h2>
+<p><strong>Decision: add a new shared builder
+<code>buildPqDepositTransaction</code> +
+<code>buildPqWithdrawTransaction</code> in
+<code>src/CryptoNoteCore/</code> (mirror <code>PqSpendBuilder</code>),
+NOT a method bolted onto
+<code>WalletGreen::createDeposit</code>.</strong> Rationale:
+<code>PqSpendBuilder</code> is already the single front-end-agnostic,
+pure (<code>no I/O/globals</code>) PQ tx constructor that concealwallet,
+walletd, and <code>pq_injector</code> all share
+(<code>PqSpendBuilder.h:34-60</code>). Keeping the PQ multisig path in
+the same layer means one verified construction site, consistent with the
+existing PoC architecture, and avoids forking logic across
+WalletGreen/WalletService.</p>
+<h3
+id="prerequisite-p0--itransaction-pq-writer-api-hard-blocker">Prerequisite
+P0 — ITransaction PQ writer API (HARD BLOCKER)</h3>
+<p><code>ITransactionWriter</code> (<code>ITransaction.h:108-124</code>)
+has <strong>no PQ methods</strong>. <code>TransactionImpl</code>
+(<code>Transaction.cpp:303-401</code>) implements only Ed25519
+<code>MultisignatureOutput</code>/<code>Input</code> +
+<code>signInputMultisignature</code>. <strong>Two construction
+strategies:</strong></p>
+<ul>
+<li><strong>Strategy A (preferred): bypass <code>ITransaction</code>,
+assemble <code>cn::Transaction</code> directly</strong> — exactly what
+<code>PqSpendBuilder</code> already does
+(<code>PqSpendBuilder.cpp:171-227</code> sets <code>tx.version</code>,
+<code>tx.inputs</code>, <code>tx.outputs</code> on a raw
+<code>Transaction</code>). This sidesteps the missing
+<code>ITransaction</code> virtuals entirely and matches the proven PQ
+PoC pattern. <strong>Use this.</strong></li>
+<li>Strategy B (avoid): extend <code>ITransaction</code> with
+<code>addOutput(amount, pqKeys, requiredSigs, term)</code> /
+<code>addInput(PqMultisigInput)</code> /
+<code>signInputPqMultisignature</code>. More invasive, touches the
+legacy interface, not needed if A is used.</li>
+</ul>
+<h3 id="create--buildpqdeposittransactionreq-tx-err">CREATE —
+<code>buildPqDepositTransaction(req, tx, err)</code></h3>
+<p>Mirror classical <code>createDeposit</code> shape
+(<code>WalletGreen.cpp:447-574</code>) but emit a
+<code>PqMultisigOutput</code> instead of calling
+<code>addOutput(...,term)</code>:</p>
+<ol type="1">
+<li><code>tx.version = TRANSACTION_VERSION_3</code> (required by the
+visitor, <code>Blockchain.h:513-533</code>),
+<code>unlockTime = 0</code>.</li>
+<li><strong>Funding input:</strong> select normal funds for
+<code>amount + fee</code> (fee=1000) and add as KeyInput(s) with mixin —
+reuse WalletGreen's
+<code>selectTransfers</code>/<code>prepareInputs</code>/<code>signInputKey</code>
+(<code>:489-568</code>). (Alternatively a PqKeyInput ring-spend, but
+classical-funded is simplest and matches
+<code>classical_deposit_injector.cpp:157-170</code> shape.)</li>
+<li><strong>Deposit output</strong> =
+<code>PqMultisigOutput{ keys = [walletDsaPubKey] (n=1), requiredSignatureCount = 1 (m=1), term }</code>,
+amount = <code>neededMoney - fee</code>. Each key MUST be
+<code>ccx_pq_multisig_pubkey_bytes()</code>=1952B
+(<code>CryptoNoteFormatUtils.cpp:435-456</code>),
+<code>keys.size() &lt;= PQ_MULTISIG_MAX_KEYS</code>=16,
+<code>requiredSignatureCount ∈ [1, keys.size()]</code>.</li>
+<li>Change outputs → source address, split/shuffled (as
+<code>:511-535</code>).</li>
+<li>Sign the KeyInputs; relay.</li>
+</ol>
+<blockquote>
+<p><strong>n-of-m note:</strong> for a single-wallet product, n=m=1. The
+struct supports n-of-m, but multi-party key exchange is out of scope;
+document as future.</p>
+</blockquote>
+<h3 id="withdraw--buildpqwithdrawtransactionreq-tx-err">WITHDRAW —
+<code>buildPqWithdrawTransaction(req, tx, err)</code></h3>
+<p>Mirror classical <code>withdrawDeposit</code>
+(<code>WalletGreen.cpp:313-392</code>) +
+<code>prepareMultisignatureInputs</code> (<code>:425-445</code>) but
+build a <code>PqMultisigInput</code>:</p>
+<ol type="1">
+<li><code>tx.version = TRANSACTION_VERSION_3</code>.</li>
+<li><strong>Input</strong> =
+<code>PqMultisigInput{ amount, signatureCount = output.requiredSignatureCount, outputIndex (global index into m_pqMultisigOutputs[amount]), term = output.term, signatures = EMPTY }</code>.
+<code>term == output.term</code> is a hard consensus bind
+(<code>Blockchain.cpp:3857</code>).</li>
+<li><strong>Output(s)</strong> = pay <code>principal + interest</code>
+back to the wallet (PqKeyOutput or normal KeyOutput). <strong>Do NOT
+compute interest in the wallet for consensus</strong> — see §3/§5: the
+daemon credits <code>amount + getInterestForInput</code> and allows
+outputs &gt; inputs by exactly that. The wallet must set the payout to
+match the consensus value or the tx fails balance. Safest: payout =
+<code>amount + currency.calculateInterest(amount, term, createdHeight)</code>
+and rely on parity (the wallet's <code>calculateInterest</code> mirrors
+the daemon's <code>getInterestForInput</code>; confirm parity in test —
+§6).</li>
+<li>Compute signing hash (§4), sign, fill <code>signatures</code>
+inline.</li>
+</ol>
+<h3
+id="relay--reuse-the-pqspendclient-pattern-pqspendclientcpp370-386">Relay
+— reuse the PqSpendClient pattern
+(<code>PqSpendClient.cpp:370-386</code>)</h3>
+<pre><code>rreq.tx_as_hex = common::toHex(cn::toBinaryArray(tx));
+invokeJsonCommand(httpClient, &quot;/sendrawtransaction&quot;, rreq, rres);  // check rres.status == CORE_RPC_STATUS_OK
+return common::podToHex(cn::getObjectHash(tx));</code></pre>
+<p>Add a new <code>Rpc/PqDepositClient.{h,cpp}</code> helper (analogous
+to <code>PqSpendClient::pqSpendViaDaemon</code>) exposing
+<code>pqDepositViaDaemon(...)</code> and
+<code>pqWithdrawViaDaemon(...)</code>.</p>
+<hr />
+<h2
+id="3-key-strategy-deterministic-from-seed-mirroring-the-kem-precedent">3.
+KEY strategy (deterministic-from-seed, mirroring the KEM precedent)</h2>
+<p><strong>Decision: derive the deposit ML-DSA-65 keypair
+DETERMINISTICALLY from the wallet master seed via a new domain tag — AND
+persist the public-key-to-deposit mapping minimally. Do NOT store the
+secret key per-deposit.</strong> Rationale (grounded in facts):</p>
+<ul>
+<li>The deterministic FFI <strong>already exists and is proven
+interoperable</strong>:
+<code>ccx_pq_multisig_keygen_det(seed,...)</code>
+(<code>pq_ring_sig.h:47,77</code>, <code>detkeygen.rs:120-136</code>),
+domain <code>ccx-pq-mldsa65-keygen-v1</code>, deterministic +
+pqcrypto-interop selftest (<code>detkeygen.rs:210-212</code>). No
+missing primitive — <strong>this is NOT a blocker</strong> (corrects the
+prompt's "missing deterministic ML-DSA keygen FFI" worry; it is
+present).</li>
+<li>The established wallet precedent is <strong>derive-from-seed at
+enable time, persist into the versioned v8 PQ section, restorable both
+ways</strong> (<code>WalletGreen.cpp:1399-1413,1329-1397</code>). Follow
+it.</li>
+</ul>
+<p><strong>Prerequisite P1 — add ML-DSA derivation to
+<code>PqAccount</code></strong> (<code>PqAccount.cpp:38-64</code>,
+<code>PqAccount.h:28-34</code>):</p>
+<ul>
+<li>Add
+<code>dsaPublicKey</code>/<code>dsaSecretKey</code>/<code>dsaSchemeId</code>
+to <code>PqAccountKeys</code>.</li>
+<li>Add <code>deriveDsaSeed(master)</code> =
+<code>cn_fast_hash("ccx-pq-multisig-acct" || master32)</code> — same
+pattern as <code>deriveKemSeed</code> (<code>:28-36</code>), distinct
+domain tag (KEM/ring/DSA seeds independent, per
+<code>detkeygen.rs:32-35</code>).</li>
+<li>In <code>generateFromSeed</code>, also call
+<code>ccx_pq_multisig_keygen_det(dsaSeed, ...)</code> →
+pk=1952/sk=4032.</li>
+</ul>
+<p><strong>The hard sub-problem — ML-DSA has no stealth
+derivation.</strong> Classical deposits re-derive a <em>per-output</em>
+stealth key from <code>(txPubKey, outputIndex, accountKeys)</code>
+(<code>Transaction.cpp:303-323,368-391</code>); ML-DSA has no
+<code>derive_public_key</code> analogue
+(<code>deposit-key-storage</code> gaps). Two viable designs:</p>
+<ul>
+<li><strong>D1 (recommended for v1): single account-level ML-DSA
+keypair.</strong> Every PQ deposit's
+<code>PqMultisigOutput.keys[0]</code> = the wallet's one account DSA
+pubkey. Withdraw = sign with the one account DSA secret. Pro: fully
+seed-restorable with zero per-deposit state; the wallet recognizes its
+deposits by matching the on-chain output key against its own account DSA
+pubkey (see scanner, P2). Con: deposits to the same wallet are linkable
+by the shared pubkey (privacy regression vs. classical stealth).
+<strong>Acceptable for a testnet PoC; flag the privacy
+note.</strong></li>
+<li><strong>D2 (future): per-deposit indexed keys.</strong>
+<code>deriveDsaSeed(master || counter)</code> with a monotonically
+increasing index persisted in the v8 PQ section. Restores by re-deriving
+indices <code>0..N</code> and matching pubkeys. More privacy, but needs
+an index counter + a gap-limit scan on restore. Defer.</li>
+</ul>
+<p><strong>Pick D1.</strong> Restore works purely from the mnemonic
+(re-derive the one account DSA keypair); the v8 PQ section bump is
+optional (store the DSA pubkey for fast match, but it's re-derivable).
+If you do persist, bump <code>pqSectionVersion</code> to 2 and append
+<code>[dsaSchemeId][dsaPublicKey][dsaSecretKey]</code> after the KEM
+fields (<code>WalletGreen.cpp:1356-1396</code>).</p>
+<hr />
+<h2
+id="4-withdraw-signing--the-message-is-the-pq-signing-hash-not-a-plain-object-hash-confirmed">4.
+Withdraw signing — the message is the PQ signing hash, NOT a plain
+object hash (CONFIRMED)</h2>
+<p>This is the single most error-prone detail. Confirmed from
+<code>Blockchain.cpp:2603-2621,2453,3900-3903</code>:</p>
+<ul>
+<li>The validator computes <code>getTransactionPqSigningHash(tx)</code>
+= hash of the <code>TransactionPrefix</code> <strong>after clearing
+every <code>PqKeyInput.ringSig</code> AND every
+<code>PqMultisigInput.signatures</code></strong> (a sig cannot commit to
+itself). <code>check_pq_multisig</code> verifies each detached sig over
+<strong>this exact hash</strong>
+(<code>Blockchain.cpp:3900-3903</code>).</li>
+<li><strong>Builder contract:</strong> assemble the full prefix with
+<code>PqMultisigInput.signatures</code> <strong>empty</strong>, compute
+the hash by the same clearing rule, have each of the <code>m</code>
+signers call <code>ccx_pq_multisig_sign(hash, sk, ...)</code>
+(<code>pq_ring_sig.h:74-83</code>), then write the <code>m</code> sigs
+<strong>inline</strong> into
+<code>PqMultisigInput.signatures</code>.</li>
+<li><strong>Ordering:</strong> <code>check_pq_multisig</code> does a
+<strong>greedy m-of-n in-order match</strong> — each input sig must
+<code>ccx_pq_multisig_verify</code> against a <em>distinct,
+in-order</em> output key (<code>Blockchain.cpp:3799-3912</code>). For
+n=m=1 trivial; for n-of-m, place sigs in the same order as the output
+keys they correspond to.</li>
+<li><strong>Lock/maturity:</strong> if <code>output.term != 0</code>,
+consensus requires
+<code>cell_block_height + output.term &lt;= current_height</code>
+(<code>Blockchain.cpp:3857-3869</code>). The wallet must surface
+<code>spendableHeight = createdHeight + term</code> and block
+<code>pq_withdraw</code> before it (mirror classical
+<code>withdrawDeposit</code>'s
+<code>unlockHeight &lt;= blockCount</code> check,
+<code>WalletGreen.cpp:313-392</code>).</li>
+<li><code>getSignaturesCount(PqMultisigInput) == 0</code> (sigs are
+inline, not in <code>tx.signatures</code>) — so leave
+<code>tx.signatures</code> empty for the PQ input
+(<code>include/CryptoNote.h:60-66</code>).</li>
+</ul>
+<hr />
+<h2 id="5-open-risks--must-validate">5. Open risks + MUST-validate</h2>
+<ol type="1">
+<li><strong>Interest is daemon-computed, not wallet-computed
+(consensus).</strong>
+<code>Currency::calculateTotalTransactionInterest</code> sums
+<code>getInterestForInput</code> per <code>PqMultisigInput</code> with
+<code>term!=0</code> and credits <code>already_generated_coins</code>
+(<code>Currency.cpp:444-468</code>,
+<code>Blockchain.cpp:802,849,3188,3211,3218,2482</code>). The withdraw
+tx is <em>allowed</em> outputs &gt; inputs by exactly this interest.
+<strong>MUST validate:</strong> the wallet's payout amount equals
+<code>amount + daemon-interest</code>, else the tx is rejected
+(imbalance) or burns interest. Verify wallet
+<code>calculateInterest</code> == daemon
+<code>getInterestForInput</code> for the chosen term/height in a unit
+test.</li>
+<li><strong>Double-spend / <code>isUsed</code>.</strong> Spend marks
+<code>m_pqMultisigOutputs[amount][outputIndex].isUsed=true</code>,
+serialized to block cache, reorg-symmetric
+(<code>Blockchain.cpp:773,794-798,3601-3646</code>). <strong>MUST
+validate:</strong> a second <code>pq_withdraw</code> of the same cell is
+rejected; wallet should not offer an already-spent deposit.</li>
+<li><strong>Term band / <code>% depositMinTermV3</code>.</strong> Output
+acceptance enforces the term band byte-for-byte with Ed25519
+(<code>Currency.cpp:1419-1443</code>). <strong>MUST validate</strong>
+wallet pre-check matches; off-band terms must be rejected client-side
+with a clear message.</li>
+<li><strong><code>input.term == output.term</code> bind</strong>
+(interest-minting safety, <code>Blockchain.cpp:3857</code>). The
+withdraw builder MUST copy <code>term</code> from the tracked output
+(mirror <code>prepareMultisignatureInputs</code>,
+<code>WalletGreen.cpp:425-445</code>).</li>
+<li><strong>The freeze does NOT block PQ deposits.</strong> At/after V9,
+classical <code>MultisignatureOutput</code> with <code>term!=0</code> is
+rejected but <code>PqMultisigOutput</code> is the <em>only</em> allowed
+new deposit (<code>Blockchain.cpp:3121-3158</code>). <strong>MUST
+validate:</strong> post-V9, classical <code>deposit</code> rejected AND
+<code>pq_deposit</code> accepted (this is the core Option-3 acceptance
+test).</li>
+<li><strong>Scanner blindness (P2 below).</strong> Until
+TransfersConsumer classifies <code>PqMultisigOutput</code>, the wallet
+cannot see/list/mature/withdraw its own deposit — the whole feature is
+non-functional without it.</li>
+<li><strong>Key well-formedness at FFI boundary:</strong> every output
+key length re-checked <code>== 1952</code> in
+<code>check_outs_valid</code>
+(<code>CryptoNoteFormatUtils.cpp:435-456</code>) and again at verify.
+The builder must use the exact
+<code>ccx_pq_multisig_pubkey_bytes()</code> length.</li>
+<li><strong>Unaudited / non-constant-time PoC.</strong> ML-DSA
+integration flagged unaudited; mainnet <code>UPGRADE_HEIGHT_V9</code> is
+a sentinel. Ship testnet-only.</li>
+</ol>
+<hr />
+<h2 id="prerequisites-must-land-before-the-feature-works">Prerequisites
+(must land before the feature works)</h2>
+<ul>
+<li><strong>P0 — tx construction surface.</strong> Use Strategy A
+(assemble raw <code>cn::Transaction</code> à la
+<code>PqSpendBuilder</code>); no <code>ITransaction</code> change
+needed. (If Strategy B chosen instead, add 3 virtuals to
+<code>ITransaction.h:108-124</code> + <code>Transaction.cpp</code>
+impls.)</li>
+<li><strong>P1 — <code>PqAccount</code> ML-DSA derivation</strong>
+(<code>ccx_pq_multisig_keygen_det</code>, domain
+<code>ccx-pq-multisig-acct</code>). FFI exists; only the C++ wiring is
+missing.</li>
+<li><strong>P2 — TransfersConsumer/Container PQ deposit scanning (HARD
+BLOCKER).</strong> <code>TransfersConsumer.cpp:87</code> and
+<code>:450</code> only handle <code>OutputType::Multisignature</code>;
+deposit classification at <code>TransfersContainer.cpp:960-961</code>
+keys off <code>Multisignature &amp;&amp; term&gt;0</code>. A
+<code>PqMultisigOutput</code> branch must: detect ownership (match
+<code>keys[0]</code> against the wallet's account DSA pubkey — there is
+no KEM/stealth scan for multisig, it's a named-key match), surface it as
+a deposit output with <code>term</code>, <code>globalOutputIndex</code>,
+<code>createdHeight</code>, so the existing <code>m_deposits</code>
+machinery
+(<code>insertNewDeposit</code>/<code>insertDeposit</code>/<code>getDeposit</code>/<code>getDepositId</code>,
+<code>WalletGreen.cpp:4037-4091</code>) works. <strong>Note
+<code>insertNewDeposit</code> asserts
+<code>type==Multisignature</code></strong> (<code>:4037-4057</code>) —
+must add a PQ branch or a parallel <code>m_pqDeposits</code> table. This
+is the largest sub-task.</li>
+<li><strong>P3 — daemon enumeration RPC
+<code>get_pq_multisig_outputs</code> (or
+<code>get_pq_deposits</code>).</strong>
+<code>get_pq_outputs</code>/<code>Core::getPqOutputs</code> only walk
+<code>m_pqOutputs</code> (ring), not <code>m_pqMultisigOutputs</code>
+(<code>RpcServer.cpp:924-968</code>, <code>Core.h:80</code>). Needed for
+the withdraw builder to resolve
+<code>(amount, outputIndex, term, height, isUsed)</code> of the owned
+cell. Mirror the <code>get_pq_outputs</code> RPC shape with DoS caps.
+(If P2 tracks the cell's global index fully wallet-side, P3 may be
+reducible to a confirm-not-spent check via existing RPC — but the safe
+path is a dedicated enumeration.)</li>
+</ul>
+<hr />
+<h2 id="6-phased-build-order--test-plan">6. Phased build order + test
+plan</h2>
+<p><strong>Phase 1 — keys (P1).</strong> Add ML-DSA fields +
+<code>deriveDsaSeed</code> + <code>generateFromSeed</code> DSA branch to
+<code>PqAccount</code>. Optionally bump v8 PQ section to v2.</p>
+<ul>
+<li><em>Unit:</em> determinism (same master → same DSA pk/sk);
+pk=1952/sk=4032; <code>ccx_pq_multisig_keygen_det</code> interop;
+KEM/DSA/ring seeds distinct. Extend the existing determinism asserts
+referenced in <code>PqAccount.h:13</code>.</li>
+</ul>
+<p><strong>Phase 2 — builders (P0 Strategy A).</strong>
+<code>buildPqDepositTransaction</code> +
+<code>buildPqWithdrawTransaction</code> in <code>CryptoNoteCore</code>,
+pure functions like <code>PqSpendBuilder</code>.</p>
+<ul>
+<li><em>Unit (new <code>TestPqDepositTx.cpp</code>, going beyond
+<code>TestPqDeposits.cpp:48-298</code> which stops at primitives):</em>
+build a real <code>PqMultisigOutput</code> deposit tx and a
+<code>PqMultisigInput</code> withdraw tx; assert the withdraw signing
+hash = <code>getTransactionPqSigningHash</code> (signatures cleared);
+run both through a stood-up
+<code>Blockchain</code>/<code>check_pq_multisig</code> (the existing
+test never does this) and assert ACCEPTED; assert wrong-message sig →
+REJECTED; assert <code>input.term != output.term</code> → REJECTED;
+assert interest parity (wallet <code>calculateInterest</code> ==
+consensus credit).</li>
+</ul>
+<p><strong>Phase 3 — scanner (P2).</strong> PQ deposit detection in
+TransfersConsumer/Container +
+<code>m_deposits</code>/<code>m_pqDeposits</code> integration.</p>
+<ul>
+<li><em>Integration:</em> after a PQ deposit confirms,
+<code>getWalletDepositCount()</code>/list shows it with correct
+<code>amount/term/spendableHeight</code>; survives wallet reload
+(re-derive DSA key, re-match).</li>
+</ul>
+<p><strong>Phase 4 — enumeration RPC (P3).</strong>
+<code>get_pq_multisig_outputs</code> +
+<code>Core</code>/<code>ICore</code> method.</p>
+<ul>
+<li><em>Integration:</em> RPC returns the owned cell's
+<code>(amount, outputIndex, term, height, isUsed)</code>.</li>
+</ul>
+<p><strong>Phase 5 — relay helpers + front-ends.</strong>
+<code>PqDepositClient</code>, then concealwallet
+<code>pq_deposit</code>/<code>pq_withdraw</code> and walletd
+<code>createPqDeposit</code>/<code>withdrawPqDeposit</code>.</p>
+<ul>
+<li><em>Integration:</em> CLI end-to-end against testnet daemon.</li>
+</ul>
+<p><strong>Phase 6 — e2e (extend
+<code>pqc/verify-deposit-freeze.sh</code>).</strong> Mine past
+<code>TESTNET_UPGRADE_HEIGHT_V9=80</code>, then:</p>
+<ol type="1">
+<li>classical <code>deposit</code> → <strong>REJECTED</strong> (freeze
+proven).</li>
+<li><code>pq_deposit &lt;months&gt; &lt;amount&gt;</code> →
+<strong>ACCEPTED</strong>, confirmed, visible in wallet.</li>
+<li>mine <code>term</code> blocks → deposit matures
+(<code>createdHeight + term &lt;= height</code>).</li>
+<li><code>pq_withdraw &lt;id&gt;</code> → <strong>ACCEPTED</strong>;
+principal+interest credited; <code>isUsed</code> set.</li>
+<li>second <code>pq_withdraw &lt;id&gt;</code> →
+<strong>REJECTED</strong> (double-spend).</li>
+<li>reload wallet from mnemonic before step 4 → deposit still
+withdrawable (restore proven).</li>
+</ol>
+<hr />
+<h2 id="relevant-files-absolute">Relevant files (absolute)</h2>
+<ul>
+<li><code>/Users/travis/Projects/conceal-core/include/CryptoNote.h</code>
+(PQ types, 60-76)</li>
+<li><code>/Users/travis/Projects/conceal-core/include/ITransaction.h</code>
+(writer surface gap, 108-124)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/Wallet/PqAccount.{h,cpp}</code>
+(P1 — add ML-DSA derivation)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/CryptoNoteCore/PqSpendBuilder.{h,cpp}</code>
+(mirror for new builders)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/CryptoNoteCore/Transaction.cpp</code>
+(303-401 classical multisig build/sign reference)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/CryptoNoteCore/Blockchain.cpp</code>
+(2603-2621 signing hash; 3799-3912 check_pq_multisig; 3121-3158
+freeze)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/CryptoNoteCore/Currency.cpp</code>
+(444-468 interest; 1419-1443 term band)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/Transfers/TransfersConsumer.cpp</code>
+(87,450) + <code>TransfersContainer.cpp</code> (960-961 deposit
+classification — P2)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/Wallet/WalletGreen.cpp</code>
+(313-392 withdraw, 447-574 create, 425-445 prepareInputs, 4037-4091
+deposit tracking)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/Rpc/PqSpendClient.cpp</code>
+(370-386 relay) + <code>RpcServer.cpp</code> (924-968 — mirror for
+P3)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/ConcealWallet/ConcealWallet.cpp</code>
+(349-352, 1672-1768, 2151-2266)</li>
+<li><code>/Users/travis/Projects/conceal-core/src/PaymentGate/WalletService.cpp</code>
+(1232-1267, 1559-1638) + <code>PaymentServiceJsonRpcServer.cpp</code> +
+<code>PaymentServiceJsonRpcMessages.{h,cpp}</code></li>
+<li><code>/Users/travis/Projects/conceal-core/pqc/include/pq_ring_sig.h</code>
+(47,74-83 FFI) + <code>pqc/ccx-pqc/src/detkeygen.rs</code> (120-136 det
+keygen)</li>
+<li><code>/Users/travis/Projects/conceal-core/tests/UnitTests/TestPqDeposits.cpp</code>
+(extend) + <code>pqc/verify-deposit-freeze.sh</code> (extend, Phase
+6)</li>
+</ul>
+<p><strong>Key correction to the brief:</strong> deterministic ML-DSA
+keygen FFI is NOT missing — <code>ccx_pq_multisig_keygen_det</code>
+exists and is selftested (<code>detkeygen.rs:120-136,210-212</code>).
+The real blockers are P0 (tx construction — solved by reusing the
+PqSpendBuilder raw-<code>Transaction</code> pattern), <strong>P2
+(scanner is hardwired to Ed25519 <code>Multisignature</code> — largest
+task)</strong>, and P3 (no PqMultisig enumeration RPC).</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

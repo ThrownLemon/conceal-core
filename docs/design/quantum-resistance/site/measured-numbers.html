@@ -1,0 +1,1388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Measured numbers — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class="active"><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="pq-vs-classical--measured-numbers-cip-0001">PQ vs Classical —
+Measured Numbers (CIP-0001)</h1>
+<p><strong>Apples-to-apples comparison of a CLASSICAL Conceal
+transaction vs a POST-QUANTUM (PQ) transaction, measured live on the
+actual built binaries</strong> of branch
+<code>pqc/measured-numbers</code> (forked from
+<code>pqc/testnet-poc</code> HEAD <code>c194160</code>).</p>
+<p>Every number below is tagged:</p>
+<ul>
+<li><strong>[live]</strong> — measured on a running binary / accepted by
+live consensus this session.</li>
+<li><strong>[FFI-live]</strong> — read at runtime from the built
+<code>libccx_pqc.a</code> FFI size functions.</li>
+<li><strong>[const]</strong> — derived from a source constant / size
+formula (no estimate; exact).</li>
+</ul>
+<p>Nothing here is estimated or extrapolated. Where something could not
+be measured it is marked <strong>NOT MEASURED</strong> with the
+reason.</p>
+<hr />
+<h2 id="test-environment">Test environment</h2>
+<table>
+<thead>
+<tr>
+<th>Item</th>
+<th>Value</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Build/run host</td>
+<td>WSL2 Ubuntu, x86_64, 16 cores / 54 GB</td>
+<td><code>uname -a</code>, <code>nproc</code></td>
+</tr>
+<tr>
+<td>Binary</td>
+<td><code>Conceal v6.7.4- (Trebopala)</code>, PQ scheme_id
+<code>0xc0de0004</code></td>
+<td><code>conceald --version</code>, daemon log</td>
+</tr>
+<tr>
+<td>Build</td>
+<td>out-of-source,
+<code>cmake -DCMAKE_BUILD_TYPE=Release [-DBUILD_TESTS=ON]</code>,
+<code>make -j8 Daemon ConcealWallet PqInjector PerformanceTests ClassicalTxMeasure</code></td>
+<td>this session</td>
+</tr>
+<tr>
+<td>Worktree dir (remote)</td>
+<td><code>~/conceal-core-meas</code> (isolated from other agents'
+<code>~/conceal-core</code>)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<h3 id="testnet-parameters-this-run">Testnet parameters (this run)</h3>
+<table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Value</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mode</td>
+<td><code>--testnet</code>, isolated 2-node (exclusive peers, ports RPC
+16700/16701, P2P 15700/15800)</td>
+<td>mirrors <code>pqc/run-poc-testnet.sh</code></td>
+</tr>
+<tr>
+<td><code>block_major_version</code></td>
+<td>1 (v3 PQ txs allowed in v1 testnet blocks via PoC gate)</td>
+<td><code>getinfo</code></td>
+</tr>
+<tr>
+<td>Difficulty</td>
+<td>pinned <strong>1000</strong> (PoC pins testnet difficulty so LWMA
+overshoot doesn't stall mining)</td>
+<td><code>getinfo</code>, <code>Blockchain.cpp</code></td>
+</tr>
+<tr>
+<td><code>DIFFICULTY_TARGET</code></td>
+<td>120 s (mainnet target; not the testnet pinned rate)</td>
+<td><code>CryptoNoteConfig.h:50</code></td>
+</tr>
+<tr>
+<td>Mined-money unlock window</td>
+<td>10 blocks</td>
+<td><code>CryptoNoteConfig.h:23</code></td>
+</tr>
+<tr>
+<td><code>PQ_TESTNET_COINBASE_AMOUNT</code></td>
+<td>100000 atomic (0.1 CCX) — one fixed-denom PQ output per block</td>
+<td><code>CryptoNoteConfig.h:212</code></td>
+</tr>
+<tr>
+<td><code>MINIMUM_MIXIN</code></td>
+<td>5 (⇒ classical ring size = mixin+1 = 6)</td>
+<td><code>CryptoNoteConfig.h:65</code></td>
+</tr>
+<tr>
+<td><code>CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE</code></td>
+<td>100000 bytes</td>
+<td><code>CryptoNoteConfig.h:38</code></td>
+</tr>
+<tr>
+<td>Money supply / decimals</td>
+<td>200M / 6</td>
+<td><code>CryptoNoteConfig.h</code></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="a-classical-transaction-size--live">A. CLASSICAL transaction
+size — <strong>[live]</strong></h2>
+<p>Measured by constructing real classical CryptoNote transactions with
+the project's own <code>cn::constructTransaction</code> (real
+Ed25519/CryptoNote ring signatures over a ring of
+<code>MINIMUM_MIXIN+1 = 6</code> members) and serializing them with the
+project's own <code>getObjectBinarySize</code>. Tool:
+<code>pqc/tools/classical_tx_measure.cpp</code> (built target
+<code>ClassicalTxMeasure</code> →
+<code>build/src/classical_tx_measure &lt;in&gt; &lt;out&gt; [mixin]</code>),
+modeled on
+<code>tests/PerformanceTests/MultiTransactionTestBase.h</code>. This is
+the same construction + serialization path the wallet's
+<code>transfer</code> uses — i.e. live-measured bytes on the real code,
+not estimates.</p>
+<table>
+<thead>
+<tr>
+<th>Tx shape</th>
+<th>Mixin</th>
+<th>Ring/input</th>
+<th><strong>Tx size (bytes)</strong></th>
+<th>inputs</th>
+<th>outputs</th>
+<th>sig groups</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1-in / 1-out</td>
+<td>5</td>
+<td>6</td>
+<td><strong>505</strong></td>
+<td>1</td>
+<td>1</td>
+<td>1</td>
+</tr>
+<tr>
+<td>1-in / 2-out</td>
+<td>5</td>
+<td>6</td>
+<td><strong>542</strong></td>
+<td>1</td>
+<td>2</td>
+<td>1</td>
+</tr>
+<tr>
+<td>2-in / 2-out</td>
+<td>5</td>
+<td>6</td>
+<td><strong>972</strong></td>
+<td>2</td>
+<td>2</td>
+<td>2</td>
+</tr>
+<tr>
+<td>1-in / 2-out</td>
+<td>0 (ref)</td>
+<td>1</td>
+<td>217</td>
+<td>1</td>
+<td>2</td>
+<td>1</td>
+</tr>
+</tbody>
+</table>
+<p><code>command: ./classical_tx_measure 1 2 5</code> →
+<code>tx_bytes=542 inputs=1 outputs=2 sig_groups=1 ring_per_input=6</code>.</p>
+<p>A typical classical spend (1-in/2-out, mixin 5: payee + change) is
+<strong>~542 bytes</strong>. Each extra ring-6 input adds ≈ 430 B (key
+image + 6 ring-sig pairs); each extra output adds ≈ 34 B.</p>
+<h3
+id="caveat--a-live-wallet-transfer-could-not-be-captured-end-to-end">Caveat
+— a live <em>wallet</em> <code>transfer</code> could
+<strong>NOT</strong> be captured end-to-end</h3>
+<p>Plan A.1 (mine to a wallet <code>W</code>, wait for unlocked balance,
+run <code>transfer</code>, fetch the raw hex via
+<code>gettransactions</code>) was attempted but <strong>blocked by a
+real PoC defect</strong>, so the numbers above come from the
+construction/serialization path directly rather than from a mined-coin
+wallet spend:</p>
+<ul>
+<li>Wallet <code>W</code> was generated
+(<code>--generate-new-wallet --testnet</code>), the 2-node testnet mined
+to <code>W</code>'s address, the chain reached height ~88, and
+<code>W</code> fully synced (<code>reset</code> →
+<code>Height 88 of 88</code>). <strong>Yet <code>W</code>'s balance
+stayed 0.000000</strong> (Total/Available/Locked all 0).</li>
+<li>Root cause (verified in source): the PoC testnet coinbase
+(<code>Currency.cpp</code> <code>constructMinerTx</code>,
+<code>m_testnet &amp;&amp; height&gt;0</code> branch) emits a
+<code>PqKeyOutput</code> at output index 0 and pays the classical reward
+remainder to a <code>KeyOutput</code> at index 1, deriving that key with
+the <strong>absolute</strong> output index
+(<code>derive_public_key(derivation, tx.outputs.size()=1, …)</code>).
+The wallet scanner (<code>Transfers/TransfersConsumer.cpp</code>
+<code>findMyOutputs</code> → <code>checkOutputKey</code>) classifies the
+<code>PqKeyOutput</code> as <code>OutputType::Invalid</code>
+(<code>TransactionUtils.cpp getTransactionOutputType</code>),
+<strong>skips it without incrementing <code>keyIndex</code></strong>,
+and then <code>underive_public_key(derivation, keyIndex=0, …)</code> for
+the remainder. Index <strong>1 (chain) vs 0 (wallet)</strong> ⇒ derived
+key mismatch ⇒ the wallet never recognizes its own coinbase remainder.
+So on the PoC testnet <strong>no classical wallet can hold spendable
+coinbase funds</strong>, which is exactly why the PoC "stands in" with
+<code>pq_injector</code> and has no funded classical wallet.</li>
+<li>This is a coinbase/wallet-scan defect, not a property of classical
+txs. It was <strong>not worked around</strong> (that would change
+consensus code and stop measuring the real PoC binary). The classical tx
+sizes above are therefore measured via
+<code>cn::constructTransaction</code> on the same built libraries —
+faithful live bytes, just not sourced from a mined-coin wallet
+send.</li>
+</ul>
+<hr />
+<h2 id="b-post-quantum-pq-v3-transaction-size--live">B. POST-QUANTUM (PQ
+v3) transaction size — <strong>[live]</strong></h2>
+<p>Measured with
+<code>pq_injector &lt;amount&gt; &lt;fee&gt; &lt;signerIdx&gt; &lt;ringfile&gt;</code>,
+which builds + signs a real v3 PQ spend (lattice anonymous linkable ring
+signature + ML-KEM-768 stealth output) and prints the raw tx hex. Size =
+<code>len(hex)/2</code>. Ring members are real on-chain coinbase PQ
+outputs (heights 1..N), fetched via the daemon
+<code>gettransactions</code> RPC. Signer output recognized live via KEM
+stealth scan
+(<code>signer output recognised as ours (KEM stealth scan OK)</code>).</p>
+<table>
+<thead>
+<tr>
+<th>Ring size</th>
+<th><strong>Tx size (bytes)</strong></th>
+<th>hex chars</th>
+<th>injector rc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td><strong>24,663</strong></td>
+<td>49,326</td>
+<td>0</td>
+</tr>
+<tr>
+<td>4</td>
+<td><strong>36,953</strong></td>
+<td>73,906</td>
+<td>0</td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>61,533</strong></td>
+<td>123,066</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p><code>command: ./pq_injector 100000 1000 0 /tmp/meas/ring4.txt</code>
+→ <code>tx_bytes=36953</code>.</p>
+<ul>
+<li><strong>Ring-4 = 36,953 B — confirms the ~36953 B
+expectation.</strong> ✅</li>
+<li>The ring-4 tx was <strong>submitted to live consensus and
+ACCEPTED</strong>: <code>sendrawtransaction</code> →
+<code>{"status":"OK"}</code>, <code>tx_pool_size=1</code>. So these are
+sizes of real, valid, consensus-accepted transactions.</li>
+<li>Structure: <strong>1 PQ input</strong> (ring of N) + <strong>1 PQ
+output</strong> (recipient), per <code>PqSpendBuilder.cpp</code> (no
+separate change output in the injector path).</li>
+<li>Internal consistency: each extra ring member adds <strong>6145
+B</strong> (the lattice ring-sig per-member block
+<code>L·N·4 = 6·256·4 = 6144 B</code> + 1 B offset varint).
+Δ(2→4)=12290=2×6145, Δ(4→8)=24580=4×6145. tx − <code>sig_bytes(N)</code>
+is a constant ~6.2 KB of tx overhead (PqKeyInput ring refs + PqKeyOutput
+recipient key 6144 + kemCt 1088 + prefix).</li>
+</ul>
+<h3 id="wallet-native-pq-transfer--not-measured">Wallet-native PQ
+transfer — <strong>NOT MEASURED</strong></h3>
+<p><code>concealwallet pq_transfer self 4</code> was attempted (both
+<code>--daemon-host/--daemon-port</code> and
+<code>--daemon-address</code> forms). It failed with
+<code>PQ spend via daemon failed: TcpConnector::connect, connection failed</code>:
+the wallet's <code>Rpc/PqSpendClient.cpp</code> opens a
+<strong>second</strong> <code>HttpClient</code> to the daemon (separate
+from the NodeRpcProxy, which connected fine) and that connector failed
+in this environment. The authoritative PQ sizes above therefore come
+from <code>pq_injector</code>, which exercises the same shared
+<code>cn::buildPqSpendTransaction</code> builder.</p>
+<hr />
+<h2 id="c-per-operation-crypto-timing--live">C. Per-operation crypto
+timing — <strong>[live]</strong></h2>
+<p>Ran the built <code>PerformanceTests</code> target
+(<code>build/tests/performance_tests</code>) on the host. The harness
+prints <code>elapsed</code> (ms) and <code>loop count</code>; per-call
+times below are computed as <code>elapsed·1000/loop</code> µs (the
+harness's own <code>time per call</code> is integer-ms and rounds fast
+ops to 0). Two runs; values stable.</p>
+<h3
+id="classical-cryptonote-ring-signature-verify--test_check_ring_signatureringsize">Classical
+CryptoNote ring-signature VERIFY —
+<code>test_check_ring_signature&lt;ringSize&gt;</code></h3>
+<table>
+<thead>
+<tr>
+<th>Ring size</th>
+<th>elapsed / loops</th>
+<th><strong>µs / verify</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>16 ms / 100</td>
+<td>~160</td>
+</tr>
+<tr>
+<td>2</td>
+<td>~32.5 ms / 100</td>
+<td>~325</td>
+</tr>
+<tr>
+<td>10</td>
+<td>~160.5 ms / 100</td>
+<td>~1605</td>
+</tr>
+<tr>
+<td>100</td>
+<td>~162.5 ms / 10</td>
+<td>~16250</td>
+</tr>
+</tbody>
+</table>
+<p>Scales ~160 µs per ring member ⇒ a mixin-5 (ring-6) classical verify
+≈ **~0.96 ms**.</p>
+<h3
+id="classical-tx-construction-includes-ring-sig-generation--test_construct_txinout">Classical
+tx construction (includes ring-sig GENERATION) —
+<code>test_construct_tx&lt;in,out&gt;</code></h3>
+<table>
+<thead>
+<tr>
+<th>Shape</th>
+<th>elapsed / loops</th>
+<th><strong>µs / construct</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1-in / 1-out</td>
+<td>44 ms / 100</td>
+<td>~440</td>
+</tr>
+<tr>
+<td>1-in / 2-out</td>
+<td>55 ms / 100</td>
+<td>~550</td>
+</tr>
+<tr>
+<td>2-in / 1-out</td>
+<td>67 ms / 100</td>
+<td>~670</td>
+</tr>
+<tr>
+<td>10-in / 1-out</td>
+<td>194 ms / 100</td>
+<td>~1940</td>
+</tr>
+</tbody>
+</table>
+<h3 id="classical-crypto-primitives">Classical crypto primitives</h3>
+<table>
+<thead>
+<tr>
+<th>Primitive</th>
+<th>elapsed / loops</th>
+<th><strong>µs / call</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>generate_key_image</code></td>
+<td>77 ms / 1000</td>
+<td>~77</td>
+</tr>
+<tr>
+<td><code>generate_key_image_helper</code></td>
+<td>92 ms / 500</td>
+<td>~184</td>
+</tr>
+<tr>
+<td><code>generate_key_derivation</code></td>
+<td>~78 ms / 1000</td>
+<td>~78</td>
+</tr>
+<tr>
+<td><code>derive_public_key</code></td>
+<td>29 ms / 1000</td>
+<td>~29</td>
+</tr>
+<tr>
+<td><code>derive_secret_key</code></td>
+<td>667 ms / 1e6</td>
+<td>~0.67</td>
+</tr>
+</tbody>
+</table>
+<p><strong>No standalone Ed25519 sign/verify microbench</strong> exists
+in <code>PerformanceTests</code> — the closest classical signature
+timing is <code>test_check_ring_signature</code> (ring-sig verify)
+above; classical sign time is folded into
+<code>test_construct_tx</code>. Not fabricating an isolated Ed25519
+number.</p>
+<h3 id="pq-ring-signature-timing--cited-prior-measurement">PQ
+ring-signature timing — <strong>[cited, prior measurement]</strong></h3>
+<p>Per the constant-time ring-sig work already folded into the PoC
+report (<code>poc-vs-mainnet-report.md</code> §6 / §3.2): ring-4
+<strong>verify ≈ 1.12 ms</strong>, <strong>sign ≈ 2.46 ms</strong>
+(constant-time). Cited, not re-measured here. Apples-to-apples:
+classical ring-6 verify ~0.96 ms vs PQ ring-4 verify ~1.12 ms — same
+order of magnitude on verify; PQ sign is ~constant-time-padded.</p>
+<hr />
+<h2 id="d-address--key-sizes--live--ffi-live--const">D. Address + key
+sizes — <strong>[live] / [FFI-live] / [const]</strong></h2>
+<h3 id="address-character-lengths--live">Address character lengths —
+<strong>[live]</strong></h3>
+<table>
+<thead>
+<tr>
+<th>Address</th>
+<th>Example prefix</th>
+<th><strong>Length (chars)</strong></th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Classical Conceal (testnet)</td>
+<td><code>ccx7GVRWm3…</code></td>
+<td><strong>98</strong></td>
+<td><code>concealwallet --generate-new-wallet</code>;
+<code>echo -n "$ADDR" | wc -c</code></td>
+</tr>
+<tr>
+<td>PQ (testnet PoC)</td>
+<td><code>ctp1GGuLNvwi…</code></td>
+<td><strong>1747</strong></td>
+<td><code>concealwallet pq_address</code>; piped +
+<code>wc -c</code></td>
+</tr>
+<tr>
+<td>Hybrid (<code>cth…</code>/<code>ccxh…</code>)</td>
+<td>—</td>
+<td><strong>NOT MEASURED</strong></td>
+<td>no hybrid address generated this session</td>
+</tr>
+</tbody>
+</table>
+<p>The PQ address is large because it Base58-encodes the ML-KEM-768
+public key (1184 B) plus version/scheme ids. (<code>W</code> PQ address:
+<code>ctp1GGuLNvwiZzT5MWKxmyTmYm5YaHsk1AAkuVcKqEV…</code>)</p>
+<h3
+id="key--signature-byte-sizes--ffi-live-read-from-the-running-libccx_pqca">Key
+/ signature byte sizes — <strong>[FFI-live]</strong> (read from the
+running <code>libccx_pqc.a</code>)</h3>
+<p><code>command: g++ sizeprobe.cpp libccx_pqc.a … &amp;&amp; ./sizeprobe</code></p>
+<table>
+<thead>
+<tr>
+<th>Quantity</th>
+<th><strong>Bytes</strong></th>
+<th>FFI function</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lattice ring-sig public key</td>
+<td><strong>6144</strong></td>
+<td><code>ccx_pq_pubkey_bytes</code></td>
+</tr>
+<tr>
+<td>Lattice ring-sig secret (seed)</td>
+<td><strong>32</strong></td>
+<td><code>ccx_pq_seckey_bytes</code></td>
+</tr>
+<tr>
+<td>Lattice ring-sig nullifier</td>
+<td><strong>32</strong></td>
+<td><code>ccx_pq_nullifier_bytes</code></td>
+</tr>
+<tr>
+<td>ML-KEM-768 public key</td>
+<td><strong>1184</strong></td>
+<td><code>ccx_pq_kem_pubkey_bytes</code></td>
+</tr>
+<tr>
+<td>ML-KEM-768 secret key</td>
+<td><strong>2400</strong></td>
+<td><code>ccx_pq_kem_seckey_bytes</code></td>
+</tr>
+<tr>
+<td>ML-KEM-768 ciphertext (kemCt)</td>
+<td><strong>1088</strong></td>
+<td><code>ccx_pq_kem_ct_bytes</code></td>
+</tr>
+<tr>
+<td>ML-DSA-65 public key (deposits)</td>
+<td><strong>1952</strong></td>
+<td><code>ccx_pq_multisig_pubkey_bytes</code></td>
+</tr>
+<tr>
+<td>ML-DSA-65 secret key (deposits)</td>
+<td><strong>4032</strong></td>
+<td><code>ccx_pq_multisig_seckey_bytes</code></td>
+</tr>
+<tr>
+<td>ML-DSA-65 signature (deposits)</td>
+<td><strong>3309</strong></td>
+<td><code>ccx_pq_sig_bytes</code></td>
+</tr>
+</tbody>
+</table>
+<h3
+id="ring-signature-size--const-exact-formula-matches-b-live-deltas">Ring-signature
+size — <strong>[const]</strong> (exact formula, matches §B live
+deltas)</h3>
+<p><code>sig_bytes(n) = 32 + K·N·4 + n·L·N·4</code>, with
+<code>N=256, K=L=6</code> (<code>ringsig.rs</code>): ring-2 = 18,464 B,
+<strong>ring-4 = 30,752 B</strong>, ring-8 = 55,328 B. (Confirms the
+30752 B expectation; the live tx in §B is this + ~6.2 KB tx
+overhead.)</p>
+<h3 id="classical-keys--const">Classical keys —
+<strong>[const]</strong></h3>
+<p>Classical Conceal uses <strong>32-byte</strong> Ed25519/Curve25519
+keys (public spend/view, key image, one-time output key). Contrast: PQ
+ring-sig pubkey is <strong>6144 B = 192×</strong> a classical key.</p>
+<hr />
+<h2 id="e-throughput-context--live--const">E. Throughput context —
+<strong>[live] + [const]</strong></h2>
+<ul>
+<li>Testnet block time: difficulty <strong>pinned 1000</strong> for the
+PoC (fast mining); the mainnet <code>DIFFICULTY_TARGET</code> is
+<strong>120 s</strong>. (The pinned testnet rate is a PoC convenience,
+not a consensus target.)</li>
+<li>Free-reward zone:
+<code>CRYPTONOTE_BLOCK_GRANTED_FULL_REWARD_ZONE = 100000</code>
+bytes.</li>
+</ul>
+<p><strong>Txs that fit one 100 KB free-reward zone</strong>
+(<code>floor(100000 / tx_bytes)</code>, from §A/§B live sizes):</p>
+<table>
+<thead>
+<tr>
+<th>Tx type</th>
+<th>Tx bytes</th>
+<th><strong>Txs / 100 KB zone</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Classical 1-in/1-out (mixin 5)</td>
+<td>505</td>
+<td><strong>198</strong></td>
+</tr>
+<tr>
+<td>Classical 1-in/2-out (mixin 5)</td>
+<td>542</td>
+<td><strong>184</strong></td>
+</tr>
+<tr>
+<td>Classical 2-in/2-out (mixin 5)</td>
+<td>972</td>
+<td><strong>102</strong></td>
+</tr>
+<tr>
+<td>PQ ring-2</td>
+<td>24,663</td>
+<td><strong>4</strong></td>
+</tr>
+<tr>
+<td>PQ ring-4</td>
+<td>36,953</td>
+<td><strong>2</strong></td>
+</tr>
+<tr>
+<td>PQ ring-8</td>
+<td>61,533</td>
+<td><strong>1</strong></td>
+</tr>
+</tbody>
+</table>
+<p><strong>A PQ ring-4 tx is ~68× the size of a classical 1-in/2-out
+tx</strong>, so the 100 KB zone holds ~184 classical spends vs only
+<strong>2</strong> PQ ring-4 spends — the dominant PQ cost is the
+lattice ring signature (~6.1 KB per ring member). This is the headline
+scaling tradeoff of the experimental PQ scheme at demo-grade
+parameters.</p>
+<hr />
+<h2
+id="f-deposit-sizes--option-3-pq-only-deposits-after-the-fork--live--ffi-live-component">F.
+Deposit sizes — Option 3 (PQ-only deposits after the fork) —
+<strong>[live] + [FFI-live component]</strong></h2>
+<p>Under <a href="deposit-term-policy-decision.md">Option 3</a>,
+classical deposit creation is frozen at <code>UPGRADE_HEIGHT_V9</code>
+and the only post-fork deposit is a <strong>PQ ML-DSA-65 (FIPS
+204)</strong> deposit. The cost delta:</p>
+<table>
+<thead>
+<tr>
+<th>Deposit operation</th>
+<th>Classical</th>
+<th>PQ (ML-DSA-65)</th>
+<th>Ratio</th>
+<th>Source</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Create deposit tx</strong> (1-in, 1 deposit out + change,
+mixin 0)</td>
+<td><strong>217 B</strong></td>
+<td><strong>≈ 2,137 B</strong></td>
+<td><strong>~10×</strong></td>
+<td>classical <strong>[live]</strong> —
+<code>classical_deposit_injector</code> printed <code>bytes=217</code>
+(amount 2 CCX, term 30, fee 1000); PQ = 217 + (1952 − 32) for the ML-DSA
+pubkey replacing the Ed25519 key <strong>[FFI-live
+component]</strong></td>
+</tr>
+<tr>
+<td><strong>Deposit output key</strong> (per signer)</td>
+<td>32 B (Ed25519)</td>
+<td><strong>1,952 B</strong></td>
+<td>~61×</td>
+<td><strong>[FFI-live]</strong>
+<code>ccx_pq_multisig_pubkey_bytes</code></td>
+</tr>
+<tr>
+<td><strong>Withdraw signature</strong> (per signer)</td>
+<td>64 B (Ed25519)</td>
+<td><strong>3,309 B</strong></td>
+<td>~52×</td>
+<td><strong>[FFI-live]</strong> <code>ccx_pq_sig_bytes</code></td>
+</tr>
+</tbody>
+</table>
+<p><strong>Key point:</strong> the deposit path uses
+<strong>standardized ML-DSA-65</strong>, not the experimental lattice
+ring sig. So a PQ <em>deposit</em> is only <strong>~10×</strong> a
+classical deposit — versus a PQ <em>spend</em> at <strong>~68×</strong>
+(§E) — because deposits need no anonymity ring, just one FIPS-204
+signature per key. "PQ-only deposits after the fork" is therefore one of
+the <strong>cheaper</strong> PQ surfaces, and rests on a
+NIST-standardized primitive rather than research-grade crypto. (The
+freeze enforcement itself — a <code>term != 0</code> output check gated
+on <code>height &gt;= upgradeHeight(V9)</code> — has zero size or
+throughput cost.)</p>
+<p><em>PQ figures are composed from FFI-live component sizes (the
+running <code>libccx_pqc.a</code>); a fully-live PQ-deposit tx was not
+captured because there is no PQ-deposit wallet command yet (PQ deposits
+are exercised at the unit-test level — <code>TestPqDeposits</code> — and
+the classical freeze e2e in
+<code>verify-deposit-freeze.sh</code>).</em></p>
+<hr />
+<h2
+id="g-candidate-scheme--elrs--stark-linkable-ring-sig-esorics-2024--measured-this-session">G.
+Candidate scheme — ELRS / STARK linkable ring sig (ESORICS 2024) —
+<strong>[measured this session]</strong></h2>
+<p>For the <strong>plaintext-amounts</strong> privacy path (D1), the
+reference impl of ELRS (eprint 2024/553, <a
+href="https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature"><code>github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature</code></a>,
+Rust/Winterfell-fork, experimental/unaudited) was <strong>built + run on
+the WSL host</strong> (x86_64, 128-bit params). It's an anonymity +
+linking-tag (nullifier) layer only — <strong>no confidential
+amounts</strong> — so it's compared against Conceal's PoC
+<strong>lattice ring-sig stand-in</strong> (the incumbent for that
+path), not MatRiCT-Au's full RingCT.</p>
+<table>
+<thead>
+<tr>
+<th>Ring</th>
+<th><strong>ELRS sig</strong> [measured]</th>
+<th><strong>ELRS cold single-verify</strong> [measured]</th>
+<th>Conceal lattice sig [const]</th>
+<th>Conceal lattice verify [live]</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8</td>
+<td><strong>~25 KB</strong></td>
+<td><strong>0.3 ms</strong></td>
+<td>54 KB</td>
+<td>~1 ms</td>
+</tr>
+<tr>
+<td>16</td>
+<td>~25 KB</td>
+<td><strong>0.3 ms</strong></td>
+<td>~102 KB</td>
+<td>~1 ms</td>
+</tr>
+<tr>
+<td>64</td>
+<td>~29 KB</td>
+<td><strong>0.3 ms</strong></td>
+<td>~390 KB</td>
+<td>~1 ms</td>
+</tr>
+<tr>
+<td>1024</td>
+<td>~28 KB</td>
+<td><strong>0.3 ms</strong></td>
+<td>~6.3 MB</td>
+<td>~1 ms</td>
+</tr>
+<tr>
+<td>8192</td>
+<td>~28 KB</td>
+<td><strong>0.3 ms</strong></td>
+<td>~49 MB</td>
+<td>~1 ms</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Public key: 32 B</strong> (measured) vs Conceal's lattice
+ring-sig pubkey <strong>6144 B</strong> (192×).</li>
+<li><strong>Both size AND verify are FLAT in ring size</strong> — the
+STARK trace is fixed at 2¹⁰–2¹¹ steps regardless of ring (membership =
+one Merkle path against the ring root, not iteration over members).
+Conceal's lattice sig is <strong>~6.1 KB per ring member,
+linear</strong>. <strong>Crossover where ELRS wins on size ≈ ring
+5</strong>; above ring ~8 the gap explodes (ring-64 ≈ 14×, ring-1024 ≈
+225×). Huge anonymity sets are nearly free for ELRS.</li>
+<li><strong>⚠ The verify number is CONTESTED — do not rely on it
+yet.</strong> The ELRS experiment agent <em>measured</em> a cold single
+verify of <strong>0.3 ms</strong> (fresh process per ring, reading
+<code>main.rs</code>/<code>sigrescue/mod.rs</code>), and concluded the
+paper's 128 ms "is not this STARK verify." BUT the <a
+href="pq-ringsig-verdict.md">focused sweep</a> independently re-flagged
+(2 of 4 angles) that <strong>0.3 ms is the <em>amortized</em> online
+cost</strong> (FRI offline phase shared across signatures over the
+<em>same</em> ring) and a <strong>cold single verify is ~128 ms</strong>
+— which, for CryptoNote's distinct-ring-per-tx model, would <em>not</em>
+amortize. The measurement and the paper conflict and the conflict is
+<strong>unresolved</strong> — it needs a careful re-measurement of
+whether the impl's verify path is truly cold-FRI or amortized.
+<strong>Until then, treat ELRS verify as somewhere between 0.3 ms and
+~128 ms.</strong></li>
+<li><strong>Size verdict still holds; the "beats outright" verdict does
+NOT.</strong> ELRS's flat ~25–29 KB is a real win at <em>large</em>
+rings (lattice goes linear → MBs). <strong>But at Conceal's actual small
+rings (mixin 5–16), ELRS's flat ~25 KB is <em>wasted flatness</em> —
+linear lattice schemes are physically SMALLER and rest on a CLEANER
+assumption:</strong> <strong>Raptor</strong> (NTRU) ~10 KB @ ring-8 /
+~21 KB @ ring-16, natively linkable, NTRU/Ring-SIS <em>reduction</em>;
+<em>LAPQ-LRS</em> (MLWE/MSIS, same family as ML-DSA) ~4.4 KB @ ring-8
+<em>if its numbers hold</em>. ELRS only wins once rings grow past
+~16–32. So <strong>ELRS does NOT beat the lattice option at small
+rings</strong> — the choice hinges on the <strong>max-ring-size
+decision</strong>, not the crypto. See <a
+href="pq-ringsig-verdict.md"><code>pq-ringsig-verdict.md</code></a>
+(confidence ~65%).</li>
+<li>Caveats: ELRS security is <em>conjectured</em> (ethSTARK FRI/ROM —
+<strong>no reduction to a hard problem</strong>, unlike the lattice
+schemes' Module-SIS/MLWE); experimental unaudited Rust; 0.3 ms (if real)
+is at the 0.1 ms print floor; tx-overhead under a real Conceal
+output/nullifier binding (~6.2 KB) still unmeasured.</li>
+</ul>
+<p><em>Sources: <a
+href="https://github.com/yuxi16/Post-Quantum-Linkable-Ring-Signature">reference
+impl built + benchmarked</a>, <a
+href="https://link.springer.com/chapter/10.1007/978-3-031-70903-6_22">ESORICS
+2024</a>. The flat sizes + cold 0.3 ms verify are
+<strong>measured</strong>; eprint 2024/553's table is paywalled (403 to
+automated fetch). See <a
+href="pq-scheme-landscape.md"><code>pq-scheme-landscape.md</code></a>.</em></p>
+<hr />
+<h2
+id="h-candidate-scheme--gao-et-al-ringct-vs-matrict-au-fcpkc-2025--measured-this-session">H.
+Candidate scheme — Gao et al. RingCT vs MatRiCT-Au (FC/PKC 2025) —
+<strong>[measured this session]</strong></h2>
+<p>Benchmarked on the WSL host (AMD Ryzen 9 5950X) to test the "Gao is
+~50% smaller / ~20% faster" claim that the abstract-level scan (§<a
+href="pq-scheme-landscape.md"><code>pq-scheme-landscape.md</code></a>)
+had ranked as the top confidential- amounts successor. <strong>The claim
+did not survive contact with the code.</strong></p>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Gao LinearSum (Go ref, N=10)</th>
+<th>MatRiCT-Au n10m1 (in-repo C)</th>
+<th>Paper</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Proof size</td>
+<td>43.9 KB <em>(ring-sig component only; no serializer)</em></td>
+<td><strong>107.4 KB</strong> packed (292.5 KB raw)</td>
+<td><strong>no absolute numbers — % plots only</strong></td>
+</tr>
+<tr>
+<td>Verify</td>
+<td>~724 ms (Go/LaGo)</td>
+<td><strong>~12 ms</strong> (median 11.95)</td>
+<td>"~20% faster vs MatRiCT/+"</td>
+</tr>
+<tr>
+<td>Prove</td>
+<td>~1204 ms (Go/LaGo)</td>
+<td><strong>63 ms</strong> (median)</td>
+<td>"~20–30% faster vs MatRiCT/+"</td>
+</tr>
+<tr>
+<td>Prover mem</td>
+<td>~95 MB RSS (Go)</td>
+<td>~30.5 MB RSS</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Full verifying RingCT?</td>
+<td><strong>NO</strong> — ring-sig only; amount/balance proof not wired
+(and its MatRiCT baseline <code>Test*Proof</code> <strong>fails to
+verify</strong>)</td>
+<td><strong>YES</strong> (30/30, ring+amounts+audit)</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Why the "~50% smaller" claim is misleading for this
+decision:</strong></p>
+<ul>
+<li>The paper has <strong>no numeric tables</strong> (Figures 1–4 are
+matlab plots; results are text percentages only).</li>
+<li>The "~50%" is the <strong>ring-sig component vs the
+<em>original</em> MatRiCT (2019)</strong> measured inside Gao's own Go
+impl under a <em>smaller parameter set</em> — <strong>not vs
+MatRiCT-Au</strong> (which is <em>newer</em> than Gao's baseline); vs
+MatRiCT+ it's only ~15–20%.</li>
+<li>Under a <strong>shared</strong> param set (q=65537, d=64) the
+runnable Go ref produced <strong>234 vs 224 elements — Gao slightly
+<em>larger</em></strong>. The entire claimed advantage lives in a
+parameter-set choice (dropping the binary proof → smaller q/n) the
+shared-settings harness can't express.</li>
+<li>The 43.9 KB (Gao, ring-sig only) vs 107.4 KB (MatRiCT-Au, full
+spend) are <strong>different objects</strong> — not apples-to-apples.
+The ~700 ms Go verify vs ~12 ms C is mostly language (~60×), not
+algorithm.</li>
+</ul>
+<p><strong>Verdict:</strong> Gao is <strong>not a demonstrated win over
+MatRiCT-Au</strong> on obtainable evidence. Confirming it would need
+porting Gao's param-set + balance-proof into the MatRiCT-Au C code and
+measuring a full verifying spend — a multi-week research task, not a
+benchmark. <strong>Note also:</strong> MatRiCT-Au verify measured here
+is <strong>~12 ms</strong> (Ryzen 5950X), vs the <strong>45 ms</strong>
+[paper, i7-8750H] cited elsewhere in these docs — a hardware/impl gap,
+not a discrepancy in the scheme. <em>(Raw notes: <a
+href="gao-bench-notes.md"><code>gao-bench-notes.md</code></a>.)</em></p>
+<hr />
+<h2
+id="i-candidate-scheme--raptor-falcon-512-linkable-ring-sig-vs-the-in-house-stand-in--measured-this-session">I.
+Candidate scheme — Raptor (Falcon-512 linkable ring sig) vs the in-house
+stand-in — <strong>[measured this session]</strong></h2>
+<p>For the <strong>small-ring plaintext</strong> path (D1, after the
+ring-size fork was decided small), the <strong>Raptor</strong> reference
+(<a
+href="https://github.com/zhenfeizhang/raptor"><code>github.com/zhenfeizhang/raptor</code></a>
+— <strong>C</strong>, Falcon-512 + NTRU/Falcon chameleon-hash, GPLv3)
+was <strong>built + run</strong> on the WSL host (release, core-pinned,
+200 iters/point), head-to-head against the PoC's in-house lattice
+ring-sig stand-in (<code>ccx-pqc</code> K=L=6, N=256).</p>
+<table>
+<thead>
+<tr>
+<th>ring</th>
+<th><strong>Raptor sig (compact)</strong></th>
+<th>Raptor verify</th>
+<th>Raptor sign</th>
+<th>stand-in sig</th>
+<th>stand-in verify</th>
+<th><strong>size ratio</strong></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>4</td>
+<td><strong>7.3 KB</strong></td>
+<td>0.53 ms</td>
+<td>0.86 ms</td>
+<td>30.0 KB</td>
+<td>1.13 ms</td>
+<td><strong>4.1×</strong></td>
+</tr>
+<tr>
+<td>6</td>
+<td><strong>10.2 KB</strong></td>
+<td>0.79 ms</td>
+<td>1.13 ms</td>
+<td>42.0 KB</td>
+<td>1.97 ms</td>
+<td><strong>4.1×</strong></td>
+</tr>
+<tr>
+<td>8</td>
+<td><strong>13.1 KB</strong></td>
+<td>1.00 ms</td>
+<td>1.38 ms</td>
+<td>54.0 KB</td>
+<td>2.69 ms</td>
+<td><strong>4.1×</strong></td>
+</tr>
+<tr>
+<td>16</td>
+<td><strong>24.7 KB</strong></td>
+<td>2.15 ms</td>
+<td>2.65 ms</td>
+<td>102.0 KB</td>
+<td>6.95 ms</td>
+<td><strong>4.1×</strong></td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Raptor wins on both axes at every small ring:</strong>
+<strong>~4.1× smaller</strong> <em>and</em> <strong>~2.5× faster
+verify</strong> (the consensus hot path). Both schemes are linear, so
+the ratio holds across the range. (Corrects earlier estimates: the win
+is <strong>4.1×</strong>, not 5×; ~10 KB is <strong>ring-6</strong>, not
+ring-8.)</li>
+<li><strong>Security: NIST cat-1 (~128-bit),
+<em>calibrated</em></strong> (Falcon-512 = the NIST FN-DSA lineage) — vs
+the stand-in's ~128-bit <em>uncalibrated, biased-sampling,
+demo-grade</em> params. So Raptor's size win is <strong>not</strong>
+bought by lower security; it's the cleaner, calibrated assumption.</li>
+<li><strong>LINKABLE: confirmed</strong> — each sig embeds a
+one-time-signature public key as the linking tag (SHA-512 masks the
+signer's <code>h</code>); maps to a key-image/nullifier, same role as
+the stand-in's <code>SHAKE256(I)</code>.</li>
+<li><strong>Catches (load-bearing for integration):</strong> (1) the
+compact sizes above are <strong>paper/model</strong> — the reference
+binary emits a <strong>~4× bloated <code>int64</code> debug
+encoding</strong>; production must implement the compact packing (~14
+bits/coeff, a <code>TODO</code> in the repo). My 14-bit-packed model
+independently agrees within ~15%. (2) <strong>LICENSE — resolved into a
+path:</strong> the upstream Raptor repo is <strong>GPL +
+patent-asserted</strong> and <strong>cannot be copied</strong> into MIT
+Conceal — but the <em>construction</em> is a published algorithm (eprint
+2018/857) and <strong>Falcon is NIST FIPS 206,
+patent-free/royalty-free</strong>, so the route is a <strong>clean-room
+reimplementation over permissive PQClean Falcon
+(public-domain)</strong>, reimplemented in the existing Rust
+<code>ccx-pqc</code> island (so "C, not Rust" is moot — we don't bind
+the GPL C). <em>Now built + integrated into the daemon</em> — see §I.2
+below. (3) Raptor needs Falcon's <strong>low-level trapdoor preimage
+sampler</strong>, not just stock FN-DSA sign/verify. (4) Falcon's
+<strong>floating-point Gaussian sampler</strong> is a constant-time
+<strong>and consensus-determinism</strong> hazard (cross-platform FP
+rounding → block-validation split). (5) Unaudited research code.</li>
+</ul>
+<p><strong>Verdict:</strong> Raptor beats the in-house stand-in on size,
+verify, assumption-cleanliness/calibration, and maturity — it is the
+<strong>production candidate to track</strong> for the small-ring
+plaintext path. The work is in the <em>integration</em> (clean-room
+reimpl over PQClean Falcon, compact packing, constant-time/deterministic
+sampler, audit), not the cryptography. <em>(Raw notes on WSL
+<code>~/raptor-bench-notes.md</code>.)</em></p>
+<h3
+id="i1--clean-room-spike-built--adversarially-reviewed--hardened-2026-06-20">I.1
+— Clean-room spike BUILT + adversarially reviewed + hardened
+(2026-06-20)</h3>
+<p>The clean-room reimplementation now exists as an isolated Rust crate
+(<code>~/raptor-spike/</code> on the WSL host — <strong>not</strong> in
+the live tree, <strong>not</strong> merged). Construction from eprint
+2018/857 only; Falcon-512 from <strong>PQClean (MIT)</strong>, fips202
+(public-domain), randombytes (MIT) — <strong>zero GPL</strong>,
+independently license-verified. Behind the existing
+<code>ccx_pq_*</code> C ABI; builds clean, <strong>harness 25/25 +
+adversary 12/12 + C-ABI 6/6 + stats PASS</strong>.</p>
+<p><strong>Measured (post-hardening, WSL x86_64):</strong> ring-6
+compact sig <strong>9,719 B</strong> (under 10 KB; matches the paper's
+Table 1(b) ~9,720 B), verify 5.4 ms. Sign time <strong>rose to ~40 ms @
+ring-6</strong> (from ~11 ms) — the <em>honest</em> cost of the
+anonymity fix below (genuine Falcon sampling per non-signer, not the
+demo CLT). Sizes ~unchanged.</p>
+<table>
+<thead>
+<tr>
+<th style="text-align: right;">ring</th>
+<th style="text-align: right;">sig B</th>
+<th style="text-align: right;">sign ms</th>
+<th style="text-align: right;">verify ms</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td style="text-align: right;">2</td>
+<td style="text-align: right;">4,661</td>
+<td style="text-align: right;">23</td>
+<td style="text-align: right;">2.1</td>
+</tr>
+<tr>
+<td style="text-align: right;">6</td>
+<td style="text-align: right;"><strong>9,719</strong></td>
+<td style="text-align: right;">40</td>
+<td style="text-align: right;">5.4</td>
+</tr>
+<tr>
+<td style="text-align: right;">8</td>
+<td style="text-align: right;">12,251</td>
+<td style="text-align: right;">48</td>
+<td style="text-align: right;">7.1</td>
+</tr>
+<tr>
+<td style="text-align: right;">16</td>
+<td style="text-align: right;">22,344</td>
+<td style="text-align: right;">82</td>
+<td style="text-align: right;">13.8</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Two independent adversarial reviews</strong> (Codex
+deep-soundness + Claude license/harness) + a hardening pass:</p>
+<ul>
+<li>✅ <strong>License clean</strong> (confirmed), <strong>construction
+faithful</strong> to §6.5, <strong>linkability crux enforced by
+code</strong>.</li>
+<li>🔴→🛠 <strong>CRITICAL anonymity bug found + fixed.</strong>
+Non-signer members were sampled from a CLT approximation (truncated
+tails) → statistically distinguishable from the signer's genuine Falcon
+preimage = ring-anonymity break under repeated observation.
+<strong>Fixed:</strong> non-signer <code>(r0,r1)</code> now drawn from
+Falcon's own preimage sampler (throwaway key/random target). Evidence:
+signer vs non-signer coeff stddev 165.96 vs 165.62 (0.2%), kurtosis ≈0
+both — coincide within sampling noise. <em>Honest:</em> this shows the
+sampler <strong>matches</strong> Falcon's; it does <strong>not</strong>
+<em>prove</em> indistinguishability (formal statistical-distance bound =
+audit item).</li>
+<li>🛠 All other findings fixed: <code>b_i∈{0,1}^256</code> validation,
+FFI preimage assertion, length-prefixed transcript, hard (not
+debug-only) consistency check, retry→panic, expanded adversary suite
+(forged-OTS, replay, ring-1, null-ring, b-tamper), and a <strong>KAT
+tripwire</strong> for keygen FP-determinism (detects cross-platform
+drift).</li>
+</ul>
+<p><strong>Cross-platform FP determinism — RESOLVED at build level (was
+a misread).</strong> The earlier "Falcon uses native
+<code>double</code>, needs an FPEMU patch" (Codex HIGH-1 + the
+integration plan) was <strong>factually wrong</strong>: the vendored
+PQClean <strong>falcon-512 "clean"</strong> variant ships <em>only</em>
+the integer-emulated FP layer — <code>typedef uint64_t fpr</code>, zero
+real <code>double</code>/<code>float</code> arithmetic (the few tokens
+are comments), and no <code>FALCON_FPNATIVE</code>/<code>FPEMU</code>
+toggle (the old <code>build.rs</code> define was a dead no-op).
+<strong>Verified independently</strong> (code inspection + a 7-config
+keygen-KAT sweep:
+<code>-O0</code>/<code>-O3</code>/<code>-ffast-math</code>/<code>-ffp-contract=fast</code>/<code>-march</code>
+all produce the <strong>identical</strong> digest — proof there is no
+native FP in the path). So keygen+signing are <strong>bit-identical
+across compilers/opt/arch by construction</strong>; the chain-split risk
+the review feared cannot occur. Residual (belt-and-braces, NOT a
+blocker): an actual <strong>aarch64/MSVC KAT run</strong> to confirm
+cross-arch (the <code>uint64</code> argument is sound; 32-bit targets
+use SW 64-bit helpers but still yield identical results); the
+<code>assert_keygen_kat()</code> tripwire stays in CI (now expected to
+PASS everywhere). Perf cost of the "fix": <strong>zero</strong> (already
+integer-FP).</p>
+<p><strong>STILL requires humans — NOT production-ready to guard
+funds</strong> (an implementation pass can't close these): (1)
+norm-bound <strong>B1 re-derivation</strong> for the ring setting; (2)
+formal <strong>anonymity</strong> proof; (3) formal
+<strong>unforgeability</strong> reduction; (4) <strong>professional
+external audit</strong>; (5) <code>paramch_h</code> nothing-up-my-sleeve
+<strong>ceremony</strong>; (6) production wallet <strong>KDF</strong>
+for per-spend randomness; (7) Falcon <strong>constant-time /
+side-channel</strong> review (separate from determinism); (8) NTT
+(perf); (9) the cross-arch KAT confirmation above. Verdict (Codex):
+<em>"engineering-hardened, comprehensively tested, deterministic — but
+not production-ready."</em> Full writeup:
+<code>~/raptor-spike/CODEX-ASSESS.md</code>.</p>
+<h3
+id="i2--raptor-integrated-into-conceal-core-pqctestnet-poc-2026-06-20">I.2
+— Raptor INTEGRATED into conceal-core (<code>pqc/testnet-poc</code>,
+2026-06-20)</h3>
+<p>The clean-room Raptor backend is now wired into the live consensus
+crate (<code>pqc/ccx-pqc</code>), replacing the demo lattice stand-in
+behind the unchanged <code>ccx_pq_*</code> C ABI (branch
+<code>pqc/testnet-poc</code>, pushed as an <strong>UNAUDITED backup
+branch</strong> to the fork + org — not merged, not mainnet). Measured
+on the WSL host:</p>
+<table>
+<thead>
+<tr>
+<th>Stage</th>
+<th>Result</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pqc/ccx-pqc</code> crate build</td>
+<td><strong>green</strong> (Falcon C + Raptor Rust →
+<code>libccx_pqc.a</code>)</td>
+</tr>
+<tr>
+<td>C-ABI round-trip (<code>abi_test</code>)</td>
+<td>scheme <code>0x52415054</code> "RAPT", pk <strong>896</strong> / sk
+<strong>48</strong> / nf <strong>32</strong>; <strong>sign 7192 B @
+ring-4</strong>; verify ✓; nullifier(sign)==nullifier(verify) ✓;
+linkability ✓; tamper rejected ✓</td>
+</tr>
+<tr>
+<td>Full daemon + wallet + tests build</td>
+<td><strong>green</strong> <code>[100%]</code> (<code>conceald</code>
+9.7 MB)</td>
+</tr>
+<tr>
+<td>PQ unit tests</td>
+<td><strong>72/72 pass</strong> — incl. all golden serialization vectors
+(<code>PqKeyInput/Output</code>, <code>MixedInputsOutputs</code>,
+<code>FullTransactionV3</code>) <strong>unchanged</strong>
+(length-prefixed wire absorbs the variable sig) + tx-extra framing</td>
+</tr>
+<tr>
+<td><strong>e2e consensus</strong>
+(<code>run-poc-testnet.sh</code>)</td>
+<td>PQ coinbase → <strong>ring-4 spend ACCEPTED</strong> (tx
+<strong>8148 B</strong>) → <strong>in-pool double-spend
+REJECTED</strong> (Raptor nullifier) → mined →
+<strong>independent-nullifier spend ACCEPTED</strong>; KEM stealth scan
+OK</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Integration specifics worth recording:</strong></p>
+<ul>
+<li><strong>SCHEME_ID</strong> <code>0xC0DE0004</code> →
+<strong><code>0x52415054</code> ("RAPT")</strong> in both
+<code>lib.rs</code> and <code>CryptoNoteConfig.h</code>
+(<code>PQ_RING_SCHEME_ID</code>); old-scheme testnet data is
+incompatible (clean reset, as intended).</li>
+<li><strong>Variable-size signatures</strong>: the stand-in's exact-size
+verify check (<code>sig_len != ring_sig_size(n)</code>) was replaced
+with an <strong>upper-bound DoS guard</strong>
+(<code>sig_len ≤ n*4096+8192</code>) + <code>unpack</code>'s
+canonical-length validation (rejects trailing garbage / wrong ring). The
+C++ already used the max-buffer sign pattern (alloc 256 KB,
+<code>resize(sigLen)</code>), so <strong>no C++ consumer
+changes</strong> were needed beyond the scheme-id.</li>
+<li><strong>Consensus-critical bug found + fixed during
+integration:</strong> the vendored Falcon bundles
+<code>fips202.c</code>/<code>randombytes.c</code>, whose unnamespaced
+<code>shake256_inc_*</code>/<code>randombytes</code> symbols
+<strong>collided</strong> with the copies in
+<code>pqcrypto-kyber</code>/<code>pqcrypto-dilithium</code> → the linker
+bound Falcon's <code>inner_shake256_*</code> to a differently-laid-out
+state struct → <strong>stack smash</strong>. Fixed by
+<code>-D</code>-renaming every Falcon fips202/randombytes symbol to
+<code>ccxfalcon_*</code> in <code>build.rs</code> (isolated, verified
+one <code>shake256</code> + one <code>ccxfalcon_shake256</code>). Caught
+by a C-ABI smoke test before the daemon build.</li>
+<li>Seed handling: <code>ccx_pq_keygen</code> SHAKE-normalizes
+any-length stealth seed → 48-byte sk;
+<code>sign</code>/<code>nullifier</code> reuse that exact sk —
+consistent with the C++ spend flow (<code>PqSpendBuilder</code> stores
+the exported 48-B <code>otSk</code> and passes it back).</li>
+</ul>
+<p><strong>Still gated for the external audit (unchanged from
+§I.1):</strong> this is an UNAUDITED research construction wired into
+consensus-shaped code on a <strong>resettable testnet</strong> — it is
+NOT mainnet-ready. The human gates (formal anonymity/unforgeability
+proofs, B1 calibration, <code>paramch_h</code> ceremony, production
+per-spend KDF, constant-time review, cross-arch KAT, external audit) all
+stand. See <code>raptor-integration-plan.md</code> §5.</p>
+<hr />
+<h2 id="summary--headline-measured-numbers">Summary — headline measured
+numbers</h2>
+<table>
+<thead>
+<tr>
+<th>Metric</th>
+<th>Classical</th>
+<th>Post-quantum (v3)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Typical spend tx size</td>
+<td><strong>542 B</strong> (1-in/2-out, mixin 5) [live]</td>
+<td><strong>36,953 B</strong> (ring-4) [live, consensus-accepted]</td>
+</tr>
+<tr>
+<td>Tx size, other shapes</td>
+<td>505 B (1/1), 972 B (2/2) [live]</td>
+<td>24,663 B (ring-2), 61,533 B (ring-8) [live]</td>
+</tr>
+<tr>
+<td>Spend signature pubkey</td>
+<td>32 B [const]</td>
+<td>6144 B [FFI-live]</td>
+</tr>
+<tr>
+<td><strong>Deposit create tx</strong> (Option 3)</td>
+<td><strong>217 B</strong> [live]</td>
+<td><strong>≈ 2,137 B</strong> (ML-DSA-65, ~10×) [live + FFI-live]</td>
+</tr>
+<tr>
+<td>Address length</td>
+<td>98 chars [live]</td>
+<td>1747 chars [live]</td>
+</tr>
+<tr>
+<td>Ring-sig verify (1 ring)</td>
+<td>~160 µs [live]</td>
+<td>—</td>
+</tr>
+<tr>
+<td>Ring-sig verify (ring-4/6)</td>
+<td>~0.96 ms (ring-6 interp.) [live]</td>
+<td>~1.12 ms (ring-4) [cited]</td>
+</tr>
+<tr>
+<td>Ring-sig sign</td>
+<td>folded into construct (~0.55 ms tx) [live]</td>
+<td>~2.46 ms (ring-4, CT) [cited]</td>
+</tr>
+<tr>
+<td>Txs per 100 KB zone</td>
+<td>~184 (1-in/2-out) [derived]</td>
+<td>2 (ring-4) [derived]</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Caveats:</strong> (1) Live classical <em>wallet send</em> not
+captured — PoC coinbase/wallet-scan index mismatch makes coinbase
+unspendable by the wallet; classical sizes measured via
+<code>cn::constructTransaction</code> on the real libs instead. (2)
+Wallet-native <code>pq_transfer</code> not captured — PqSpendClient
+TcpConnector failure; PQ sizes measured via <code>pq_injector</code>
+(same shared builder). (3) PQ ring-sig timings are cited from the prior
+constant-time measurement, not re-run here. (4) PQ scheme is
+EXPERIMENTAL / demo-grade params (<code>K=L=6, N=256</code>), not a
+calibrated security level — sizes/timings are for the current PoC, not a
+production scheme.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

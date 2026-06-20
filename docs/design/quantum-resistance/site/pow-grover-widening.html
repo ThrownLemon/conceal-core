@@ -1,0 +1,556 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PoW Grover widening — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class="active"><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="pow--hashing-hardening-against-grover--design-blueprint">PoW /
+Hashing Hardening Against Grover — Design Blueprint</h1>
+<p>Scope: the Proof-of-Work and hashing layer of Conceal Core, assessed
+against a <strong>Grover-class</strong> quantum adversary (quadratic
+speedup on unstructured search / preimage), NOT a Shor-class adversary
+(which breaks ECDLP and is the subject of the separate
+signature/key-image PQC work). This document deliberately stays in its
+lane: it covers block PoW, the difficulty target, the nonce search
+space, and the structural hashes (block id, tx id, key image,
+merkle/tree hash). It does <strong>not</strong> cover ring signatures,
+stealth addresses, or KEM — those are Shor-exposed and handled elsewhere
+(<code>pqc/</code>, <code>docs/specs/quantum-resistance/</code>).</p>
+<p>Bottom line up front: <strong>the symmetric/hash layer needs
+essentially no consensus change for Grover.</strong> Every hash that
+matters is 256-bit, giving a 128-bit post-Grover security floor, which
+is the accepted long-term target. The only items worth any attention are
+(1) a documentation/parameter note about the 32-bit <code>nonce</code>
+field — which is a non-issue for honest interoperation and already
+mitigated in the existing miner — and (2) an optional, cheap,
+height-gated widening of the <em>effective</em> PoW search input for
+future-proofing, recommended <strong>only as a "do nothing now, keep in
+back pocket"</strong> item. No emergency action is warranted.</p>
+<hr />
+<h2 id="1-the-pow-path-as-it-actually-exists-fileline">1. The PoW path
+as it actually exists (file:line)</h2>
+<h3 id="11-hash-selection-by-fork-height">1.1 Hash selection by fork
+height</h3>
+<p><code>src/CryptoNoteCore/CryptoNoteFormatUtils.cpp:532</code>
+<code>get_block_longhash()</code>:</p>
+<pre><code>if (b.majorVersion &gt;= 8) cn_gpu_hash_v0(...)            // CN-GPU, current PoW (UPGRADE_HEIGHT_V8 = 661300)
+else if (b.majorVersion &gt;= 7) cn_conceal_slow_hash_v0   // Cryptonight Conceal
+else if (b.majorVersion &gt;= 3) cn_fast_slow_hash_v1      // Cryptonight-Fast
+else cn_slow_hash_v0                                     // original CN</code></pre>
+<p>All four are CryptoNight-family memory-hard functions. The current
+mainnet PoW (block major v8, active since height 661300 per
+<code>CryptoNoteConfig.h:113</code>) is <strong>CN-GPU</strong>. Every
+variant produces a <strong>256-bit</strong> output.</p>
+<h3 id="12-the-pow-output-is-a-256-bit-keccakextra-hash-digest">1.2 The
+PoW output is a 256-bit Keccak/extra-hash digest</h3>
+<p>CryptoNight finalizes its scratchpad through the Keccak permutation
+and then runs the final state through exactly one of four 256-bit
+"extra" hashes selected by the low bits of the state:</p>
+<ul>
+<li><code>src/crypto/pow_hash/aux_hash.h:33-36</code> —
+<code>blake256_hash</code>, <code>skein_hash</code>,
+<code>groestl_hash</code>, <code>jh_hash</code> (all 256-bit
+SHA-3-competition finalists).</li>
+<li><code>src/crypto/pow_hash/cn_slow_hash_soft.cpp:414,418,422,559</code>
+— <code>keccakf(...,24)</code> permutation rounds; final state
+dispatched to one extra hash.</li>
+</ul>
+<p>So the value that <code>check_hash</code> sees is a full 256-bit
+digest with no truncation.</p>
+<h3 id="13-the-difficulty-target-check-256-bit-not-128-bit">1.3 The
+difficulty target check (256-bit, NOT 128-bit)</h3>
+<p><code>src/CryptoNoteCore/Difficulty.cpp:49</code>
+<code>check_hash(const crypto::Hash &amp;hash, difficulty_type difficulty)</code>:</p>
+<p>This is the standard CryptoNote 256-bit comparison. It treats the
+32-byte <code>hash</code> as a little-endian 256-bit integer (four
+<code>uint64_t</code> limbs, indices [0..3]) and accepts the block iff
+<code>hash * difficulty</code> does not overflow 256 bits — i.e.
+<code>hash &lt;= 2^256 / difficulty</code>. <code>difficulty_type</code>
+is <code>std::uint64_t</code>
+(<code>src/CryptoNoteCore/Difficulty.h:17</code>), but <strong>the
+target itself is a full 256-bit value</strong>; the 64-bit type only
+bounds how <em>small</em> the target can be made (max difficulty ~2^64).
+There is <strong>no 128-bit target anywhere</strong> in the PoW path —
+the earlier grep for <code>128</code> only hit <code>mul128</code>
+helpers used for reward/interest math and the difficulty multiply, none
+of which is a security-relevant target width.</p>
+<h3 id="14-the-mutable-pow-search-input">1.4 The mutable PoW search
+input</h3>
+<p><code>include/CryptoNote.h:78-84</code> —
+<code>BlockHeader { uint8_t majorVersion; uint8_t minorVersion; uint32_t nonce; uint64_t timestamp; Hash previousBlockHash; }</code>.</p>
+<p>The hashing blob (<code>get_block_hashing_blob</code>,
+<code>CryptoNoteFormatUtils.cpp:496</code>) = serialized
+<code>BlockHeader</code> ++ <code>treeRootHash</code> (merkle root over
+coinbase + tx hashes) ++ varint(tx count). The <strong>search</strong>
+degrees of freedom a miner varies are:</p>
+<ul>
+<li><code>nonce</code> — <code>uint32_t</code> → <strong>2^32</strong>
+values (<code>Miner.cpp:375</code> <code>b.nonce = nonce;</code>,
+incremented at <code>Miner.cpp:397</code>).</li>
+<li><code>timestamp</code> — <code>uint64_t</code>, bounded by consensus
+time window but still many effective bits per template.</li>
+<li>The coinbase extra-nonce (<code>extra_nonce</code>,
+<code>Miner.cpp:82-88</code>) and the coinbase txn contents, which roll
+the <code>treeRootHash</code> — effectively unbounded extra search bits
+per template.</li>
+<li><code>m_starter_nonce = crypto::rand&lt;uint32_t&gt;()</code>
+(<code>Miner.cpp:66</code>) randomizes the starting point each
+restart.</li>
+</ul>
+<p>This is the classic CryptoNote arrangement: the literal 32-bit
+<code>nonce</code> is small, but the <em>real</em> search space is the
+(nonce × extra_nonce × timestamp × coinbase) product, which is
+astronomically larger than 2^32.</p>
+<hr />
+<h2 id="2-grover-threat-model-applied-to-each-surface">2. Grover threat
+model applied to each surface</h2>
+<p>Grover's algorithm gives a quadratic speedup on <strong>unstructured
+preimage/search</strong>: finding a preimage of an <code>n</code>-bit
+hash costs ~<code>2^(n/2)</code> quantum iterations instead of
+<code>2^n</code> classical. Crucially:</p>
+<ul>
+<li>Grover does <strong>not</strong> help with
+<strong>collisions</strong> beyond the classical birthday/BHT bounds in
+any practically relevant way (BHT needs ~<code>2^(n/3)</code>
+<em>and</em> <code>2^(n/3)</code> qubits of QRAM, which is far more
+expensive than classical <code>2^(n/2)</code> collision search for
+n=256; consensus on this is that 256-bit hashes remain ~128-bit
+collision-secure and Grover changes nothing useful here).</li>
+<li>Grover is <strong>highly sequential</strong> — it does not
+parallelize with the <code>1/sqrt(P)</code> penalty across
+<code>P</code> machines. Splitting the search across <code>P</code>
+quantum machines only yields a <code>sqrt(P)</code> speedup, so a
+quantum mining cartel gets far less than the naive <code>2^(n/2)</code>
+headline. This is the single most important fact for PoW: Grover is a
+<em>terrible</em> fit for a latency-bound, re-targeting, memory-hard
+PoW.</li>
+<li>CryptoNight is <strong>memory-hard</strong> (multi-MB scratchpad
+with data-dependent random access). Grover requires the entire oracle
+(one full CryptoNight evaluation) to run <em>in superposition</em>,
+which means the multi-MB scratchpad must be held in coherent quantum
+memory and addressed in superposition for every iteration. That is
+wildly beyond any credible quantum hardware horizon and inflates the
+per-iteration constant by orders of magnitude over the clean
+<code>2^(n/2)</code> model.</li>
+</ul>
+<h3 id="21-block-pow-target-search--no-change-needed">2.1 Block PoW
+(target search) — NO CHANGE NEEDED</h3>
+<p>A quantum miner using Grover to find a block satisfying the
+difficulty target faces, per template, a search whose target is
+<code>2^256 / difficulty</code>. The work to find one solution is
+<code>difficulty</code> hash evaluations classically; Grover reduces
+this to ~<code>sqrt(difficulty)</code> <em>oracle</em> evaluations —
+but:</p>
+<ol type="1">
+<li>Each oracle evaluation is a full memory-hard CN-GPU hash in
+superposition — infeasible for the foreseeable future.</li>
+<li>The speedup is only <code>sqrt</code>, and difficulty
+<strong>auto-retargets</strong> every block (LWMA,
+<code>Currency.cpp</code> <code>nextDifficulty*</code>). If a quantum
+miner is faster, the network simply raises difficulty until block time
+normalizes; the security reduces to the <em>relative</em> hashrate
+question, identical to ASIC-vs-CPU today. Grover does not let a quantum
+miner forge blocks below target — it only finds valid-target nonces
+faster, which difficulty retargeting absorbs.</li>
+<li>There is no "break" here, only a hashrate advantage, and 51%-style
+economic security is unchanged in kind.</li>
+</ol>
+<p><strong>Recommendation: no consensus change.</strong> Widening the
+256-bit target is meaningless (it is already maximal). Difficulty
+retargeting is the correct and sufficient defense.</p>
+<h3 id="22-the-32-bit-nonce-field--no-consensus-change-needed">2.2 The
+32-bit <code>nonce</code> field — NO CONSENSUS CHANGE NEEDED</h3>
+<p>This is the one item that <em>looks</em> alarming ("only 2^32 nonce,
+Grover halves the exponent to effectively 2^16!") and is the most common
+misconception, so it is documented explicitly:</p>
+<ul>
+<li>The <code>nonce</code> is <strong>not</strong> the search space; it
+is one of several mutable fields. Once a miner exhausts 2^32 nonces
+without a hit (which only happens at difficulty &gt; ~2^32), it rolls
+the <strong>extra_nonce</strong> / <strong>coinbase</strong> /
+<strong>timestamp</strong> and gets a fresh 2^32-nonce subspace. The
+effective search space is unbounded. See <code>Miner.cpp:82-88</code>
+(extra_nonce) and the per-template reseed at
+<code>Miner.cpp:365-366</code>.</li>
+<li>Grover does not change this. A quantum miner that exhausts the
+per-template search just advances the template exactly as a classical
+miner does.</li>
+<li>Widening <code>nonce</code> from <code>uint32_t</code> to
+<code>uint64_t</code> would be a <strong>serialization / wire-format
+consensus change</strong> (it changes <code>BlockHeader</code> layout
+and therefore the hashing blob and block id of every block) for
+<strong>zero security benefit</strong>.</li>
+</ul>
+<p><strong>Recommendation: do NOT widen the nonce.</strong> It would
+fork the chain (serialization change,
+<code>include/CryptoNote.h:81</code>,
+<code>CryptoNoteFormatUtils.cpp</code> hashing blob) for no Grover
+benefit. The only deliverable here is <em>documentation</em> so future
+maintainers do not "fix" a non-bug. If a cosmetic change is ever desired
+for parity with newer CryptoNote forks, it must be height-gated behind a
+new <code>UPGRADE_HEIGHT_V9</code> + <code>BLOCK_MAJOR_VERSION_9</code>
+and a versioned <code>get_block_hashing_blob</code>, and even then it
+buys nothing against Grover.</p>
+<h3
+id="23-structural-hashes-block-id-tx-id-key-image-treemerkle--no-change-needed">2.3
+Structural hashes: block id, tx id, key image, tree/merkle — NO CHANGE
+NEEDED</h3>
+<p>These use <code>cn_fast_hash</code> = <strong>Keccak-256</strong>
+(<code>src/crypto/hash.c:13,23</code> <code>#include "keccak.h"</code> →
+<code>keccak1600</code>), all producing 256-bit digests:</p>
+<table>
+<thead>
+<tr>
+<th>Surface</th>
+<th>Where</th>
+<th>Hash</th>
+<th>Grover preimage</th>
+<th>Classical collision</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Block id (<code>get_block_hash</code>)</td>
+<td><code>CryptoNoteFormatUtils.cpp:508</code> →
+<code>getObjectHash</code></td>
+<td>Keccak-256</td>
+<td>2^128</td>
+<td>2^128</td>
+</tr>
+<tr>
+<td>Tx id</td>
+<td><code>getObjectHash</code></td>
+<td>Keccak-256</td>
+<td>2^128</td>
+<td>2^128</td>
+</tr>
+<tr>
+<td>Merkle/tree root</td>
+<td><code>tree_hash</code> <code>src/crypto/hash.h:77</code></td>
+<td>Keccak-256</td>
+<td>2^128</td>
+<td>2^128</td>
+</tr>
+<tr>
+<td>Key image derivation</td>
+<td><code>hash_to_scalar</code>/<code>hash_to_ec</code>
+<code>crypto.cpp:59,461</code></td>
+<td>Keccak-256</td>
+<td>2^128</td>
+<td>2^128</td>
+</tr>
+</tbody>
+</table>
+<p>Post-Grover, all of these retain a <strong>128-bit preimage</strong>
+floor (the accepted NIST "Category 2/AES-like" long-term level) and a
+<strong>128-bit collision</strong> floor (unchanged by Grover; BHT
+quantum collision is not a practical improvement at n=256). Nothing here
+is truncated to 128 bits in storage — the 128-bit numbers are the
+<em>security level</em>, not a field width.</p>
+<p>Two notes:</p>
+<ul>
+<li><strong>Key image collision/forgery is a Shor problem, not a Grover
+problem.</strong> The key image's unforgeability rests on the
+discrete-log binding of <code>I = x·H_p(P)</code>
+(<code>crypto.cpp:461</code> <code>generate_key_image</code>), which
+Shor breaks and Grover does not. Hardening the <em>hash</em>
+(Keccak-256) does nothing for that; it is correctly out of scope here
+and owned by the signature-PQC track.</li>
+<li>The merkle <strong>tree_hash</strong> uses Keccak-256 and the
+CryptoNote tree construction. Second-preimage / collision on the tree
+root would let an attacker swap tx sets under a fixed block id — but at
+128-bit collision cost post-Grover that is not a Grover-driven concern.
+<strong>No change.</strong></li>
+</ul>
+<p><strong>Recommendation: no change to any structural hash.</strong>
+Migrating Keccak-256 → a wider hash (e.g. 512-bit) would be a sweeping
+serialization + consensus + wallet</p>
+<ul>
+<li>P2P break for a threat (sub-128-bit collision) that Grover does not
+create.</li>
+</ul>
+<hr />
+<h2 id="3-is-the-current-security-margin-adequate-explicit-verdict">3.
+Is the current security margin adequate? (explicit verdict)</h2>
+<p><strong>Yes, for Grover.</strong> Summary table:</p>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>Current width</th>
+<th>Post-Grover floor</th>
+<th>Adequate?</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>PoW difficulty target</td>
+<td>256-bit target, 64-bit max difficulty</td>
+<td>retarget-bounded; sqrt speedup only</td>
+<td><strong>Yes</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td><code>nonce</code> search field</td>
+<td>32-bit literal, unbounded effective</td>
+<td>N/A (not a security parameter)</td>
+<td><strong>Yes</strong></td>
+<td>Doc only</td>
+</tr>
+<tr>
+<td>Block id (Keccak)</td>
+<td>256-bit</td>
+<td>128-bit preimage / 128-bit collision</td>
+<td><strong>Yes</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td>Tx id (Keccak)</td>
+<td>256-bit</td>
+<td>128-bit / 128-bit</td>
+<td><strong>Yes</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td>Tree/merkle root (Keccak)</td>
+<td>256-bit</td>
+<td>128-bit / 128-bit</td>
+<td><strong>Yes</strong></td>
+<td>None</td>
+</tr>
+<tr>
+<td>Key image hash (Keccak)</td>
+<td>256-bit</td>
+<td>128-bit (hash); DL-binding is Shor's, not Grover's</td>
+<td><strong>Yes (for Grover)</strong></td>
+<td>None</td>
+</tr>
+</tbody>
+</table>
+<p>The codebase is in the comfortable position that <strong>all</strong>
+money/consensus hashes are already 256-bit, which is the modern
+post-quantum-symmetric baseline (equivalent to the AES-256 / SHA-256
+"still fine under Grover" consensus). There is no 160-bit, no 128-bit,
+and no truncated hash anywhere in the consensus path that would need
+widening.</p>
+<hr />
+<h2 id="4-recommended-changes">4. Recommended changes</h2>
+<h3 id="41-required-consensusconfig-changes-none">4.1 Required
+consensus/config changes: NONE</h3>
+<p>There is no Grover-driven justification for any change to
+<code>CryptoNoteConfig.h</code>, <code>Difficulty.{h,cpp}</code>, the
+hash selection in <code>get_block_longhash</code>, the
+<code>BlockHeader</code> layout, or any structural hash. Recommending a
+height-gated fork here would be cargo-culting; we explicitly do
+<strong>not</strong> recommend one.</p>
+<h3 id="42-documentation-only-recommended-zero-consensus-risk">4.2
+Documentation-only (recommended, zero consensus risk)</h3>
+<ol type="1">
+<li>Add a comment near <code>include/CryptoNote.h:81</code>
+(<code>uint32_t nonce;</code>) and/or <code>Difficulty.cpp:49</code>
+(<code>check_hash</code>) noting that the effective PoW search space is
+(nonce × extra_nonce × timestamp × coinbase), not 2^32, so the narrow
+<code>nonce</code> is <strong>not</strong> a quantum (or classical)
+weakness and must not be "widened" without a height-gated serialization
+fork.</li>
+<li>Record in the quantum-resistance spec that the
+<strong>symmetric/hash layer is Grover-adequate and intentionally left
+unchanged</strong>, so reviewers do not conflate it with the
+Shor-exposed signature work.</li>
+</ol>
+<h3
+id="43-optional-keep-in-back-pocket-future-proofing-not-recommended-now">4.3
+Optional, "keep in back pocket" future-proofing (NOT recommended
+now)</h3>
+<p>If, in some far-future hard fork, the project wants
+belt-and-suspenders headroom purely for optics/marketing ("256→deeper
+margin"), the <em>cheapest</em> and least disruptive lever — far cheaper
+than changing the hash or the target — is to add <strong>extra
+search-input entropy</strong> via a dedicated header field,
+height-gated:</p>
+<ul>
+<li>Introduce <code>BLOCK_MAJOR_VERSION_9</code> +
+<code>UPGRADE_HEIGHT_V9</code> / <code>TESTNET_UPGRADE_HEIGHT_V9</code>
+in <code>CryptoNoteConfig.h</code>, and a versioned
+<code>get_block_hashing_blob</code> / <code>get_block_longhash</code>
+branch for v9.</li>
+<li>This does <strong>not</strong> change the hash function or the
+256-bit target; it only enlarges the explicit per-block search field so
+the literal <code>nonce</code> concern disappears for good. Even this
+buys <em>no</em> real Grover security (the effective search space is
+already unbounded) — it is cosmetic.</li>
+<li>Cost: full serialization/wire/block-id compatibility break,
+mandatory coordinated fork, checkpoint update, wallet/explorer updates.
+<strong>Not justified by Grover.</strong> Listed only so the option is
+on record.</li>
+</ul>
+<p>Strong recommendation: <strong>do nothing in code now</strong>; ship
+the documentation note (4.2) and revisit only if (a) a credibly
+large-scale, memory-coherent quantum machine appears, or (b)
+cryptanalysis weakens Keccak/CryptoNight classically (which would be a
+classical emergency, not a Grover one).</p>
+<hr />
+<h2 id="5-interaction-with-the-pqc-poc-branch">5. Interaction with the
+PQC PoC branch</h2>
+<p>The <code>pqc/testnet-poc</code> work (PqKey in/out, ML-KEM stealth,
+lattice ring sig, nullifiers) is entirely in the
+<strong>transaction/signature</strong> layer and is
+<strong>Shor</strong> defense. It does not touch
+<code>get_block_longhash</code>, <code>check_hash</code>, the difficulty
+retarget, or any structural hash, and <strong>should not</strong> — the
+PoW/symmetric layer is orthogonal and already Grover-adequate. The one
+place the two tracks touch is the <strong>key image /
+nullifier</strong>: the <em>hash</em> component is Grover-safe
+(Keccak-256), but the <em>binding</em> (what stops double-spend forgery)
+is DL-based today and is exactly what the PQC nullifier
+(<code>pqc/ccx-pqc</code> <code>ccx_pq_nullifier</code>) replaces. That
+replacement is correctly scoped to the signature track, not this PoW
+blueprint.</p>
+<hr />
+<h2
+id="6-verification--test-plan-if-the-doc-only-changes-are-adopted">6.
+Verification / test plan (if the doc-only changes are adopted)</h2>
+<p>Documentation-only changes need no consensus testing. If §4.3 is ever
+pursued:</p>
+<ul>
+<li>Unit: extend <code>tests/UnitTests/SerializationKV.cpp</code> and
+the block-hashing-blob tests to cover the v9 header round-trip and
+confirm pre-v9 blocks hash identically (no retroactive change).</li>
+<li>Core: a chaingen test analogous to
+<code>gen_block_invalid_nonce</code>
+(<code>tests/CoreTests/BlockValidation.{h,cpp}</code>) for the v9
+boundary at <code>UPGRADE_HEIGHT_V9</code>.</li>
+<li>Run the existing PoW/difficulty suites on the WSL host
+(<code>DifficultyTests</code>, <code>HashTargetTests</code>,
+<code>HashTests</code>) to confirm <code>check_hash</code> semantics are
+untouched.</li>
+<li>2-node testnet (<code>pqc/run-poc-testnet.sh</code>) across the fork
+height to confirm no split.</li>
+</ul>
+<p>For the recommended path (documentation only): the verification is
+simply a human review that the comments are accurate; no build/test
+cycle is required.</p>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

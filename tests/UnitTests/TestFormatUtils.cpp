@@ -124,6 +124,35 @@ TEST(parse_and_validate_tx_extra, is_valid_tx_extra_parsed)
   crypto::PublicKey tx_pub_key = cn::getTransactionPublicKeyFromExtra(tx.extra);
   ASSERT_NE(tx_pub_key, cn::NULL_PUBLIC_KEY);
 }
+
+// Regression (CIP-0001): the testnet PQ coinbase emits a PqKeyOutput at output index 0 plus a classical
+// "remainder" KeyOutput to the miner at index 1. The wallet scanner must underive the remainder at its
+// OUTPUT POSITION (1), exactly as construction derives it. A prior key-slot counter advanced only for
+// Key/Multisig outputs, so it skipped the leading PQ output and underived the remainder at index 0 ->
+// the miner's classical coinbase was invisible to every wallet. This test fails before that fix.
+TEST(lookup_acc_outs, finds_testnet_pq_coinbase_remainder)
+{
+  logging::LoggerGroup logger;
+  cn::Currency currency = cn::CurrencyBuilder(logger).testnet(true).currency();
+  cn::AccountBase acc;
+  acc.generate();
+  cn::Transaction tx = AUTO_VAL_INIT(tx);
+  cn::BinaryArray b = common::asBinaryArray("pqcb");
+  // height > 0 on testnet triggers the PQ-coinbase branch (leading PqKeyOutput + classical remainder).
+  ASSERT_TRUE(currency.constructMinerTx(5, 0, 10000000000000, 1000, currency.minimumFee(),
+                                        acc.getAccountKeys().address, tx, b, 1));
+
+  // Precondition for the regression to be meaningful: a non-Key output leads the coinbase.
+  ASSERT_FALSE(tx.outputs.empty());
+  ASSERT_EQ(typeid(cn::PqKeyOutput), tx.outputs[0].target.type());
+
+  // The miner must SEE its classical remainder — the scanner underives at the true output position.
+  std::vector<size_t> outs;
+  uint64_t money = 0;
+  ASSERT_TRUE(cn::lookup_acc_outs(acc.getAccountKeys(), tx, outs, money));
+  ASSERT_GT(money, 0u);
+  ASSERT_FALSE(outs.empty());
+}
 TEST(parse_and_validate_tx_extra, fails_on_big_extra_nonce)
 {
   logging::LoggerGroup logger;

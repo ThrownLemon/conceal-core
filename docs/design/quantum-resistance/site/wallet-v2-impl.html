@@ -1,0 +1,780 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wallet v2 (impl) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class="active"><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="wallet-v2--implementation-report">Wallet v2 — Implementation
+Report</h1>
+<p>Status: <strong>IN PROGRESS</strong> on the wallet worktree (branched
+from <code>pqc/testnet-poc</code>). Scope: the two wallet-layer tasks
+from the wallet-v2 brief — (1) wallet-file at-rest encryption
+modernization (Argon2id + XChaCha20-Poly1305), and (2) the PQ
+wallet/address-v2 work that retires <code>pq_injector</code>.</p>
+<p>This file records <strong>what was built, how it is wired, the
+proofs, and what remains</strong>.</p>
+<hr />
+<h2
+id="task-1--wallet-file-at-rest-encryption-argon2id--xchacha20-poly1305--done">Task
+1 — Wallet-file at-rest encryption (Argon2id + XChaCha20-Poly1305) —
+DONE</h2>
+<h3
+id="problem-from-strategy-crypto-modernizationmd-1b-the-1-value-to-risk-item">Problem
+(from <code>strategy-crypto-modernization.md</code> §1b, the #1
+value-to-risk item)</h3>
+<p>The WalletGreen container was encrypted with <strong>chacha8</strong>
+(8-round, <em>unauthenticated</em>) keyed by a <strong>single unsalted
+pass of <code>cn_slow_hash_v0</code></strong> over the raw password
+(<code>crypto/chacha8.h:generate_chacha8_key</code>). Weaknesses: no
+salt (identical passwords → identical keys, rainbow-table-feasible), no
+tunable cost, a PoW hash repurposed as a password KDF, and no integrity
+(a corrupted/tampered file decrypts to garbage with no signal). All
+client-side — no consensus, no fork.</p>
+<h3 id="what-was-built">What was built</h3>
+<p><strong>New container format version 7</strong>
+(<code>WalletSerializationV2.h</code>:
+<code>SERIALIZATION_VERSION = 7</code>,
+<code>AEAD_KDF_VERSION = 7</code>, <code>MIN_VERSION</code> stays 6 so
+v6 wallets still open). <em>(Superseded by container format
+<strong>v8</strong>, which adds prefix authentication — see the W11
+section below. <code>SERIALIZATION_VERSION</code> is now 8; v7 wallets
+still load and migrate-on-save to v8.)</em></p>
+<ul>
+<li><strong>KDF → Argon2id</strong> (RFC 9106) with a random 16-byte
+per-wallet salt and tunable memory/time/parallelism cost (default 64 MiB
+/ 3 passes / 1 lane), all stored in a versioned
+<code>WalletKdfHeader</code> (<code>src/Wallet/WalletKdf.h</code>).</li>
+<li><strong>Cipher → XChaCha20-Poly1305 AEAD</strong> for the container
+suffix: a fresh random 24-byte nonce per save (XChaCha's 192-bit nonce
+makes random selection collision-safe) and a 16-byte Poly1305 tag, so
+wrong-password / tamper / truncation are <strong>detected</strong> (open
+returns nothing, no plaintext leak).</li>
+</ul>
+<p><strong>Crypto source.</strong> Implemented in the existing
+<code>ccx-pqc</code> Rust module (the same audited RustCrypto family the
+PQ 0x06 message AEAD already uses), not hand-rolled in C++11:</p>
+<ul>
+<li><code>pqc/ccx-pqc/src/walletcrypto.rs</code> —
+<code>argon2id_derive</code>, <code>aead_seal</code>,
+<code>aead_open</code> (+ Rust unit tests). Uses crates
+<code>argon2 = 0.5</code> and <code>chacha20poly1305 = 0.10</code>
+(XChaCha20Poly1305).</li>
+<li><code>pqc/ccx-pqc/src/lib.rs</code> — panic-guarded C ABI shims:
+<code>ccx_wallet_kdf_argon2id</code>, <code>ccx_wallet_aead_seal</code>,
+<code>ccx_wallet_aead_open</code>, size getters, and
+<code>ccx_wallet_crypto_selftest</code>.</li>
+<li><code>pqc/include/pq_ring_sig.h</code> — C declarations for the
+above.</li>
+</ul>
+<p><strong>Justification for the Rust path (lower risk):</strong>
+Argon2id and XChaCha20-Poly1305 are non-trivial to implement correctly;
+the RustCrypto <code>argon2</code>/<code>chacha20poly1305</code> crates
+are vetted and already linked into the build. The alternative (a
+C++/Boost Argon2id) would mean hand-integrating an unvetted C Argon2 and
+a separate XChaCha20 — strictly more new attack surface for a
+funds-at-rest primitive. The brief explicitly allowed either; the Rust
+helper is the lower-risk option.</p>
+<p><strong>C++ wiring (<code>src/Wallet/WalletKdf.{h,cpp}</code>,
+<code>src/Wallet/WalletGreen.{h,cpp}</code>):</strong></p>
+<ul>
+<li><code>WalletKdf</code> — thin C++ wrapper over the FFI:
+<code>makeHeader</code>, <code>isValidHeader</code>,
+<code>deriveKey</code>, <code>aeadSeal</code>, <code>aeadOpen</code>,
+<code>randomNonce</code>. Throws on FFI failure (never proceeds with a
+half key).</li>
+<li><code>WalletGreen</code>:
+<ul>
+<li><code>m_walletFormatVersion</code> + <code>m_kdfHeader</code> track
+the open wallet's format.</li>
+<li><code>deriveContainerKey(password, version)</code> — Argon2id for
+v7, legacy <code>cn_slow_hash_v0</code> for ≤v6.</li>
+<li><code>encryptAndSaveContainerData</code> /
+<code>loadAndDecryptContainerData</code> now branch on the version: AEAD
+(header || nonce || sealed) for v7, legacy chacha8+IV for ≤v6.</li>
+<li><code>initWithKeys</code> / <code>convertAndLoadWalletFile</code>
+create <strong>v7</strong> wallets (fresh header, Argon2id key).</li>
+<li><strong>Migrate-on-save:</strong>
+<code>migrateToAeadFormatIfNeeded()</code> (called from
+<code>save()</code>) re-keys a loaded v6 wallet's prefix + spend records
+onto a fresh Argon2id key and bumps the version to 7 — transparent, no
+data loss (load-only legacy support + migrate-on-open-then-save).</li>
+<li><code>changePassword</code> migrates-then-rekeys with a
+<strong>fresh salt</strong>, re-encrypting the whole AEAD suffix (so
+every at-rest secret, including any future PQ section in the container
+cache, is re-sealed).</li>
+<li><code>exportWallet</code> migrates first; both encrypted and
+unencrypted exports are written as v7.</li>
+</ul></li>
+</ul>
+<p><strong>Backward compatibility.</strong> The on-disk
+<code>ContainerStoragePrefix</code> struct is <strong>unchanged in
+size</strong>, so the FileMappedVector open path is untouched. The
+version byte (offset 0) selects the KDF/cipher; the KDF header lives at
+the start of the (always-present) v7 suffix and is read before the key
+is derived. v6 wallets load via the legacy path and upgrade to v7 on
+their next save.</p>
+<h3
+id="tests-testsunitteststestwalletkdfcpp-runs-under-ctest--r-unittests">Tests
+(<code>tests/UnitTests/TestWalletKdf.cpp</code>, runs under
+<code>ctest -R UnitTests</code>)</h3>
+<ul>
+<li>Argon2id determinism (same pw+header → same key), salt-sensitivity,
+password-sensitivity.</li>
+<li>KDF header: <code>makeHeader</code> valid + defaults; salt random
+per call; zero/garbage header rejected; <code>deriveKey</code> throws on
+an invalid header.</li>
+<li>AEAD: round-trip; <strong>wrong password fails</strong> (auth, no
+plaintext); <strong>full-byte tamper sweep</strong> all detected; wrong
+nonce fails; truncation fails; empty-plaintext round-trip.</li>
+<li>Container-level analogue of the wallet's seal/open:
+<strong>new-format round-trip</strong>, <strong>wrong-password
+fails</strong>, <strong>tamper detected</strong>.</li>
+<li><code>ccx_wallet_crypto_selftest()</code> (the Rust selftest through
+the C ABI) returns ok=1.</li>
+<li>Rust-side (<code>cargo test</code>):
+<code>walletcrypto::tests</code> — determinism+salt, AEAD
+round-trip+tamper, bogus params rejected. (3/3 passing — see proofs
+below.)</li>
+</ul>
+<hr />
+<h2
+id="task-2--pq-wallet--address-v2-retire-pq_injector--see-status-at-end">Task
+2 — PQ wallet / address v2 (retire pq_injector) — see status at end</h2>
+<h3 id="done-built--unit-tested">DONE (built + unit-tested)</h3>
+<p><strong>(a) PQ address format v2.</strong> New Base58 prefixes
+carrying the 1184-byte ML-KEM-768 public key (NOT the 4096-byte ring-sig
+key — per-output/derived):</p>
+<ul>
+<li><code>cn::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x14fad4</code>
+→ <code>ccxp…</code></li>
+<li><code>cn::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x117ad4</code>
+→ <code>ccxh…</code></li>
+<li><code>cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x220bd6</code>
+→ <code>ctp…</code></li>
+<li><code>cn::TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x164a56</code>
+→ <code>cth…</code></li>
+<li><code>cn::PQ_KEM_PUBLIC_KEY_SIZE = 1184</code>,
+<code>cn::PQ_ADDRESS_VERSION = 2</code>,
+<code>cn::PQ_KEM_SCHEME_ID = 0xC0DE0203</code>. Tags brute-forced
+(replicating <code>encode_addr</code>) so the first 4 human chars are
+stable across the flags byte, the way
+<code>0x7ad4</code>→<code>ccx7</code> was tuned.
+<code>PqAccountPublicAddress</code> struct
+(<code>include/CryptoNote.h</code>) + canonical <code>ISerializer</code>
+serialization (legacy Ed25519 keys always written, zero when PQ-only —
+exactly one valid encoding). <code>getPqAccountAddressAsStr</code> /
+<code>parsePqAccountAddressString</code>
+(<code>CryptoNoteBasicImpl.{h,cpp}</code>) reuse the existing
+<code>encode_addr</code>/<code>decode_addr</code> (varint tag + payload
++ 4-byte cn_fast_hash checksum); parse validates version + both
+schemeIds + KEM-key length + reserved flag bits + (hybrid) on-curve
+legacy keys. Legacy <code>AccountPublicAddress</code> path
+untouched.</li>
+</ul>
+<p><strong>(b) Deterministic PQ key derivation from the
+mnemonic.</strong> <code>PqAccount</code>
+(<code>src/Wallet/PqAccount.{h,cpp}</code>) derives the KEM seed via
+domain-separated
+<code>cn_fast_hash("ccx-pq-kem-acct" || master32)</code> and calls
+<code>ccx_pq_kem_keygen_det</code>. Same master seed → identical KEM
+keypair (mnemonic-restorable). The KEM seed is domain-separated from the
+master seed. <strong><code>ccx_pq_kem_keygen_det</code> /
+<code>ccx_pq_multisig_keygen_det</code> are declared in
+<code>pq_ring_sig.h</code> and coded against; the ccx-pqc impls are
+DETERMINISTIC PLACEHOLDERS (SHAKE expand) — a MERGE DEPENDENCY</strong>
+flagged for the Rust-crypto agent's real FIPS-203/204 seed keygen with
+the same C ABI. Tests assert determinism + sizes + round-trip, never
+specific bytes.</p>
+<p><strong>(c) Encrypted PQ section in the WalletGreen
+container.</strong> The PQ account (KEM PK/SK + scheme ids) is
+serialized by
+<code>WalletGreen::savePqSection</code>/<code>loadPqSection</code>
+<strong>inside</strong> the AEAD-encrypted v7 container (appended after
+the <code>WalletSerializerV2</code> stream, guarded by a presence byte).
+Because it rides inside the AEAD suffix, it is automatically
+re-encrypted on <code>changePassword</code>/rekey (Task-1 path) —
+satisfying "wallet rekey MUST re-encrypt the PQ section". On load, sizes
+are re-validated against the compiled-in KEM. Public API:
+<code>enablePqAccount(masterSeed)</code> (migrates to v7, derives +
+stores), <code>getPqAddress</code>, <code>getPqHybridAddress</code>,
+<code>hasPqAccount</code>, <code>getPqAccountKeys</code>.</p>
+<p>Tests (<code>tests/UnitTests/TestPqWalletAddress.cpp</code>): 13
+address+keygen cases + 2 PQ-section round-trip cases — address
+round-trip / corrupt / wrong-prefix / wrong-size / wrong-scheme /
+wrong-version / reserved-flag / stray-legacy-key rejection; hybrid;
+mnemonic→key reproducibility; domain separation; seed→address
+round-trip; PQ-section save/load preserves keys; absent-section
+round-trip.</p>
+<h3 id="deferred-flagged-for-follow-up--merge">DEFERRED (flagged for
+follow-up / merge)</h3>
+<ol type="1">
+<li><strong>Real deterministic KEM/DSA keygen</strong> — the
+<code>ccx_pq_*_keygen_det</code> placeholders must be replaced by the
+Rust-crypto agent's FIPS-203/204 seed keygen, byte-compatible with the
+daemon's on-chain KEM (<code>pqcrypto-kyber</code> encap in
+<code>ccx_pq_kem_derive_output</code>). Mixing crates would break daemon
+interop and lose funds — deliberately NOT done unilaterally here.</li>
+<li><strong>PQ stealth-output scanning in the wallet sync path</strong>
+(<code>ccx_pq_kem_scan → ccx_pq_keygen → compare to on-chain key</code>).
+Needs the <code>TransfersSynchronizer</code> integration + the
+<code>get_pq_outputs</code> RPC; not wired yet.</li>
+<li><strong><code>createPqTransaction</code> (retire
+<code>pq_injector</code>).</strong> The signed message MUST byte-match
+<code>Blockchain::getTransactionPqSigningHash</code> =
+<code>getObjectHash(prefix)</code> with every
+<code>PqKeyInput.ringSig</code> cleared (Blockchain.cpp:2536-2557).
+Verified against the daemon source; the wallet builder + A/B parity test
+(wallet-built <code>PqKeyInput</code> ≡ injector-built) require a live
+testnet and are deferred.</li>
+<li><strong>Testnet <code>get_pq_outputs</code> RPC</strong> (amount →
+[{global_index, key, kemCt, height}]) — not added.</li>
+<li><strong>CLI <code>pq_address</code> / <code>pq_balance</code> /
+<code>pq_transfer</code></strong> in <code>ConcealWallet</code> — not
+added.</li>
+<li><strong>Message send-path 0x04 → authenticated 0x07</strong>
+migration (secondary item) — <strong>done</strong>.
+<code>WalletGreen</code>/<code>CryptoNoteFormatUtils</code> now emit
+<code>tx_extra_authenticated_message</code> (0x07) via
+<code>append_authenticated_message_to_extra</code> for new encrypted
+messages; the legacy <code>0x04</code> field is decrypt-only (still
+emitted only for unencrypted broadcast messages that have no recipient
+ECDH). The receive path (<code>TransfersConsumer</code>,
+<code>WalletGreen::getMessagesFromExtra</code>,
+<code>PaymentGate/WalletService</code>) reads both 0x04 and 0x07 and
+merges. Round-trip + send-path unit tests in
+<code>tests/UnitTests/TestAuthenticatedMessage{,SendPath}.cpp</code>.</li>
+</ol>
+<hr />
+<h2
+id="merge-notes--shared-core-files-touched-reconcile-against-crypto--serializer-branches">MERGE
+NOTES — shared-core files touched (reconcile against crypto + serializer
+branches)</h2>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>What this branch added</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pqc/ccx-pqc/src/lib.rs</code></td>
+<td><code>ccx_pq_kem_keygen_det</code> /
+<code>ccx_pq_multisig_keygen_det</code> (DETERMINISTIC PLACEHOLDERS —
+delete + bind to the real <code>detkeygen.rs</code> impls at merge); the
+wallet-file <code>ccx_wallet_*</code> (Argon2id + XChaCha20-Poly1305)
+FFI; <code>mod walletcrypto</code>. Keep the "PLACEHOLDER / MERGE
+DEPENDENCY" banner.</td>
+</tr>
+<tr>
+<td><code>pqc/ccx-pqc/src/walletcrypto.rs</code></td>
+<td>New module: Argon2id + XChaCha20-Poly1305 (Task 1). No conflict
+expected.</td>
+</tr>
+<tr>
+<td><code>pqc/ccx-pqc/Cargo.toml</code></td>
+<td>Added <code>argon2 = "0.5"</code>.</td>
+</tr>
+<tr>
+<td><code>pqc/include/pq_ring_sig.h</code></td>
+<td>Declared <code>ccx_pq_kem_keygen_det</code> /
+<code>ccx_pq_multisig_keygen_det</code> (delete at merge if the real
+decls live elsewhere) + the <code>ccx_wallet_*</code> block +
+<code>ccx_wallet_crypto_selftest</code>.</td>
+</tr>
+<tr>
+<td><code>src/CryptoNoteConfig.h</code></td>
+<td>Added (in <code>namespace cn</code>, beside
+<code>PQ_NULLIFIER_SIZE</code>): the 4 PQ/hybrid Base58 prefixes
+(main+testnet), <code>PQ_KEM_PUBLIC_KEY_SIZE</code>,
+<code>PQ_ADDRESS_VERSION</code>, <code>PQ_KEM_SCHEME_ID</code>.
+Consensus-adjacent constants — confirm the <code>PQ_KEM_SCHEME_ID</code>
+/ prefix values don't collide with the crypto/deposits branches.</td>
+</tr>
+<tr>
+<td><code>include/CryptoNote.h</code></td>
+<td>Added <code>PqAccountPublicAddress</code> struct.</td>
+</tr>
+<tr>
+<td><code>src/CryptoNoteCore/CryptoNoteSerialization.{h,cpp}</code></td>
+<td>Added <code>serialize(PqAccountPublicAddress&amp;, …)</code>. New
+overload only — no change to existing serializers.</td>
+</tr>
+<tr>
+<td><code>src/CryptoNoteCore/CryptoNoteBasicImpl.{h,cpp}</code></td>
+<td>Added <code>getPqAccountAddressAsStr</code> /
+<code>parsePqAccountAddressString</code> +
+<code>#include "CryptoNoteConfig.h"</code>. Legacy fns untouched.</td>
+</tr>
+</tbody>
+</table>
+<p>Wallet-layer-only files (no cross-branch reconciliation):
+<code>src/Wallet/WalletKdf.{h,cpp}</code>,
+<code>src/Wallet/PqAccount.{h,cpp}</code>,
+<code>src/Wallet/WalletGreen.{h,cpp}</code>,
+<code>src/Wallet/WalletSerializationV2.h</code>,
+<code>tests/UnitTests/TestWalletKdf.cpp</code>,
+<code>tests/UnitTests/TestPqWalletAddress.cpp</code>.</p>
+<hr />
+<h2 id="build--proof-log">Build &amp; proof log</h2>
+<p>Built on the WSL x86_64 host (<code>~/conceal-core-wallet</code>):
+<code>cargo test</code> (walletcrypto 3/3), <code>ccx_pqc</code> +
+<code>CryptoNoteCore</code> + <code>Wallet</code> +
+<code>UnitTests</code>. Unit tests: <code>TestWalletKdf</code> 17/17,
+<code>TestPqWalletAddress</code> (PqAddress 9 + PqAccountKeygen 4 +
+PqWalletSection 2). See the final report for full <code>ctest</code>
+output and the determinism proof.</p>
+<hr />
+<h2
+id="security-review-fixes-w1w11-four-reviewer-convergence">Security-review
+fixes (W1–W11, four-reviewer convergence)</h2>
+<p>Four independent reviews (Codex, Gemini, GLM, CodeRabbit) ran against
+this branch. Resolution:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Issue</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>W1</strong></td>
+<td>Salt+nonce came from <code>Randomize::randomBytes</code> =
+<code>std::mt19937</code> seeded by 32 bits → cross-wallet salt+nonce
+collision = XChaCha20 nonce reuse.</td>
+<td><strong>FIXED.</strong> New <code>ccx_wallet_random_bytes</code> FFI
+(rand_core <code>OsRng</code>);
+<code>WalletKdf::makeHeader</code>/<code>randomNonce</code> use it.
+mt19937 no longer touches any key/salt/nonce.</td>
+</tr>
+<tr>
+<td><strong>W2</strong></td>
+<td>v7 load auth failure (wrong password / corruption) was caught →
+caches cleared → next save overwrote the authenticated ciphertext,
+destroying keys. Same for <code>loadPqSection</code>.</td>
+<td><strong>FIXED.</strong> For version ≥ 7, load failures rethrow
+(abort load); the PQ-section read no longer swallows (the
+<code>endOfStream()</code> guard still skips the legitimate "no PQ
+section" case).</td>
+</tr>
+<tr>
+<td><strong>W3</strong></td>
+<td>v7 <code>save()</code> did <code>resizeSuffix</code>+copy into the
+live mmap with no atomic rename → crash = unrecoverable tag
+mismatch.</td>
+<td><strong>FIXED.</strong> The plain <code>save()</code> v7 path now
+runs inside <code>ContainerStorage::atomicUpdate</code> (temp file →
+<code>msync</code>+<code>fsync</code> on flush → rename), republishing
+prefix+keys+new-suffix as one unit.
+(<code>changePassword</code>/<code>migrate</code> already wrote inside
+<code>atomicUpdate</code>.)</td>
+</tr>
+<tr>
+<td><strong>W4</strong></td>
+<td><code>parsePqAccountAddressString</code> fed unbounded input to the
+base58 decoder before any size check.</td>
+<td><strong>FIXED.</strong> Reject <code>str.empty()</code> or
+<code>str.size() &gt; 2048</code> before <code>decode_addr</code>.</td>
+</tr>
+<tr>
+<td><strong>W5</strong></td>
+<td><code>readKdfHeader</code> accepted attacker-supplied
+<code>memKib</code>/<code>iterations</code>/<code>parallelism</code>
+unchecked (DoS-on-open or near-free KDF).</td>
+<td><strong>FIXED.</strong> <code>WalletKdf::isValidHeader</code> now
+enforces <code>[min,max]</code> on all three (8 MiB–1 GiB, 1–32 iters,
+1–16 lanes, <code>memKib ≥ 8·parallelism</code>); validated on every
+parse+derive.</td>
+</tr>
+<tr>
+<td><strong>W6</strong></td>
+<td><code>changePassword</code> gated the re-seal on
+<code>suffixSize()&gt;0</code>; a v7 wallet with no suffix would never
+persist the new KDF salt → brick.</td>
+<td><strong>FIXED.</strong> For version ≥ 7, <code>changePassword</code>
+always writes a sealed suffix (even empty).
+<code>migrateToAeadFormatIfNeeded</code> already did.</td>
+</tr>
+<tr>
+<td><strong>W7</strong></td>
+<td>Only <code>kemSchemeId</code> was validated;
+<code>ringSchemeId</code> was not (despite the comment).</td>
+<td><strong>FIXED.</strong> Added
+<code>PQ_RING_SCHEME_ID = 0xC0DE0003</code> and validate
+<code>adr.ringSchemeId</code> in parse.</td>
+</tr>
+<tr>
+<td><strong>W8</strong></td>
+<td><code>WalletKdfHeader</code> cost fields were native-endian uint32 →
+platform-endian wallet file.</td>
+<td><strong>FIXED.</strong> Cost fields are now explicit little-endian
+<code>uint8_t[4]</code> with <code>putLe32</code>/<code>getLe32</code>;
+on-disk format is endian-independent.</td>
+</tr>
+<tr>
+<td><strong>W9</strong></td>
+<td>Old password-derived key not wiped after
+<code>changePassword</code>.</td>
+<td><strong>FIXED.</strong> <code>secureZero</code> (volatile store)
+wipes <code>m_key</code> before reassignment. (Best-effort; not
+mlock-hardened.)</td>
+</tr>
+<tr>
+<td><strong>W10</strong></td>
+<td>CR claimed <code>pq_ring_sig.h</code> declares
+<code>ccx_pq_wallet_crypto_selftest</code> but Rust exports
+<code>ccx_wallet_crypto_selftest</code>.</td>
+<td><strong>NO-OP (false positive).</strong> Verified: header and Rust
+both use <code>ccx_wallet_crypto_selftest</code>; the names already
+match.</td>
+</tr>
+<tr>
+<td><strong>W11</strong></td>
+<td>The wallet PREFIX (view keys + per-wallet spend records) is still
+<strong>unauthenticated chacha8</strong> even in v7 — only the suffix
+container is AEAD.</td>
+<td><strong>FIXED (container format v8).</strong> A 32-byte keyed MAC
+over the prefix is stored inside the AEAD suffix and verified on open; a
+prefix tamper/rollback now fails the load. See below.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="w3-residual-note-atomicity">W3 residual note (atomicity)</h3>
+<p>The v7 <code>save()</code>, <code>changePassword</code>, and
+<code>migrateToAeadFormatIfNeeded</code> paths now all write through
+<code>atomicUpdate</code> (durable temp-file + rename), so an
+interrupted write leaves the previous good file intact. The legacy (≤v6)
+<code>save()</code> path is unchanged (it was never AEAD, so a torn
+write was already recoverable by re-sync). No known brick-on-crash
+remains for v7.</p>
+<h3
+id="w11--container-format-v8-the-prefix-is-now-authenticated-implemented">W11
+— container format v8: the prefix is now authenticated
+(IMPLEMENTED)</h3>
+<p><strong>The v7 gap.</strong> In v7 the <strong>suffix</strong> (the
+serialized cache + PQ section) is XChaCha20-Poly1305 AEAD, but the
+<strong>prefix</strong> — <code>ContainerStoragePrefix</code> =
+<code>{version, nextIv, encryptedViewKeys}</code> plus the per-wallet
+<code>EncryptedWalletRecord</code> spend keys — was <strong>8-round
+chacha8 keyed by the Argon2id key, with no MAC</strong>. An attacker
+with write access to the wallet file could <strong>tamper or roll back
+the prefix</strong> (e.g. swap in old/forged encrypted view/spend key
+records) and it would <strong>not be detected</strong> by an
+authentication tag; detection relied only on the downstream
+<code>throwIfKeysMissmatch</code> (pub/priv consistency) check, which
+catches random corruption but not a structurally-valid substitution or a
+change to a non-key prefix field (e.g. <code>nextIv</code>).</p>
+<p><strong>The v8 fix.</strong> Container format <strong>version
+8</strong> (<code>WalletSerializationV2.h</code>:
+<code>SERIALIZATION_VERSION = 8</code>,
+<code>PREFIX_MAC_VERSION = 8</code>; <code>AEAD_KDF_VERSION</code> stays
+7) authenticates the prefix:</p>
+<ul>
+<li><strong>Sealed-plaintext layout</strong> (inside the
+XChaCha20-Poly1305 suffix):
+<code>[ V8_SEAL_MAGIC "CCXWV08" (7) ][ sealedVersion (1) ][ prefix MAC (32) ][ container data ]</code>.
+The magic, the canonical <code>sealedVersion</code>, and the tag all
+live <strong>inside</strong> the AEAD (confidential <strong>and</strong>
+Poly1305-authenticated).</li>
+<li><strong>On save</strong> (<code>encryptAndSaveContainerData</code>,
+v8 branch): after the prefix + every spend record are written into the
+(temp) container, the <strong>32-byte keyed MAC over the prefix
+bytes</strong> is computed and the full v8 seal header is prepended to
+the container plaintext before AEAD-sealing. The bytes MAC'd
+(<code>gatherContainerPrefixBytes</code>) are exactly the
+unauthenticated prefix layer: <code>storage.prefix()</code> (version ‖
+nextIv ‖ encrypted view keys) ‖ an 8-byte little-endian record count ‖
+every <code>EncryptedWalletRecord</code> (spend keys). Framing the
+record count makes an inserted/removed record unambiguous
+(rollback/truncation detection).</li>
+<li><strong>On load</strong> (<code>loadAndDecryptContainerData</code>,
+v8 branch): after the suffix AEAD-opens, a container is recognised as v8
+by the <strong>authenticated magic</strong> (not the attacker-writable
+prefix version byte). The MAC is <strong>recomputed over the LIVE
+prefix</strong> on disk and <strong>constant-time compared</strong>
+(<code>constantTimeEquals</code>, with a <code>volatile</code>
+accumulator). A mismatch throws
+<code>"wallet prefix authentication failed (possible tamper/rollback)"</code>
+and aborts the load — the wallet never trusts an
+unauthenticated/substituted prefix.</li>
+<li><strong>Authenticate-before-parse (fail closed).</strong>
+<code>loadContainerStorage</code> calls
+<code>verifyPrefixAuthentication</code> immediately after key derivation
+— it opens + authenticates the suffix, enforces the downgrade guard, and
+verifies the prefix MAC <strong>before</strong> any prefix byte is run
+through the chacha8 decryptor / the WalletSerializerV2 parser (so
+attacker-controlled prefix bytes are never parsed on a failed
+authentication).</li>
+<li><strong>Downgrade guard (M1).</strong> The MAC gate is
+<strong>not</strong> keyed off the writable prefix version byte. The
+authenticated <code>sealedVersion</code> must be ≥
+<code>PREFIX_MAC_VERSION</code> <strong>and equal to the on-disk prefix
+version byte</strong>; a container carrying the v8 magic is always
+validated. So flipping the prefix version 8→7 to route the load through
+the v7 (no-MAC) path is rejected — the v8 magic inside the suffix still
+identifies it as v8, and the version mismatch fails the load (it cannot
+silently skip prefix auth).</li>
+<li><strong>Brick-on-close fix (H1).</strong> The mmap'd prefix is
+mutated (incNextIv / push_back / erase) <strong>outside</strong> an
+explicit save, and <code>close()</code>'s <code>msync</code> writes the
+dirty prefix page to disk. To keep disk-prefix ≡ MAC'd-prefix at all
+times: <code>initWithKeys</code> advances <code>nextIv</code> to its
+final value <strong>before</strong> sealing (so the MAC binds the
+post-increment value);
+<code>createAddress</code>/<code>createAddressList</code>/<code>deleteAddress</code>
+call <code>resealPrefixMacIfNeeded()</code> after the mutation
+(re-sealing the suffix over the new prefix and flushing). A
+<code>loadWalletCache</code> empty-body guard lets a
+created-but-never-saved wallet (whose sealed body is empty) reopen
+cleanly instead of failing the cache parse. Net effect: creating a
+wallet, or adding/removing an address, then exiting
+<strong>without</strong> an explicit <code>save()</code> no longer
+bricks the wallet.</li>
+<li><strong>Version-after-rename ordering (Codex).</strong> The v7→v8
+in-memory version bump is a <strong>pure query</strong>
+(<code>pendingWriteVersion()</code>); <code>m_walletFormatVersion</code>
+is committed to the new value <strong>only after</strong> the durable
+<code>atomicUpdate</code>+rename (or in-place flush) succeeds — so a
+mid-write throw never leaves the live object believing it is v8 while
+the on-disk file is still v7 (which would make a later
+<code>changePassword</code> read a non-existent v8 seal and
+false-fail).</li>
+</ul>
+<p><strong>MAC primitive + key derivation.</strong> No hand-rolled MAC.
+The tag is a <strong>keyed SHAKE256 (KMAC-style)</strong> computed in
+the existing <code>ccx-pqc</code> Rust module
+(<code>walletcrypto::prefix_mac</code>, exposed via the
+<code>ccx_wallet_prefix_mac</code> C ABI; C++ wrapper
+<code>WalletKdf::prefixMac</code>), reusing the same
+<code>sha3::Shake256</code> KDF family the PQ message AEAD and the
+deterministic PQ keygen already use:</p>
+<pre><code>mac_key = SHAKE256(&quot;ccx-wallet-prefix-mac-key-v1&quot; || master_key)[0..32]   // subkey, domain-separated
+tag     = SHAKE256(&quot;ccx-wallet-prefix-mac-v1&quot;     || mac_key || prefix)[0..32]</code></pre>
+<p>The subkey is <strong>domain-separated from the AEAD encryption
+use</strong> of the Argon2id master key (which is fed raw to
+XChaCha20-Poly1305), so the MAC key is cryptographically independent of
+the encryption key. SHAKE256's sponge construction is immune to
+length-extension, so a keyed-prefix MAC is sound (unlike a
+Merkle–Damgård SHA-2 keyed prefix).</p>
+<p><strong>Backward compatibility &amp; migration.</strong> The on-disk
+<strong>prefix encoding is unchanged</strong> from v7 — only an
+authentication tag is added <em>inside the sealed suffix</em> and the
+version byte becomes 8 — so the <code>FileMappedVector</code> open path
+is untouched. v6 (legacy) wallets migrate straight to v8 via
+<code>migrateToAeadFormatIfNeeded</code> (which now targets
+<code>SERIALIZATION_VERSION = 8</code>). v7 wallets load via the
+existing AEAD path (no prefix MAC checked) and <strong>migrate-on-save
+to v8</strong> via <code>upgradeToPrefixMacVersionIfNeeded()</code> — a
+<em>no-rekey</em> in-memory version bump (v7 and v8 share the same
+Argon2id key, KDF header and AEAD suffix cipher), called from
+<code>save()</code>, <code>changePassword</code>, and
+<code>exportWallet</code>; the MAC is computed and stamped on the next
+seal. <code>changePassword</code> reads the OLD suffix with its on-disk
+version and writes the NEW suffix as v8, recomputing the prefix MAC
+under the new key. All v8 writes go through the existing
+<code>atomicUpdate</code> (durable temp-file + rename), so
+migrate-on-save cannot brick an existing wallet.</p>
+<p><strong>Tests</strong>
+(<code>tests/UnitTests/TestWalletKdf.cpp</code> + new
+<code>tests/UnitTests/TestWalletPrefixMac.cpp</code>, both run under
+<code>ctest -R UnitTests</code>; Rust
+<code>walletcrypto::tests</code>):</p>
+<ul>
+<li><code>WalletKdf.prefixMac*</code> — tag is deterministic,
+key-sensitive, and changes on any prefix byte flip; empty-prefix is
+stable. Rust
+<code>prefix_mac_is_deterministic_key_and_message_sensitive</code> and
+<code>prefix_mac_subkey_is_independent_of_encryption_use</code> cover
+the primitive + domain separation.</li>
+<li><code>WalletKdfContainer.migrateV7PayloadToV8ThenOpens</code> /
+<code>v8PrefixTamperIsDetectedButV7CannotSee</code> — container-analogue
+of the v7→v8 re-seal: a migrated v8 container round-trips, a
+post-migration prefix tamper is rejected, and the v7 suffix-only AEAD
+demonstrably could NOT see that change.</li>
+<li><code>WalletPrefixMac.*</code> (real <code>WalletGreen</code> over a
+temp file): a fresh wallet is <strong>v8 on disk</strong>; v8 save→load
+round-trips; flipping a prefix <code>nextIv</code> byte (which the
+key-consistency check does NOT cover) <strong>fails the load</strong>;
+an 8-byte prefix tamper sweep is all detected; suffix tamper still fails
+(regression guard that v8 did not weaken the suffix AEAD);
+<code>changePassword</code> re-stores the prefix MAC so the new password
+loads, the old fails, and a post-rekey prefix tamper is still
+caught.</li>
+<li><strong>H1 brick-on-close regression tests:</strong>
+<code>initThenCloseWithoutSaveReopens</code>,
+<code>createAddressThenCloseWithoutSaveReopens</code>,
+<code>createAddressListThenCloseWithoutSaveReopens</code>,
+<code>deleteAddressThenCloseWithoutSaveReopens</code> — each mutates the
+wallet then <code>shutdown()</code>s with <strong>no</strong>
+<code>save()</code>, and asserts the reopen loads cleanly with the
+expected keys/addresses. (These reproduced the brick before the
+fix.)</li>
+<li><strong>M1 downgrade test:</strong>
+<code>versionDowngradeIsRejected</code> — flips the on-disk prefix
+version byte 8→7 and asserts the load throws (the authenticated v8 seal
+magic + sealed-version check reject it instead of skipping prefix
+auth).</li>
+</ul>
+<p><code>ctest -R UnitTests</code> → <strong>100% passed</strong> (0
+failed, ~67 s); the targeted wallet filter
+<code>--gtest_filter=WalletKdf.*:WalletKdfContainer.*:WalletPrefixMac.*</code>
+→ <strong>37/37 passed</strong>. Rust <code>walletcrypto::tests</code> →
+<strong>5/5</strong>. The Rust <code>ccx_wallet_crypto_selftest</code>
+(through the C ABI) also exercises the prefix MAC (deterministic +
+prefix-sensitive + key-sensitive) and returns ok=1.</p>
+<h3 id="w11-hygiene--residual-notes">W11 hygiene + residual notes</h3>
+<ul>
+<li><strong><code>master_key</code> reuse (raw for XChaCha20 AND as the
+prefix-MAC subkey source) — sound, kept.</strong> The Argon2id container
+key is fed raw to XChaCha20-Poly1305 (suffix AEAD) and is also the input
+to the SHAKE256 derivation of the <strong>separate</strong> prefix-MAC
+subkey
+(<code>mac_key = SHAKE256("ccx-wallet-prefix-mac-key-v1" ‖ master_key)</code>).
+Three independent reviewers (Gemini, Codex, GLM) confirmed this
+cross-primitive reuse is <strong>not exploitable</strong>: the MAC
+subkey is domain-separated and computationally independent of the
+encryption key (recovering one from the other would break SHAKE256), so
+the AEAD keystream/tag and the MAC tag cannot interfere. A fully
+separate KDF-split of the master key into (enc-key, mac-key) would be
+marginally cleaner hygiene but is <strong>not</strong> required for
+soundness; the domain-separated subkey is the chosen, vetted
+construction. The derived <code>mac_key</code> and the FFI's local key
+copy are volatile-wiped after use.</li>
+<li><strong>Residual (out of scope): full-file replacement
+rollback.</strong> The prefix MAC is <em>per-container</em> — it binds
+the prefix to the suffix of the <strong>same</strong> wallet file. It
+does <strong>not</strong> defend against an attacker replacing the
+<strong>entire</strong> wallet file (prefix <strong>and</strong> suffix
+together) with an earlier <strong>same-password, same-salt</strong>
+backup of that wallet: such a whole-file rollback is internally
+self-consistent (its own prefix MAC verifies), so it loads silently.
+Defending against this needs an external anti-rollback anchor (a
+monotonic counter / version pin outside the file, or a server-side
+balance check), which is out of scope for an at-rest container MAC.
+Documented here as a known residual.</li>
+</ul>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>
