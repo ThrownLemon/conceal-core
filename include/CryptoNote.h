@@ -41,11 +41,45 @@ struct MultisignatureOutput {
   uint32_t term;
 };
 
-typedef boost::variant<BaseInput, KeyInput, MultisignatureInput> TransactionInput;
+struct PqKeyInput {
+  uint64_t amount;
+  std::vector<uint32_t> outputIndexes;
+  std::vector<uint8_t> nullifier;   // PQ serial number / key-image equivalent
+  std::vector<uint8_t> ringSig;     // PQ linkable ring signature (one proof per input)
+};
 
+struct PqKeyOutput {
+  std::vector<uint8_t> key;         // PQ one-time public key (variable length)
+  std::vector<uint8_t> kemCt;       // ML-KEM ciphertext (stealth shared secret)
+};
+
+// Post-quantum deposit cell (CIP-0001 UPGRADE_HEIGHT_V10 on this merged tree). A faithful PQ analogue
+// of the legacy Ed25519 MultisignatureInput/Output pair: term/interest/lock/double-spend semantics are
+// IDENTICAL; only the signature primitive is swapped to ML-DSA-65 (FIPS 204). The m ML-DSA signatures
+// are carried INLINE (not in tx.signatures) — getSignaturesCount(PqMultisigInput) == 0 — because an
+// ML-DSA sig (~3.3 KB) cannot live in the fixed-size crypto::Signature (64 B) slots.
+struct PqMultisigInput {
+  uint64_t amount;
+  uint8_t signatureCount;                          // == output.requiredSignatureCount (m)
+  uint32_t outputIndex;                            // index into m_pqMultisigOutputs[amount]
+  uint32_t term;                                   // bound to output.term (interest + lock)
+  std::vector<std::vector<uint8_t>> signatures;    // m ML-DSA-65 detached sigs over the prefix hash
+};
+
+struct PqMultisigOutput {
+  std::vector<std::vector<uint8_t>> keys;          // n ML-DSA-65 public keys (each ccx_pq_multisig_pubkey_bytes())
+  uint8_t requiredSignatureCount;                  // m
+  uint32_t term;                                   // 0 = plain PQ multisig; != 0 = deposit
+};
+
+typedef boost::variant<BaseInput, KeyInput, MultisignatureInput, PqKeyInput, PqMultisigInput> TransactionInput;
+
+// PQ outputs are appended AFTER the fork's domain outputs so the fork's existing
+// boost::variant which() indices stay stable; binary tags are explicit (0x08/0x09).
 typedef boost::variant<KeyOutput, MultisignatureOutput,
                        StandardPaymentOutput, MultisigPaymentOutput,
-                       DomainRegistrationOutput, DomainDeletionOutput> TransactionOutputTarget;
+                       DomainRegistrationOutput, DomainDeletionOutput,
+                       PqKeyOutput, PqMultisigOutput> TransactionOutputTarget;
 
 struct TransactionOutput {
   uint64_t amount;

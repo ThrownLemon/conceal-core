@@ -47,6 +47,11 @@ size_t getSignaturesCount(const TransactionInput& input) {
     size_t operator()(const BaseInput &) const { return 0; }
     size_t operator()(const KeyInput &txin) const { return txin.outputIndexes.size(); }
     size_t operator()(const MultisignatureInput& txin) const { return txin.signatureCount; }
+    size_t operator()(const PqKeyInput& ) const { return 0; }
+    // PQ multisig (deposit) sigs are carried INLINE in the input (large ML-DSA sigs cannot live in
+    // the fixed-size crypto::Signature slots), so the positional tx.signatures slot stays empty —
+    // exactly like PqKeyInput. Must return 0 or mixed-input txs desync tx.signatures.
+    size_t operator()(const PqMultisigInput& ) const { return 0; }
   };
 
   return boost::apply_visitor(txin_signature_size_visitor(), input);
@@ -66,6 +71,13 @@ struct BinaryVariantTagGetter : boost::static_visitor<uint8_t>
   uint8_t operator()(const cn::MultisigPaymentOutput &) const { return 0x05; }
   uint8_t operator()(const cn::DomainRegistrationOutput &) const { return 0x06; }
   uint8_t operator()(const cn::DomainDeletionOutput &) const { return 0x07; }
+
+  // Post-quantum (CIP-0001) input/output variants. Tags 0x04/0x05 are owned by the fork's
+  // self-describing outputs above, so PQ moves to 0x08/0x09 (see docs/integration/pqc-mdbx-merge).
+  uint8_t operator()(const cn::PqKeyInput &) const { return 0x08; }
+  uint8_t operator()(const cn::PqKeyOutput &) const { return 0x08; }
+  uint8_t operator()(const cn::PqMultisigInput &) const { return 0x09; }
+  uint8_t operator()(const cn::PqMultisigOutput &) const { return 0x09; }
 };
 
 struct VariantSerializer : boost::static_visitor<> {
@@ -94,6 +106,18 @@ void getVariantValue(cn::ISerializer& serializer, uint8_t tag, cn::TransactionIn
   }
   case 0x3: {
     cn::MultisignatureInput v;
+    serializer(v, "value");
+    in = v;
+    break;
+  }
+  case 0x08: {
+    cn::PqKeyInput v;
+    serializer(v, "value");
+    in = v;
+    break;
+  }
+  case 0x09: {
+    cn::PqMultisigInput v;
     serializer(v, "value");
     in = v;
     break;
@@ -141,6 +165,18 @@ void getVariantValue(cn::ISerializer& serializer, uint8_t tag, cn::TransactionOu
   case 0x07:
   {
     cn::DomainDeletionOutput v;
+    serializer(v, "data");
+    out = v;
+    break;
+  }
+  case 0x08: {
+    cn::PqKeyOutput v;
+    serializer(v, "data");
+    out = v;
+    break;
+  }
+  case 0x09: {
+    cn::PqMultisigOutput v;
     serializer(v, "data");
     out = v;
     break;
@@ -341,9 +377,60 @@ void serialize(MultisignatureOutput& multisignature, ISerializer& serializer) {
   serializer(multisignature.term, "term");
 }
 
+// ---- Post-quantum (CIP-0001) variant serialization ----
+
+void serialize(PqKeyInput& in, ISerializer& serializer) {
+  serializer(in.amount, "amount");
+  serializeVarintVector(in.outputIndexes, serializer, "key_offsets");
+  serializeAsBinary(in.nullifier, "nullifier", serializer);
+  serializeAsBinary(in.ringSig, "ringsig", serializer);
+}
+
+void serialize(PqKeyOutput& out, ISerializer& serializer) {
+  serializeAsBinary(out.key, "key", serializer);
+  serializeAsBinary(out.kemCt, "kem", serializer);
+}
+
+namespace {
+// Serialize a length-prefixed array of opaque byte-vectors (ML-DSA keys or sigs). On the INPUT
+// path the outer count is BOUNDED to PQ_MULTISIG_MAX_KEYS *before* any allocation, so an attacker
+// cannot drive an OOM with a huge length prefix (each inner blob is itself bounded by the string
+// reader's 128 MiB cap, and exact per-element lengths are re-checked in validation).
+void serializePqMultisigArray(std::vector<std::vector<uint8_t>>& items, cn::ISerializer& s,
+                              common::StringView name) {
+  size_t n = items.size();
+  s.beginArray(n, name);
+  if (s.type() == cn::ISerializer::INPUT) {
+    if (n > cn::PQ_MULTISIG_MAX_KEYS) {
+      throw serialization_error("PQ multisig array exceeds PQ_MULTISIG_MAX_KEYS");
+    }
+    items.resize(n);
+  }
+  for (auto& item : items) {
+    serializeAsBinary(item, "", s);
+  }
+  s.endArray();
+}
+} // anonymous namespace
+
+void serialize(PqMultisigInput& in, ISerializer& serializer) {
+  serializer(in.amount, "amount");
+  serializer(in.signatureCount, "signatures");
+  serializer(in.outputIndex, "outputIndex");
+  serializer(in.term, "term");
+  serializePqMultisigArray(in.signatures, serializer, "sigs");
+}
+
+void serialize(PqMultisigOutput& out, ISerializer& serializer) {
+  serializePqMultisigArray(out.keys, serializer, "keys");
+  serializer(out.requiredSignatureCount, "required_signatures");
+  serializer(out.term, "term");
+}
+
 void serializeBlockHeader(BlockHeader& header, ISerializer& serializer) {
   serializer(header.majorVersion, "major_version");
-  if (header.majorVersion > BLOCK_MAJOR_VERSION_8) {
+  // Merged tree admits the fork's v9 (self-describing outputs) and PQ's v10 (CIP-0001).
+  if (header.majorVersion > BLOCK_MAJOR_VERSION_10) {
     throw serialization_error("Wrong major version");
   }
 

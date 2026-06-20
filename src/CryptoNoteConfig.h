@@ -122,6 +122,10 @@ namespace cn
 		const uint64_t UPGRADE_HEIGHT_V7 = 195765;	  /* Cryptoight Conceal */
 		const uint64_t UPGRADE_HEIGHT_V8 = 661300;	  /* LWMA1, CN-GPU, Halving */
 		const uint64_t UPGRADE_HEIGHT_V9 = 999999999; // Self-describing outputs, encrypted memos, on-chain DNS (set before deployment)
+		/* PQ deposits (CIP-0001, ML-DSA-65) — stacked ABOVE the fork's v9. Mainnet height is a
+		   FAR-FUTURE sentinel: PQ deposits never activate on mainnet until the ML-DSA integration
+		   is audited. Was UPGRADE_HEIGHT_V9 on pqc/testnet-poc; moved to V10 so the fork keeps v9. */
+		const uint64_t UPGRADE_HEIGHT_V10 = 5000000;	  /* PQ deposits (ML-DSA-65) — audit-gated sentinel */
 
 		const unsigned UPGRADE_VOTING_THRESHOLD = 90; // percent
 		const size_t UPGRADE_VOTING_WINDOW = EXPECTED_NUMBER_OF_BLOCKS_PER_DAY;
@@ -136,7 +140,8 @@ namespace cn
 		const uint64_t TESTNET_UPGRADE_HEIGHT_V6 = 48;	  /* LWMA3 */
 		const uint64_t TESTNET_UPGRADE_HEIGHT_V7 = 60;	  /* Cryptoight Conceal */
 		const uint64_t TESTNET_UPGRADE_HEIGHT_V8 = 72;	  /* LWMA1, CN-GPU, Halving */
-		const uint64_t TESTNET_UPGRADE_HEIGHT_V9 = 100;		// Testnet activation
+		const uint64_t TESTNET_UPGRADE_HEIGHT_V9 = 100;		// Testnet activation (fork: self-describing outputs)
+		const uint64_t TESTNET_UPGRADE_HEIGHT_V10 = 120;	// PQ deposits (ML-DSA-65) — activates AFTER the fork's v9
 
 		const uint32_t TESTNET_DEPOSIT_MIN_TERM_V3 = 30;		/* testnet deposits 1 month -> 1 hour */
 		const uint32_t TESTNET_DEPOSIT_MAX_TERM_V3 = 12 * 30;	/* testnet deposits 1 year -> 12 hour */
@@ -172,7 +177,49 @@ namespace cn
 
 	const uint8_t TRANSACTION_VERSION_1 = 1;
 	const uint8_t TRANSACTION_VERSION_2 = 2;
-	const uint8_t TRANSACTION_VERSION_3 = 3; // New self-describing outputs
+	const uint8_t TRANSACTION_VERSION_3 = 3; // New self-describing outputs (fork)
+	const uint8_t TRANSACTION_VERSION_4 = 4; // PQ transactions (CIP-0001) — moved off v3 (fork owns v3)
+
+	// ===== Post-quantum (CIP-0001) consensus constants — merged from pqc/testnet-poc =====
+	// Output/input variant tags are 0x08/0x09 (fork owns 0x04-0x07); see
+	// docs/integration/pqc-mdbx-merge/namespace-and-report-plan.md for the unified namespace table.
+
+	// PQ address v2 prefixes (wallet-address-v2). Base58 varint tags tuned for a human prefix.
+	//   mainnet: 0x14fad4 -> "ccxp..." (PQ-only)   0x117ad4 -> "ccxh..." (hybrid)
+	//   testnet: 0x220bd6 -> "ctp..."  (PQ-only)   0x164a56 -> "cth..."  (hybrid)
+	const uint64_t CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x14fad4;     /* ccxp PQ address prefix */
+	const uint64_t CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x117ad4; /* ccxh hybrid address prefix */
+	const uint64_t TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX = 0x220bd6;     /* ctp testnet PQ address prefix */
+	const uint64_t TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX = 0x164a56; /* cth testnet hybrid address prefix */
+
+	const size_t  PQ_KEM_PUBLIC_KEY_SIZE = 1184;     /* ML-KEM-768 (FIPS 203) pubkey length in a PQ address */
+	const uint8_t PQ_ADDRESS_VERSION = 2;            /* PqAccountPublicAddress.pqVersion */
+	const uint32_t PQ_KEM_SCHEME_ID = 0xC0DE0203;    /* ML-KEM-768 message/stealth KEM scheme id (agility pin) */
+	const uint32_t PQ_RING_SCHEME_ID = 0x52415054;   /* "RAPT" — Raptor linkable-ring-sig scheme id == ccx_pq_scheme_id() */
+	const uint32_t PQ_DSA_SCHEME_ID = 0xC0DE0204;    /* ML-DSA-65 (FIPS 204) PQ deposit multisig scheme id (agility pin) */
+	const size_t  PQ_NULLIFIER_SIZE = 32;       /* ccx-pq nullifier length (bytes); bounds m_spent_pq_nullifiers keys */
+	const size_t  PQ_MIN_RING_SIZE = 2;         /* min distinct ring members for a PQ input (anonymity floor) */
+	const size_t  PQ_MAX_RING_SIZE = 8;         /* max ring members for a PQ input. Bounds verify-cost CPU-DoS AND
+	                                               keeps a PQ input inside the tx-size limit (Raptor sig ~12 KB @ ring-8).
+	                                               Consensus: nodes reject PQ inputs with ring > this. */
+	const size_t  PQ_MULTISIG_MAX_KEYS = 16;    /* max n keys / m sigs in a PQ multisig (deposit) output/input;
+	                                               bounds the attacker-controlled length-prefixed arrays at the
+	                                               serialization boundary (OOM + verify-CPU DoS guard) */
+	/* RPC-only (NOT consensus) bounds for the read-only get_pq_outputs enumeration. */
+	const size_t  PQ_GET_OUTPUTS_MAX_AMOUNTS  = 64;
+	const size_t  PQ_GET_OUTPUTS_MAX_PER_AMOUNT = 1000;
+	const size_t  PQ_GET_MULTISIG_OUTPUTS_MAX_AMOUNTS  = 64;
+	const size_t  PQ_GET_MULTISIG_OUTPUTS_MAX_PER_AMOUNT = 1000;
+	/* Testnet PoC only (CIP-0001): deterministic seed for the PQ keypair that owns testnet coinbase
+	   PQ outputs. The daemon (coinbase) derives the public key; the injector derives the secret key. */
+	const uint8_t PQ_TESTNET_COINBASE_SEED[32] = {
+		0xc0, 0xde, 0x00, 0x01, 0xcc, 0x05, 0x7e, 0x57,
+		0x4e, 0x74, 0x70, 0x71, 0x75, 0x61, 0x6e, 0x74,
+		0x75, 0x6d, 0x70, 0x6f, 0x63, 0x73, 0x65, 0x65,
+		0x64, 0x21, 0xde, 0xad, 0xbe, 0xef, 0x00, 0x00};
+	/* Fixed denomination for the testnet PQ coinbase output (0.1 CCX @ 6 dp). */
+	const uint64_t PQ_TESTNET_COINBASE_AMOUNT = 100000;
+	// ===== end PQ constants =====
 
 	const uint8_t BLOCK_MAJOR_VERSION_1 = 1; // (Consensus I)
 	const uint8_t BLOCK_MAJOR_VERSION_2 = 2; // (Consensus II)
@@ -180,6 +227,8 @@ namespace cn
 	const uint8_t BLOCK_MAJOR_VERSION_4 = 4; // LWMA3
 	const uint8_t BLOCK_MAJOR_VERSION_7 = 7; /* Cryptonight Conceal */
 	const uint8_t BLOCK_MAJOR_VERSION_8 = 8; /* LWMA1, CN-GPU, Halving */
+	const uint8_t BLOCK_MAJOR_VERSION_9 = 9;  /* reserved: fork self-describing outputs / DNS — UPGRADE_HEIGHT_V9 */
+	const uint8_t BLOCK_MAJOR_VERSION_10 = 10; /* PQ deposits (ML-DSA-65), CIP-0001 — UPGRADE_HEIGHT_V10 */
 	const uint8_t BLOCK_MINOR_VERSION_0 = 0;
 	const uint8_t BLOCK_MINOR_VERSION_1 = 1;
 

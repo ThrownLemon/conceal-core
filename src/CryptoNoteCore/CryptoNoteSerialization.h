@@ -44,6 +44,12 @@ void serialize(TransactionOutputTarget& output, ISerializer& serializer);
 void serialize(KeyOutput& key, ISerializer& serializer);
 void serialize(MultisignatureOutput& multisignature, ISerializer& serializer);
 
+// Post-quantum (CIP-0001) input/output overloads.
+void serialize(PqKeyInput& in, ISerializer& serializer);
+void serialize(PqKeyOutput& out, ISerializer& serializer);
+void serialize(PqMultisigInput& in, ISerializer& serializer);
+void serialize(PqMultisigOutput& out, ISerializer& serializer);
+
 void serialize(BlockHeader& header, ISerializer& serializer);
 void serialize(Block& block, ISerializer& serializer);
 void serialize(TransactionExtraMergeMiningTag& tag, ISerializer& serializer);
