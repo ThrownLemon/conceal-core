@@ -288,7 +288,7 @@ namespace cn
 
     // ---- assemble the prefix ---------------------------------------------------------------------
     tx = Transaction();
-    tx.version = cn::TRANSACTION_VERSION_3;
+    tx.version = cn::TRANSACTION_VERSION_4; // PQ tx version on the merged tree (fork owns v3)
     tx.unlockTime = 0;
     tx.inputs.clear();
     tx.inputs.push_back(in);
@@ -405,7 +405,7 @@ namespace cn
 
     // ---- assemble the prefix ---------------------------------------------------------------------
     tx = Transaction();
-    tx.version = cn::TRANSACTION_VERSION_3;
+    tx.version = cn::TRANSACTION_VERSION_4; // PQ tx version on the merged tree (fork owns v3)
     tx.unlockTime = 0;
     tx.inputs.clear();
     tx.inputs.push_back(in);
