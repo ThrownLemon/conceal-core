@@ -219,6 +219,13 @@ protected:
       static_cast<uint32_t>(-1)};
 };
 
+// Out-of-line definitions: these static const members are odr-used (passed by const& into
+// MultisignatureInput/Currency calls), so C++11 requires a definition. Newer gcc (Ubuntu 24.04)
+// constant-folds them away and links without it; CI's Ubuntu-22.04 gcc/clang + -DSTATIC=ON odr-uses
+// them -> 'undefined reference'. Define them once here.
+const uint64_t PqDepositCurrencyTest::fixed_amount;
+const uint32_t PqDepositCurrencyTest::fixed_term;
+
 // The single most important money-safety property: a PQ deposit input credits EXACTLY the same
 // principal + interest as the Ed25519 deposit input for the same amount and term. If these ever
 // diverge, the PQ path would mint a different (potentially attacker-favourable) amount.
