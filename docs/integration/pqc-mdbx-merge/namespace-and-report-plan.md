@@ -110,8 +110,12 @@ PaymentGate modify/deletes, build files).
 - [x] **P0** Namespace audit + this spec — *done (4 collisions found)*
 - [x] **P1** Import `pqc/ccx-pqc` crate + PQ docs into worktree — *done (144 files, commit b1417e15)*
 - [x] **P2** Apply unified table: PQ output/input → 0x08/0x09, hardfork → V10/BLOCK_MAJOR_10, tx → V4 — *done (commit cb366ec5; CryptoNote.h variants, serialization, config)*
-- [ ] **P2b** Wire `pqc/ccx-pqc` into the fork's `CMakeLists.txt` (Rust crate link)
-- [ ] **P3** Re-port validation hooks into MDBX `Blockchain`/`Core` (old Blockchain.cpp deleted)
+- [x] **P2b** Wire `pqc/ccx-pqc` into the fork's `CMakeLists.txt` — *done (commit 7355674d)*
+- [~] **P3** Re-port validation hooks into the fork's `src/Blockchain/*`:
+  - [x] P3a output validation — `CheckTxOutputsVisitor.h` PQ operators + `Currency::validateOutput(PqMultisigOutput)` (tx-v4 gate)
+  - [ ] P3b input validation — `BlockchainValidation.cpp`: PqKeyInput Raptor ring-sig verify (ccx FFI) + 32-byte nullifier double-spend; PqMultisigInput ML-DSA verify
+  - [ ] P3c output index + nullifier set — `MDBXBlockchainStorage.cpp` per-amount PQ buckets + spent-nullifier table
+  - [ ] P3d tx-accept/version gate — `Core.cpp handle_incoming_tx` / `TransactionPool.cpp` admit tx-v4
 - [ ] **P4** Re-port PQ RPC into `conceal-rpc`
 - [ ] **P5** Re-port `PqSpendBuilder` into `WalletGreen`
 - [ ] **P6** Build green on WSL (MDBX + wxWidgets + Rust `pqc`, `-DWITH_OPENCL=OFF`)

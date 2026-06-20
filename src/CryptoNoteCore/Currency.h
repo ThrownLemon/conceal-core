@@ -202,6 +202,7 @@ namespace cn
     size_t getApproximateMaximumInputCount(size_t transactionSize, size_t outputCount, size_t mixinCount) const;
 
     bool validateOutput(uint64_t amount, const MultisignatureOutput &output, uint32_t height) const;
+    bool validateOutput(uint64_t amount, const PqMultisigOutput &output, uint32_t height) const; // CIP-0001 PQ deposit
 
     uint64_t getGenesisTimestamp() const;
 

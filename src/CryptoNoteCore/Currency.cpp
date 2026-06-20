@@ -1320,6 +1320,34 @@ namespace cn
     return true;
   }
 
+  /* PQ deposit output validity — byte-for-byte the same term band / depositMinAmount rules as the
+     Ed25519 MultisignatureOutput path above; only the output type differs (CIP-0001). */
+  bool Currency::validateOutput(uint64_t amount, const PqMultisigOutput &output, uint32_t height) const
+  {
+    if (output.term != 0)
+    {
+      if (height > m_depositHeightV4)
+      {
+        if (output.term < m_depositMinTermV3 || output.term > m_depositMaxTermV3 || output.term % m_depositMinTermV3 != 0)
+        {
+          logger(INFO, BRIGHT_WHITE) << "PQ multisignature output has invalid term: " << output.term;
+          return false;
+        }
+      }
+      else if (output.term < m_depositMinTerm || output.term > m_depositMaxTermV1)
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ multisignature output has invalid term: " << output.term;
+        return false;
+      }
+      if (amount < m_depositMinAmount)
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ multisignature output is a deposit output, but it has too small amount: " << amount;
+        return false;
+      }
+    }
+    return true;
+  }
+
   uint64_t Currency::getGenesisTimestamp() const
   {
     if (m_testnet)

@@ -137,6 +137,49 @@ namespace cn
       return true;
     }
 
+    // ---- Post-quantum (CIP-0001) outputs (tags 0x08/0x09) ----
+    bool operator()(const PqKeyOutput &out) const
+    {
+      if (m_amount == 0)
+      {
+        m_error = "zero amount PQ output";
+        return false;
+      }
+      if (out.key.empty())
+      {
+        m_error = "PQ output with empty key";
+        return false;
+      }
+      return true;
+    }
+
+    // PQ deposit output: requires PQ tx version (v4 on this merged tree — fork owns v3), enforces the
+    // IDENTICAL term band + depositMinAmount as the Ed25519 MultisignatureOutput path via the Currency.
+    bool operator()(const PqMultisigOutput &out) const
+    {
+      if (m_tx.version < TRANSACTION_VERSION_4)
+      {
+        m_error = "contains PQ multisignature output but tx version is less than 4";
+        return false;
+      }
+      if (!m_currency.validateOutput(m_amount, out, m_height))
+      {
+        m_error = "contains invalid PQ multisignature output";
+        return false;
+      }
+      if (out.requiredSignatureCount == 0 || out.requiredSignatureCount > out.keys.size())
+      {
+        m_error = "contains PQ multisignature with invalid required signature count";
+        return false;
+      }
+      if (out.keys.size() > PQ_MULTISIG_MAX_KEYS)
+      {
+        m_error = "contains PQ multisignature output with too many keys";
+        return false;
+      }
+      return true;
+    }
+
   private:
     const Transaction &m_tx;
     uint32_t m_height;
