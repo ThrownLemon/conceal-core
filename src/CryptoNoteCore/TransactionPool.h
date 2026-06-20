@@ -195,6 +195,10 @@ namespace cn {
     mutable std::recursive_mutex m_transactions_lock;
     key_images_container m_spent_key_images;
     GlobalOutputsContainer m_spentOutputs;
+    // CIP-0001: pooled-PQ-spend conflict tracking (twin of m_spent_key_images). Maps a 32-byte PQ
+    // nullifier (as raw bytes) to the set of pooled tx ids using it, so a second pooled tx with the
+    // same nullifier is rejected (in-pool double-spend), mirroring the classical key-image behavior.
+    std::map<std::string, std::unordered_set<crypto::Hash>> m_spent_pq_nullifiers;
 
     std::string m_config_folder;
     cn::ITransactionValidator& m_validator;

@@ -746,6 +746,20 @@ namespace cn
           m_spentOutputs.erase(output);
         }
       }
+      else if (in.type() == typeid(PqKeyInput))
+      {
+        const auto &pqin = boost::get<PqKeyInput>(in);
+        std::string nf(pqin.nullifier.begin(), pqin.nullifier.end());
+        auto it = m_spent_pq_nullifiers.find(nf);
+        if (it != m_spent_pq_nullifiers.end())
+        {
+          it->second.erase(tx_id);
+          if (it->second.empty())
+          {
+            m_spent_pq_nullifiers.erase(it);
+          }
+        }
+      }
     }
 
     return true;
@@ -786,6 +800,23 @@ namespace cn
           assert(r.second);
         }
       }
+      else if (in.type() == typeid(PqKeyInput))
+      {
+        const auto &pqin = boost::get<PqKeyInput>(in);
+        std::string nf(pqin.nullifier.begin(), pqin.nullifier.end());
+        std::unordered_set<crypto::Hash> &nf_set = m_spent_pq_nullifiers[nf];
+        if (!(keptByBlock || nf_set.size() == 0))
+        {
+          logger(ERROR, BRIGHT_RED) << "internal error: PQ nullifier already pooled, tx_id=" << id;
+          return false;
+        }
+        auto ins_res = nf_set.insert(id);
+        if (!(ins_res.second))
+        {
+          logger(ERROR, BRIGHT_RED) << "internal error: duplicate id in PQ nullifier set";
+          return false;
+        }
+      }
     }
 
     return true;
@@ -808,6 +839,15 @@ namespace cn
       {
         const auto &msig = boost::get<MultisignatureInput>(in);
         if (m_spentOutputs.count(GlobalOutput(msig.amount, msig.outputIndex)))
+        {
+          return true;
+        }
+      }
+      else if (in.type() == typeid(PqKeyInput))
+      {
+        const auto &pqin = boost::get<PqKeyInput>(in);
+        std::string nf(pqin.nullifier.begin(), pqin.nullifier.end());
+        if (m_spent_pq_nullifiers.count(nf))
         {
           return true;
         }
