@@ -10,6 +10,7 @@
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/NewOutputTypes.h"
+#include "pq_ring_sig.h" // ccx-pqc FFI: ccx_pq_pubkey_bytes / _is_canonical / _kem_ct_bytes
 
 namespace cn
 {
@@ -145,9 +146,27 @@ namespace cn
         m_error = "zero amount PQ output";
         return false;
       }
-      if (out.key.empty())
+      // Validate the ring-sig public key at the consensus boundary (never trust external bytes).
+      // Without this a tx could create a PqKeyOutput with arbitrary `key` bytes: consensus-valid and
+      // indexed in m_pqOutputs, but unspendable — an attacker can flood the PQ amount bucket with
+      // malformed outputs, shifting global indices and breaking wallet ring assembly (liveness DoS).
+      // ccx_pq_pubkey_is_canonical enforces the exact ccx_pq_pubkey_bytes() length + canonical mod-q
+      // re-encode equality.
+      if (out.key.size() != ccx_pq_pubkey_bytes())
       {
-        m_error = "PQ output with empty key";
+        m_error = "PQ output key wrong size";
+        return false;
+      }
+      if (ccx_pq_pubkey_is_canonical(out.key.data(), out.key.size()) != 1)
+      {
+        m_error = "PQ output key not canonical";
+        return false;
+      }
+      // kemCt is optional (coinbase / injector outputs carry none and are simply unscannable), but if
+      // present it must be the exact KEM-ciphertext length so a malformed one can't be indexed.
+      if (!out.kemCt.empty() && out.kemCt.size() != ccx_pq_kem_ct_bytes())
+      {
+        m_error = "PQ output kemCt wrong size";
         return false;
       }
       return true;

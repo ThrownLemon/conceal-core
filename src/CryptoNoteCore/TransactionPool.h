@@ -199,6 +199,14 @@ namespace cn {
     // nullifier (as raw bytes) to the set of pooled tx ids using it, so a second pooled tx with the
     // same nullifier is rejected (in-pool double-spend), mirroring the classical key-image behavior.
     std::map<std::string, std::unordered_set<crypto::Hash>> m_spent_pq_nullifiers;
+    // CIP-0001: pooled-PQ-DEPOSIT-withdrawal conflict tracking (twin of m_spentOutputs for the classic
+    // multisig path). A PqMultisigInput spends a deposit cell keyed by (amount, outputIndex); two pooled
+    // withdrawals of the same cell would both pass admission and a miner template could include both,
+    // wasting work (the block is rejected at connect when the second hits the on-chain isUsed check).
+    // PQ deposit cells live in a SEPARATE output-index namespace from classic outputs, so they get their
+    // own set to avoid false (amount,outputIndex) collisions with m_spentOutputs. Persisted like
+    // m_spentOutputs so the tracking survives a daemon restart.
+    GlobalOutputsContainer m_spent_pq_deposit_cells;
 
     std::string m_config_folder;
     cn::ITransactionValidator& m_validator;

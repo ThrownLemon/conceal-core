@@ -34,6 +34,7 @@
 #include "CryptoNoteConfig.h"
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"     // getObjectHash
+#include "CryptoNoteCore/CryptoNoteFormatUtils.h" // check_outs_valid
 #include "CryptoNoteCore/PqDepositBuilder.h"
 #include "CryptoNoteCore/PqSpendBuilder.h"       // PqRingMember
 #include "Logging/ConsoleLogger.h"
@@ -384,4 +385,38 @@ TEST_F(PqDepositTxTest, WithdrawInterestParityWithDaemon)
     EXPECT_EQ(fixed_amount + walletInterest, daemonInputAmount)
         << "wallet payout must equal amount + daemon interest at height " << h;
   }
+}
+
+// Regression (Codex audit, HIGH): check_outs_valid must reject a PqKeyOutput whose key is the wrong
+// size or non-canonical BEFORE it can be indexed. Without this an attacker creates consensus-valid but
+// unspendable PqKeyOutputs to flood the PQ output index and shift global indices (liveness DoS). A real
+// canonical key (e.g. the PQ coinbase, exercised by the e2e) must still pass.
+TEST(PqOutputValidation, RejectsMalformedPqKeyOutput)
+{
+  auto mkTx = [](const std::vector<uint8_t> &key) {
+    Transaction tx;
+    tx.version = TRANSACTION_VERSION_4;
+    PqKeyOutput pqo;
+    pqo.key = key;
+    TransactionOutput o;
+    o.amount = 1000;
+    o.target = pqo;
+    tx.outputs.push_back(o);
+    return tx;
+  };
+
+  std::string err;
+  // wrong-size key (1 byte) -> rejected by the new length check
+  ASSERT_FALSE(check_outs_valid(mkTx(std::vector<uint8_t>(1, 0x01)), &err));
+  // empty key -> rejected (pre-existing guard)
+  ASSERT_FALSE(check_outs_valid(mkTx(std::vector<uint8_t>()), &err));
+  // right length but non-canonical bytes (all 0xFF is not a valid mod-q encoding) -> rejected
+  ASSERT_FALSE(check_outs_valid(mkTx(std::vector<uint8_t>(ccx_pq_pubkey_bytes(), 0xFF)), &err));
+
+  // a real canonical ring-sig public key must be accepted
+  std::vector<uint8_t> pk(ccx_pq_pubkey_bytes(), 0), sk(ccx_pq_seckey_bytes(), 0);
+  uint8_t seed[32];
+  std::memset(seed, 0x42, sizeof(seed));
+  ASSERT_EQ(0, ccx_pq_keygen(seed, sizeof(seed), pk.data(), pk.size(), sk.data(), sk.size()));
+  ASSERT_TRUE(check_outs_valid(mkTx(pk), &err)) << err;
 }

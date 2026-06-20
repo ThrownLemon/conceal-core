@@ -27,6 +27,7 @@
 #include "Currency.h"
 
 #include "CryptoNoteConfig.h"
+#include "pq_ring_sig.h" // ccx-pqc FFI: ccx_pq_pubkey_bytes / _is_canonical / _kem_ct_bytes
 
 using namespace logging;
 using namespace crypto;
@@ -423,13 +424,30 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
     }
     else if (out.target.type() == typeid(PqKeyOutput))
     {
-      // Post-quantum (CIP-0001) stealth output: non-zero amount + non-empty one-time key.
+      // Post-quantum (CIP-0001) stealth output: non-zero amount + a canonical one-time ring-sig key.
+      // This is the format-level twin of CheckTxOutputsVisitor::operator()(const PqKeyOutput&); BOTH
+      // paths must reject a malformed key so it can never be indexed in m_pqOutputs (a wrong-size or
+      // non-canonical key would be consensus-valid but unspendable, letting an attacker flood the PQ
+      // output bucket and shift global indices — a wallet ring-assembly liveness DoS).
       if (out.amount == 0) {
         if (error) { *error = "Zero amount PQ output"; }
         return false;
       }
-      if (::boost::get<PqKeyOutput>(out.target).key.empty()) {
+      const PqKeyOutput &pqo = ::boost::get<PqKeyOutput>(out.target);
+      if (pqo.key.empty()) {
         if (error) { *error = "PQ output with empty key"; }
+        return false;
+      }
+      if (pqo.key.size() != ccx_pq_pubkey_bytes()) {
+        if (error) { *error = "PQ output key wrong size"; }
+        return false;
+      }
+      if (ccx_pq_pubkey_is_canonical(pqo.key.data(), pqo.key.size()) != 1) {
+        if (error) { *error = "PQ output key not canonical"; }
+        return false;
+      }
+      if (!pqo.kemCt.empty() && pqo.kemCt.size() != ccx_pq_kem_ct_bytes()) {
+        if (error) { *error = "PQ output kemCt wrong size"; }
         return false;
       }
     }

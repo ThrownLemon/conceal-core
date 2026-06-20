@@ -64,6 +64,13 @@ namespace cn
           (void)r; //just to make compiler to shut up
           assert(r.second);
         }
+        else if (in.type() == typeid(PqMultisigInput))
+        {
+          const auto &pqmin = boost::get<PqMultisigInput>(in);
+          auto r = m_usedPqCells.insert(std::make_pair(pqmin.amount, pqmin.outputIndex));
+          (void)r; //just to make compiler to shut up
+          assert(r.second);
+        }
       }
 
       m_txHashes.push_back(txid);
@@ -95,12 +102,23 @@ namespace cn
             return false;
           }
         }
+        else if (in.type() == typeid(PqMultisigInput))
+        {
+          const auto &pqmin = boost::get<PqMultisigInput>(in);
+          if (m_usedPqCells.count(std::make_pair(pqmin.amount, pqmin.outputIndex)))
+          {
+            return false;
+          }
+        }
       }
       return true;
     }
 
     std::unordered_set<crypto::KeyImage> m_keyImages;
     std::set<std::pair<uint64_t, uint64_t>> m_usedOutputs;
+    // CIP-0001: PQ deposit cells (PqMultisigInput) used by txs already in this block template, so two
+    // conflicting PQ deposit withdrawals can't both be selected into one block (twin of m_usedOutputs).
+    std::set<std::pair<uint64_t, uint64_t>> m_usedPqCells;
     std::vector<crypto::Hash> m_txHashes;
   };
 
@@ -542,6 +560,7 @@ namespace cn
       m_transactions.clear();
       m_spent_key_images.clear();
       m_spentOutputs.clear();
+      m_spent_pq_deposit_cells.clear();
 
       m_paymentIdIndex.clear();
       m_timestampIndex.clear();
@@ -622,6 +641,7 @@ namespace cn
 
     KV_MEMBER(m_spent_key_images);
     KV_MEMBER(m_spentOutputs);
+    KV_MEMBER(m_spent_pq_deposit_cells);
     KV_MEMBER(m_recentlyDeletedTransactions);
   }
 
@@ -760,6 +780,11 @@ namespace cn
           }
         }
       }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        const auto &pqmin = boost::get<PqMultisigInput>(in);
+        m_spent_pq_deposit_cells.erase(GlobalOutput(pqmin.amount, pqmin.outputIndex));
+      }
     }
 
     return true;
@@ -817,6 +842,19 @@ namespace cn
           return false;
         }
       }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        if (!keptByBlock)
+        {
+          const auto &pqmin = boost::get<PqMultisigInput>(in);
+          auto r = m_spent_pq_deposit_cells.insert(GlobalOutput(pqmin.amount, pqmin.outputIndex));
+          if (!r.second)
+          {
+            logger(ERROR, BRIGHT_RED) << "internal error: PQ deposit cell already pooled, tx_id=" << id;
+            return false;
+          }
+        }
+      }
     }
 
     return true;
@@ -848,6 +886,14 @@ namespace cn
         const auto &pqin = boost::get<PqKeyInput>(in);
         std::string nf(pqin.nullifier.begin(), pqin.nullifier.end());
         if (m_spent_pq_nullifiers.count(nf))
+        {
+          return true;
+        }
+      }
+      else if (in.type() == typeid(PqMultisigInput))
+      {
+        const auto &pqmin = boost::get<PqMultisigInput>(in);
+        if (m_spent_pq_deposit_cells.count(GlobalOutput(pqmin.amount, pqmin.outputIndex)))
         {
           return true;
         }
