@@ -52,6 +52,15 @@ argon2 = "0.5"
 # conflict. The Falcon C itself is compiled by build.rs (cc) and seeds its own SHAKE PRNG.
 rand = "0.8"
 rand_chacha = "0.3"
+# ctgrind / TIMECOP constant-time leak mapping (opt-in, valgrind-only). crabgrind issues valgrind
+# memcheck client requests to poison secret bytes; gated behind the `ctgrind` feature and used only
+# by the ct_leakmap test, so normal builds/tests never pull it (its build.rs needs valgrind headers,
+# which a plain dev / CI box without valgrind lacks).
+crabgrind = { version = "0.1", optional = true }
+
+[features]
+# Enable only on a box with valgrind installed: `cargo test --features ctgrind` (run under valgrind).
+ctgrind = ["dep:crabgrind"]
 
 # Compile the vendored PQClean Falcon-512 "clean" C (integer-FP only) + the clean-room raptor_falcon.c
 # shim into the staticlib. All vendored C is MIT (Falcon Project) / public-domain (fips202, randombytes)

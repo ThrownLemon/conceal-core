@@ -82,6 +82,7 @@ dependencies = [
  "argon2",
  "cc",
  "chacha20poly1305",
+ "crabgrind",
  "hybrid-array",
  "ml-dsa",
  "ml-kem",
@@ -163,6 +164,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b2a41393f66f16b0823bb79094d54ac5fbd34ab292ddafb9a0456ac9f87d201"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "crabgrind"
+version = "0.1.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f9e452c480754e99194a6574d5588f3bb892e1974c15439e5af8df4a385b9a8a"
+dependencies = [
+ "cc",
 ]
 
 [[package]]

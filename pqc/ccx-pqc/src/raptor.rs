@@ -578,3 +578,37 @@ mod determinism_kat {
         assert!(keygen_kat_ok(), "keygen KAT digest drifted from the pinned reference");
     }
 }
+
+#[cfg(all(test, feature = "ctgrind"))]
+mod ctgrind {
+    use super::*;
+
+    // Constant-time leak map (ctgrind / TIMECOP). Runs ONLY under valgrind; outside valgrind the
+    // poison is a no-op and this just exercises keygen+sign. Build with `cargo test --no-run` then
+    //   valgrind --tool=memcheck --track-origins=yes <testbin> --ignored --nocapture ct_leakmap
+    // memcheck reports "Conditional jump or move depends on uninitialised value(s)" at every
+    // secret-dependent branch in the Falcon C (keygen.c / sign.c) and our raptor_falcon.c glue.
+    #[test]
+    #[ignore]
+    fn ct_leakmap() {
+        // An unpoisoned, real decoy ring member (public; must NOT be marked secret).
+        let (decoy, _) = keygen(&[0x5au8; 48]);
+
+        // The signer's root secret seed — poisoned so any branch derived from it is flagged.
+        let mut seed = [0u8; 48];
+        for (i, b) in seed.iter_mut().enumerate() {
+            *b = (i as u8).wrapping_mul(7).wrapping_add(3);
+        }
+        unsafe {
+            crabgrind::memcheck::mark_mem(
+                seed.as_mut_ptr() as *mut core::ffi::c_void,
+                seed.len(),
+                crabgrind::memcheck::MemState::Undefined,
+            );
+        }
+
+        let (pk, sk) = keygen(&seed); // -> maps secret-dependent branches in keygen.c
+        let ring = vec![pk.a0, decoy.a0];
+        let _ = sign(b"ctgrind", &ring, &sk, 0, &[7u8; 32]); // -> maps sign.c sampler + glue
+    }
+}

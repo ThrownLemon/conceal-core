@@ -120,7 +120,10 @@ void rfalcon_polymul_modq(const uint16_t *a, const uint16_t *b, uint16_t *out) {
     uint32_t acc[RF_N];
     for (uint32_t i = 0; i < RF_N; i++) acc[i] = 0;
     for (uint32_t i = 0; i < RF_N; i++) {
-        if (a[i] == 0) continue;
+        /* No early-skip on a[i]==0: a data-dependent `continue` here leaks the zero-coefficient
+         * pattern of `a` (ctgrind flagged raptor_falcon.c:123). a[i]==0 contributes 0, so the
+         * unconditional inner loop is identical in result and constant-time. The inner k-bound
+         * branch below is on loop indices (public), not data, so it is fine. */
         uint64_t ai = a[i];
         for (uint32_t j = 0; j < RF_N; j++) {
             uint32_t k = i + j;
