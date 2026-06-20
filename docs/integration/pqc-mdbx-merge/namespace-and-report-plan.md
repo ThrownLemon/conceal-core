@@ -81,15 +81,23 @@ deserialize time before finalising.
 
 ## 2. Re-port map (the fork deleted the homes our hooks lived in)
 
-| PQ hook | Old home (pqc/testnet-poc) | New home (PR#14 base) |
+**Verified fork structure** (the old monolithic `CryptoNoteCore/Blockchain.cpp`
+is DELETED and split into a modular `src/Blockchain/*` backed by MDBX — confirmed
+by direct inspection, not the stale auto-map):
+
+| PQ hook | Old home (pqc/testnet-poc) | New home (PR#14 base) — VERIFIED |
 |---------|----------------------------|-----------------------|
-| Tx/output validation | `CryptoNoteCore/Blockchain.cpp` (**deleted** by MDBX rewrite) | MDBX storage / `Blockchain/` + `Core.cpp` validation entry |
-| PQ RPC (`get_pq_outputs`, …) | `PaymentGate/*` (**deleted**) | `conceal-rpc` / `BoltRPC` |
-| PQ spend builder (`PqSpendBuilder`) | `Wallet/WalletGreen.cpp`, `WalletLegacy/*` | `Wallet/WalletGreen.cpp` (still present); conceal-wallet/BoltCore = stretch |
-| Serialization (PQ variants) | `CryptoNoteSerialization.cpp/.h`, `CryptoNote.h` | same files, add 0x08/0x09 alongside their 0x04–0x07 |
-| PQ config (heights/versions/schemes) | `CryptoNoteConfig.h` | same, add V10 / BLOCK_MAJOR_10 / TX_V4 |
-| PQ message extra | `TransactionExtra.cpp/.h` | same (0x06/0x07 clean) |
-| `pqc/ccx-pqc` Rust crate | `pqc/` (138 clean-add files) | drops in clean; wire `CMakeLists.txt` |
+| Tx **input** validation (PqKeyInput ring-sig + nullifier dup-check; PqMultisigInput ML-DSA) | `Blockchain.cpp` `checkTransactionInputs` ~2418–2531 | `src/Blockchain/BlockchainValidation.cpp` (+ `ITransactionValidator.h`) |
+| Tx **output** validation (visitor) | `Blockchain.h` `check_tx_outputs_visitor` 451–538 | `src/Blockchain/CheckTxOutputsVisitor.h` |
+| Output indexing by amount (`m_pqOutputs`, `m_pqMultisigOutputs`) | `Blockchain.cpp` pushBlock 778–800 | `src/Storage/MDBXBlockchainStorage.cpp` + `src/Blockchain/BlockchainStorage.cpp` |
+| Nullifier double-spend set (32-byte) | `Blockchain.h:288` `m_spent_pq_nullifiers` (in-mem) | new MDBX table or in-mem set in `src/Blockchain/` + storage |
+| Tx accept / version gate | `Core.cpp` | `src/CryptoNoteCore/Core.cpp` `handle_incoming_tx` ~282; `TransactionPool.cpp` |
+| PQ RPC (`get_pq_outputs`, `get_pq_multisig_outputs`) | `PaymentGate/*` | **`src/Rpc/RpcServer.cpp`** (daemon RPC still present): JSON-RPC map ~295, decls `RpcServer.h`, structs `CoreRpcServerCommandsDefinitions.h`; follow the fork's `get_domain` pattern |
+| PQ spend builder (`PqSpendBuilder`, `PqSpendClient`) | `Wallet/WalletGreen.cpp` | **`src/Wallet/WalletGreen.cpp`** (still active in Daemon + ConcealWallet CLI; NOT superseded by BoltCore). `selectTransfers` ~2815, `prepareInputs` ~2956. BoltCore TUI = later/stretch |
+| Serialization (PQ variants) | `CryptoNoteSerialization.cpp/.h`, `CryptoNote.h` | ✅ done (0x08/0x09 alongside fork's 0x04–0x07) |
+| PQ config (heights/versions/schemes) | `CryptoNoteConfig.h` | ✅ done (V10 / BLOCK_MAJOR_10 / TX_V4) |
+| PQ message extra | `TransactionExtra.cpp/.h` | ⚠️ 0x06/0x07 free on fork — verify their memo impl; port `TransactionExtra` PQ paths |
+| `pqc/ccx-pqc` Rust crate | `pqc/` | ✅ imported; still must wire into fork `CMakeLists.txt` (P2b) |
 
 Clean adds (no conflict): entire `pqc/` crate + all PQ docs (≈138 files).
 Hand-resolve: ≈25 files (7 consensus-core content conflicts, Blockchain +
@@ -99,10 +107,11 @@ PaymentGate modify/deletes, build files).
 
 ## 3. Execution checklist
 
-- [ ] **P0** Namespace audit + this spec — *done*
-- [ ] **P1** Import `pqc/ccx-pqc` crate + PQ docs into worktree; wire CMake/Cargo
-- [ ] **P2** Apply unified table: remap PQ output/input → 0x08/0x09, hardfork → V10/BLOCK_MAJOR_10, tx → V4 (config + serialization + Rust scheme consts)
-- [ ] **P3** Re-port validation hooks into MDBX `Blockchain`/`Core`
+- [x] **P0** Namespace audit + this spec — *done (4 collisions found)*
+- [x] **P1** Import `pqc/ccx-pqc` crate + PQ docs into worktree — *done (144 files, commit b1417e15)*
+- [x] **P2** Apply unified table: PQ output/input → 0x08/0x09, hardfork → V10/BLOCK_MAJOR_10, tx → V4 — *done (commit cb366ec5; CryptoNote.h variants, serialization, config)*
+- [ ] **P2b** Wire `pqc/ccx-pqc` into the fork's `CMakeLists.txt` (Rust crate link)
+- [ ] **P3** Re-port validation hooks into MDBX `Blockchain`/`Core` (old Blockchain.cpp deleted)
 - [ ] **P4** Re-port PQ RPC into `conceal-rpc`
 - [ ] **P5** Re-port `PqSpendBuilder` into `WalletGreen`
 - [ ] **P6** Build green on WSL (MDBX + wxWidgets + Rust `pqc`, `-DWITH_OPENCL=OFF`)
