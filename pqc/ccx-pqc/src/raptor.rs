@@ -561,3 +561,20 @@ pub fn verify(msg: &[u8], ring: &[[u16; N]], sig: &Signature) -> Result<[u8; 32]
 pub fn link(a: &Signature, b: &Signature) -> bool {
     nullifier_from_aots(&a.aots) == nullifier_from_aots(&b.aots)
 }
+
+#[cfg(test)]
+mod determinism_kat {
+    use super::*;
+
+    /// Cross-platform determinism guard. Falcon keygen for a fixed seed must reproduce the
+    /// pinned reference digest on every build target — otherwise nodes derive incompatible
+    /// public keys / nullifiers and fork the chain. Prints the digest so a determinism matrix
+    /// (linux-x86 / windows-gnu / windows-msvc / macos-arm64) can be compared build-to-build.
+    #[test]
+    fn keygen_kat_matches_reference() {
+        let d = keygen_kat_digest();
+        let hex: String = d.iter().map(|b| format!("{:02x}", b)).collect();
+        println!("KEYGEN_KAT_DIGEST={}", hex);
+        assert!(keygen_kat_ok(), "keygen KAT digest drifted from the pinned reference");
+    }
+}

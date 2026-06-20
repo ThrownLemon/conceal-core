@@ -430,17 +430,29 @@ PQClean **falcon-512 "clean"** variant ships *only* the integer-emulated FP laye
 real `double`/`float` arithmetic (the few tokens are comments), and no `FALCON_FPNATIVE`/`FPEMU` toggle (the old
 `build.rs` define was a dead no-op). **Verified independently** (code inspection + a 7-config keygen-KAT sweep:
 `-O0`/`-O3`/`-ffast-math`/`-ffp-contract=fast`/`-march` all produce the **identical** digest — proof there is no
-native FP in the path). So keygen+signing are **bit-identical across compilers/opt/arch by construction**; the
-chain-split risk the review feared cannot occur. Residual (belt-and-braces, NOT a blocker): an actual
-**aarch64/MSVC KAT run** to confirm cross-arch (the `uint64` argument is sound; 32-bit targets use SW 64-bit
-helpers but still yield identical results); the `assert_keygen_kat()` tripwire stays in CI (now expected to PASS
-everywhere). Perf cost of the "fix": **zero** (already integer-FP).
+native FP in the path). So keygen+signing are **bit-identical across compilers/opt/arch by construction** — and this is now
+**empirically confirmed by a 4-platform determinism matrix** (`raptor::keygen_kat_digest()` for the fixed
+KAT seed):
+
+| platform | compiler / arch | keygen digest |
+|---|---|---|
+| linux-x86_64 | gcc / x86_64 | `8f245c82dc7390f3cb4d8955556a45d56af41c83a37fc0388b996b58f295745e` |
+| windows-gnu (MinGW) | gcc / x86_64 | `8f245c82…f295745e` |
+| windows-msvc | MSVC `cl` / x86_64 | `8f245c82…f295745e` |
+| macos-arm64 | Apple `clang` / **aarch64** | `8f245c82…f295745e` |
+
+All four match the pinned reference — three compilers, three OSes, **two architectures (x86_64 + aarch64)**
+derive identical keys/nullifiers. The previously-listed "residual aarch64/MSVC KAT run" is **CLOSED**; the
+chain-split risk the review feared cannot occur. The `assert_keygen_kat()` tripwire + a committed
+`keygen_kat_matches_reference` test stay as the permanent drift guard. Perf cost of the "fix": **zero**
+(already integer-FP).
 
 **STILL requires humans — NOT production-ready to guard funds** (an implementation pass can't close these):
 (1) norm-bound **B1 re-derivation** for the ring setting; (2) formal **anonymity** proof; (3) formal
 **unforgeability** reduction; (4) **professional external audit**; (5) `paramch_h` nothing-up-my-sleeve
 **ceremony**; (6) production wallet **KDF** for per-spend randomness; (7) Falcon **constant-time / side-channel**
-review (separate from determinism); (8) NTT (perf); (9) the cross-arch KAT confirmation above. Verdict (Codex):
+review (separate from determinism); (8) NTT (perf). [(9) cross-arch KAT confirmation — **DONE**, see the
+4-platform matrix above.] Verdict (Codex):
 *"engineering-hardened, comprehensively tested, deterministic — but not production-ready."* Full writeup:
 `~/raptor-spike/CODEX-ASSESS.md`.
 
