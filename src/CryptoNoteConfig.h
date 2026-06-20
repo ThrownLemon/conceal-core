@@ -149,6 +149,12 @@ namespace cn
 		const uint32_t TESTNET_DEPOSIT_HEIGHT_V4 = 300000;
 		const uint32_t TESTNET_BLOCK_WITH_MISSING_INTEREST = 0; /* testnet is not impacted */
 
+		/* PQ-PoC convenience: a fixed low difficulty for the isolated PQ testnet so the e2e
+		   harness mines fast + sequentially. The normal LWMA retarget bottoms out near diff 1
+		   on a 1-2 node testnet and triggers self-reorg fork-wars; a constant value avoids that.
+		   Testnet-only (gated by Currency::isTestnet); mainnet difficulty is untouched. */
+		const uint64_t TESTNET_PQ_POC_DIFFICULTY = 8000;
+
 		static_assert(0 < UPGRADE_VOTING_THRESHOLD && UPGRADE_VOTING_THRESHOLD <= 100, "Bad UPGRADE_VOTING_THRESHOLD");
 		static_assert(UPGRADE_VOTING_WINDOW > 1, "Bad UPGRADE_VOTING_WINDOW");
 

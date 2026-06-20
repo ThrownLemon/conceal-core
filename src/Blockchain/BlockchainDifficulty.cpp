@@ -17,6 +17,13 @@ namespace cn
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
 
+    // PQ-PoC testnet: a fixed low difficulty so the e2e harness mines fast + sequentially.
+    // The normal LWMA retarget bottoms out near diff 1 on a 1-2 node testnet and triggers
+    // self-reorg fork-wars; a constant value avoids that. Testnet-only (mainnet falls through
+    // to the retarget below).
+    if (m_currency.isTestnet())
+      return cn::parameters::TESTNET_PQ_POC_DIFFICULTY;
+
     std::vector<uint64_t> timestamps;
     std::vector<difficulty_type> cumulative_difficulties;
 
