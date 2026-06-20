@@ -22,7 +22,9 @@ file(GLOB_RECURSE TransfersTests TransfersTests/*)
 file(GLOB_RECURSE UnitTests UnitTests/*)
 # PaymentGate/walletd removed in favor of conceal-rpc; these tests no longer compile.
 # TestUpgradeDetector targets the old BasicUpgradeDetector<BlockVector> API.
-list(FILTER UnitTests EXCLUDE REGEX ".*/(PaymentGateTests|TestWalletService|TestUpgradeDetector)\\.cpp$")
+# PQ authenticated-MESSAGE feature (tx_extra_authenticated_message / tx_message_entry.pq) is NOT
+# part of this PQ⊕MDBX merge PoC (spend + deposit path only) — exclude its tests until ported.
+list(FILTER UnitTests EXCLUDE REGEX ".*/(PaymentGateTests|TestWalletService|TestUpgradeDetector|TestAuthenticatedMessage|TestAuthenticatedMessageSendPath|TestPqMessage|TestPqMessageDefaultSendPath)\\.cpp$")
 
 file(GLOB_RECURSE CryptoNoteProtocol ../src/CryptoNoteProtocol/*)
 file(GLOB_RECURSE P2p ../src/P2p/*)

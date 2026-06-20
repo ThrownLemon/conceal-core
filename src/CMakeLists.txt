@@ -252,22 +252,26 @@ target_link_libraries(Sidechain BoltSync BoltCore BoltHttp NodeRpcProxy Rpc HTTP
 )
 
 # ── Post-quantum (ccx-pqc) wiring — merged from pqc/testnet-poc ────────────
-# Libs whose .cpp reference the ccx-pqc C-ABI need its include dir + the cargo build first.
+# Libs whose .cpp reference the ccx-pqc C-ABI link the static lib PUBLICLY, so EVERY consumer
+# (daemon, wallet, tests, tools) automatically gets libccx_pqc.a after them on the link line.
+# Linux also needs pthread/dl/m for the Rust staticlib. Blockchain/CryptoNoteCore hold the real
+# FFI call sites (BlockchainPq.cpp, PqSpendBuilder); Wallet/Rpc/Transfers reference PQ helpers too.
 foreach(pqlib Blockchain CryptoNoteCore Wallet Rpc Transfers)
   add_dependencies(${pqlib} ccx_pqc)
-  target_include_directories(${pqlib} PRIVATE ${CCX_PQC_INCLUDE})
-endforeach()
-# Every executable that links CryptoNoteCore/Blockchain pulls in ccx_* symbols, so the
-# static libccx_pqc.a must trail each link line (Linux needs pthread/dl/m for the Rust staticlib).
-foreach(pqexe Daemon ConcealWallet ClientWallet BoltRPC Sidechain)
-  add_dependencies(${pqexe} ccx_pqc)
-  target_include_directories(${pqexe} PRIVATE ${CCX_PQC_INCLUDE})
+  target_include_directories(${pqlib} PUBLIC ${CCX_PQC_INCLUDE})
   if (${CMAKE_SYSTEM_NAME} STREQUAL "Linux")
-    target_link_libraries(${pqexe} ${CCX_PQC_LIB} pthread dl m)
+    target_link_libraries(${pqlib} PUBLIC ${CCX_PQC_LIB} pthread dl m)
   else()
-    target_link_libraries(${pqexe} ${CCX_PQC_LIB})
+    target_link_libraries(${pqlib} PUBLIC ${CCX_PQC_LIB})
   endif()
 endforeach()
+
+# PqInjector — testnet PoC tool: builds + relays a PQ spend via the daemon RPC (e2e harness).
+add_executable(PqInjector ${CMAKE_SOURCE_DIR}/pqc/tools/pq_injector.cpp)
+add_dependencies(PqInjector ccx_pqc)
+target_include_directories(PqInjector PRIVATE ${CCX_PQC_INCLUDE})
+target_link_libraries(PqInjector CryptoNoteCore Blockchain Storage Rpc Serialization System Logging Common crypto ${Boost_LIBRARIES})
+set_property(TARGET PqInjector PROPERTY OUTPUT_NAME "pq_injector")
 
 # Tools
 add_subdirectory(Tools)

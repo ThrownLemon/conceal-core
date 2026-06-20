@@ -87,6 +87,34 @@ namespace boost
     archive & output.keys;
   }
 
+  // Post-quantum (CIP-0001) input/output boost-serialization for CoreTests.
+  template <class Archive>
+  inline void serialize(Archive &a, cn::PqKeyInput &x, const boost::serialization::version_type ver) {
+    a & x.amount;
+    a & x.outputIndexes;
+    a & x.nullifier;
+    a & x.ringSig;
+  }
+  template <class Archive>
+  inline void serialize(Archive &a, cn::PqKeyOutput &x, const boost::serialization::version_type ver) {
+    a & x.key;
+    a & x.kemCt;
+  }
+  template <class Archive>
+  inline void serialize(Archive &a, cn::PqMultisigInput &x, const boost::serialization::version_type ver) {
+    a & x.amount;
+    a & x.signatureCount;
+    a & x.outputIndex;
+    a & x.term;
+    a & x.signatures;
+  }
+  template <class Archive>
+  inline void serialize(Archive &a, cn::PqMultisigOutput &x, const boost::serialization::version_type ver) {
+    a & x.keys;
+    a & x.requiredSignatureCount;
+    a & x.term;
+  }
+
   template <class Archive> void serialize(Archive& archive, cn::DomainRegistrationOutput &output, unsigned int version) {
     archive & output.view_tag;
     archive & output.key_index;
