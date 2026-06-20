@@ -16,6 +16,7 @@
 #include "WalletLegacy/WalletUtils.h"
 
 #include <Logging/LoggerGroup.h>
+#include <cstdlib>
 #include <random>
 
 using namespace crypto;
@@ -236,6 +237,14 @@ namespace cn
     context->mixIn = mixIn;
     context->ttl = ttl;
 
+    // Encrypted on-chain messages DEFAULT to the post-quantum 0x06 field (ML-KEM-768) whenever a
+    // recipient KEM pubkey is obtainable, falling back to the authenticated classical 0x07 only when
+    // none is. Conceal's messages are permanent and on-chain, so a message stored today under the
+    // Shor-breakable 0x07 (Curve25519 ECDH) is a harvest-now-decrypt-later target the instant a CRQC
+    // exists; 0x06 is the only path that gives true post-quantum confidentiality. Recipient KEM key:
+    //   (a) a PQ/hybrid recipient address carries one, or (b) on testnet the fixed PQ_TESTNET_KEM_PK
+    //   (Option-B bootstrap) — both via cn::resolveMessageRecipientKemPub; (c) mainnet legacy
+    //   recipient -> no KEM key -> 0x07 fallback. (No env flag: 0x06 is the default, not opt-in.)
     for (const TransactionMessage &message : messages)
     {
       AccountPublicAddress address;
@@ -245,7 +254,21 @@ namespace cn
         throw std::system_error(make_error_code(error::BAD_ADDRESS));
       }
 
-      context->messages.push_back({message.message, true, address});
+      tx_message_entry entry;
+      entry.message = message.message;
+      entry.encrypt = true;
+      entry.addr = address;
+      entry.pq = false; // default-init: tx_message_entry is an aggregate, so set pq explicitly
+      // Use the CURRENCY's testnet flag (not the wallet-ctor m_testnet, which can diverge): the
+      // receive side (TransfersConsumer) gates its 0x06 bootstrap-key scan on m_currency.isTestnet(),
+      // so the testnet case (b) here MUST key off the same signal or the recipient cannot decrypt.
+      std::vector<uint8_t> kemPub;
+      if (cn::resolveMessageRecipientKemPub(message.address, m_currency.isTestnet(), kemPub))
+      {
+        entry.pq = true;
+        entry.kemPub = std::move(kemPub);
+      }
+      context->messages.push_back(entry);
     }
 
     if (context->mixIn != 0)

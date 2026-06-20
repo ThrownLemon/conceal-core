@@ -46,6 +46,13 @@ struct tx_message_entry
   std::string message;
   bool encrypt;
   AccountPublicAddress addr;
+  // Post-quantum message (tx-extra 0x06). When pq is set and kemPub holds a 1184-byte ML-KEM-768
+  // public key, constructTransaction emits a tx_extra_pq_message instead of the legacy 0x04 field.
+  // Never emit both for the same logical message (would leak the plaintext under the broken channel).
+  // Kept an aggregate (no user constructor): existing brace-init sites omit the trailing members,
+  // which then value-initialize (pq=false, kemPub empty).
+  bool pq;
+  std::vector<uint8_t> kemPub;
 };
 
 bool generateDeterministicTransactionKeys(const crypto::Hash &inputsHash, const crypto::SecretKey &viewSecretKey, KeyPair &generatedKeys);
