@@ -30,6 +30,7 @@ DOCS = [
     ("measured-numbers.md", "Measured numbers", "Reports & measurements"),
     ("STATUS.md", "Status & architecture", "Reports & measurements"),
     ("constant-time-status.md", "Constant-time / side-channel status", "Reports & measurements"),
+    ("security-audit-brief.md", "Security audit brief (for external researcher)", "Reports & measurements"),
     ("REMAINING-WORK.md", "Remaining work", "Reports & measurements"),
     # group: Implementation
     ("deposit-freeze-impl.md", "Deposit freeze (impl)", "Implementation"),
