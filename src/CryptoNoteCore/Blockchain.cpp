@@ -1241,31 +1241,14 @@ namespace cn
         return false;
       }
 
-      // Compare transactions in proposed alt chain vs current main chain and reject if some transaction is missing in the alt chain
-      std::vector<crypto::Hash> mainChainTxHashes;
-      std::vector<crypto::Hash> altChainTxHashes;
-      for (size_t i = m_blocks.size() - 1; i >= split_height; i--)
-      {
-        const Block &b = m_blocks[i].bl;
-        std::copy(b.transactionHashes.begin(), b.transactionHashes.end(), std::inserter(mainChainTxHashes, mainChainTxHashes.end()));
-      }
-      for (const auto &hash : alt_chain)
-      {
-        const Block &b = m_alternative_chains[hash].bl;
-        std::copy(b.transactionHashes.begin(), b.transactionHashes.end(), std::inserter(altChainTxHashes, altChainTxHashes.end()));
-      }
-      for (const auto &tx_hash : mainChainTxHashes)
-      {
-        if (std::find(altChainTxHashes.begin(), altChainTxHashes.end(), tx_hash) == altChainTxHashes.end())
-        {
-          logger(ERROR, BRIGHT_RED) << "Attempting to switch to an alternate chain, but it lacks transaction " << common::podToHex(tx_hash) << " from main chain, rejected";
-          mainChainTxHashes.clear();
-          mainChainTxHashes.shrink_to_fit();
-          altChainTxHashes.clear();
-          altChainTxHashes.shrink_to_fit();
-          return false;
-        }
-      }
+      // (H-new-1) NO displaced-main-transaction subset rule. A heavier valid fork may legitimately
+      // carry a DIFFERENT transaction set (e.g. a competing PQ deposit spending the same funding
+      // output / nullifier, which cannot coexist with the main one), so requiring the alternative to
+      // repeat every displaced main-chain tx made the objectively-heavier chain unselectable and left
+      // nodes stuck on incompatible tips. Correct reorg semantics: pop the main segment (its txs return
+      // to the pool; now-conflicting ones drop on re-validation) then push the alternative — pushBlock
+      // validates each alt block and any unavailable/invalid alt tx fails the push and triggers the
+      // rollback below. (Matches upstream CryptoNote, which has no such subset pre-check.)
 
       // Check block major version matches
       for (const auto &hash : alt_chain)
@@ -1386,6 +1369,15 @@ namespace cn
 
   difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(const std::list<crypto::Hash> &alt_chain, const BlockEntry &bei)
   {
+    // M-new-10: testnet uses a fixed PoC difficulty for BOTH the main-chain template
+    // (getDifficultyForNextBlock) and alternative-block validation. Mirror the same fixed value here,
+    // otherwise a valid fork block mined at the fixed difficulty is rejected under the dynamic retarget
+    // and two testnet nodes diverge. Testnet-only; mainnet falls through to the retarget below.
+    if (m_currency.isTestnet())
+    {
+      return static_cast<difficulty_type>(1000);
+    }
+
     std::vector<uint64_t> timestamps;
     std::vector<difficulty_type> commulative_difficulties;
     uint8_t BlockMajorVersion = getBlockMajorVersionForHeight(static_cast<uint32_t>(m_blocks.size()));
