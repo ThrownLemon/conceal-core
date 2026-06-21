@@ -46,7 +46,7 @@ namespace cn
     return getObjectHash(prefix);
   }
 
-  bool Blockchain::check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash, uint32_t *pmax_related_block_height)
+  bool Blockchain::check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash, uint32_t *pmax_related_block_height, bool skipSignatureVerify)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
 
@@ -149,34 +149,41 @@ namespace cn
       }
     }
 
-    const size_t ringCount = absolute_offsets.size();
-
-    // Verify the lattice linkable ring signature and recover the spend tag (nullifier).
-    std::vector<uint8_t> recoveredNf(PQ_NULLIFIER_SIZE, 0);
-    const int32_t rc = ccx_pq_verify(
-        reinterpret_cast<const uint8_t *>(&pq_signing_hash), sizeof(pq_signing_hash),
-        ring.data(), ringCount, pkBytes,
-        txin.ringSig.data(), txin.ringSig.size(),
-        recoveredNf.data(), recoveredNf.size());
-    if (rc != 0)
+    // Cryptographic verification. Skipped ONLY inside a checkpoint zone (skipSignatureVerify), where
+    // checkpoint trust already vouches for historical signatures; every structural/reference check
+    // above (ring resolution from m_pqOutputs, ring shape, sig-size bound) runs regardless. Decouples
+    // structural PQ validation from signature skipping (audit hardening).
+    if (!skipSignatureVerify)
     {
-      logger(logging::INFO, logging::BRIGHT_WHITE) << "PQ ring signature verification failed (rc=" << rc << ")";
-      return false;
-    }
+      const size_t ringCount = absolute_offsets.size();
 
-    // Bind the claimed nullifier to the signature: the tag recovered from the signature must equal
-    // the input's declared nullifier, otherwise an attacker could swap nullifiers to evade the
-    // double-spend set while presenting a valid signature.
-    if (recoveredNf != txin.nullifier)
-    {
-      logger(logging::INFO, logging::BRIGHT_WHITE) << "PQ recovered nullifier does not match declared input nullifier";
-      return false;
+      // Verify the lattice linkable ring signature and recover the spend tag (nullifier).
+      std::vector<uint8_t> recoveredNf(PQ_NULLIFIER_SIZE, 0);
+      const int32_t rc = ccx_pq_verify(
+          reinterpret_cast<const uint8_t *>(&pq_signing_hash), sizeof(pq_signing_hash),
+          ring.data(), ringCount, pkBytes,
+          txin.ringSig.data(), txin.ringSig.size(),
+          recoveredNf.data(), recoveredNf.size());
+      if (rc != 0)
+      {
+        logger(logging::INFO, logging::BRIGHT_WHITE) << "PQ ring signature verification failed (rc=" << rc << ")";
+        return false;
+      }
+
+      // Bind the claimed nullifier to the signature: the tag recovered from the signature must equal
+      // the input's declared nullifier, otherwise an attacker could swap nullifiers to evade the
+      // double-spend set while presenting a valid signature.
+      if (recoveredNf != txin.nullifier)
+      {
+        logger(logging::INFO, logging::BRIGHT_WHITE) << "PQ recovered nullifier does not match declared input nullifier";
+        return false;
+      }
     }
 
     return true;
   }
 
-  bool Blockchain::check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash)
+  bool Blockchain::check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash, bool skipSignatureVerify)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
 
@@ -266,36 +273,42 @@ namespace cn
       return false;
     }
 
-    // m-of-n match: the SAME greedy loop as the Ed25519 path (each signature must match a distinct,
-    // in-order key), only check_signature -> ccx_pq_multisig_verify over the prefix hash.
-    size_t inputSignatureIndex = 0;
-    size_t outputKeyIndex = 0;
-    while (inputSignatureIndex < input.signatureCount)
+    // m-of-n CRYPTOGRAPHIC match: the SAME greedy loop as the Ed25519 path (each signature must match
+    // a distinct, in-order key), only check_signature -> ccx_pq_multisig_verify over the prefix hash.
+    // Skipped ONLY inside a checkpoint zone (skipSignatureVerify); every structural/reference check
+    // above (cell lookup, term bind, deposit lock, double-spend, zero-sig, sig count, key length)
+    // runs regardless. Decouples structural PQ validation from signature skipping (audit hardening).
+    if (!skipSignatureVerify)
     {
-      if (outputKeyIndex == output.keys.size())
+      size_t inputSignatureIndex = 0;
+      size_t outputKeyIndex = 0;
+      while (inputSignatureIndex < input.signatureCount)
       {
-        logger(logging::DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid signatures.";
-        return false;
-      }
+        if (outputKeyIndex == output.keys.size())
+        {
+          logger(logging::DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid signatures.";
+          return false;
+        }
 
-      // Exact-length guard at the verify boundary (DoS / malformed-key): the on-chain key was
-      // length-checked in check_outs_valid, but re-check here so a corrupt index can never reach
-      // the FFI with a wrong-length buffer.
-      if (output.keys[outputKeyIndex].size() != pkBytes)
-      {
-        logger(logging::DEBUGGING) << "Transaction << " << transactionHash << " references PQ multisignature key of wrong length.";
-        return false;
-      }
+        // Exact-length guard at the verify boundary (DoS / malformed-key): the on-chain key was
+        // length-checked in check_outs_valid, but re-check here so a corrupt index can never reach
+        // the FFI with a wrong-length buffer.
+        if (output.keys[outputKeyIndex].size() != pkBytes)
+        {
+          logger(logging::DEBUGGING) << "Transaction << " << transactionHash << " references PQ multisignature key of wrong length.";
+          return false;
+        }
 
-      if (ccx_pq_multisig_verify(
-              reinterpret_cast<const uint8_t *>(&transactionPrefixHash), sizeof(transactionPrefixHash),
-              output.keys[outputKeyIndex].data(), pkBytes,
-              input.signatures[inputSignatureIndex].data(), input.signatures[inputSignatureIndex].size()) == 0)
-      {
-        ++inputSignatureIndex;
-      }
+        if (ccx_pq_multisig_verify(
+                reinterpret_cast<const uint8_t *>(&transactionPrefixHash), sizeof(transactionPrefixHash),
+                output.keys[outputKeyIndex].data(), pkBytes,
+                input.signatures[inputSignatureIndex].data(), input.signatures[inputSignatureIndex].size()) == 0)
+        {
+          ++inputSignatureIndex;
+        }
 
-      ++outputKeyIndex;
+        ++outputKeyIndex;
+      }
     }
 
     return true;

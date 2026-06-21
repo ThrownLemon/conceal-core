@@ -175,14 +175,16 @@ namespace cn
           return false;
         }
 
-        if (!isInCheckpointZone(getCurrentBlockchainHeight()))
         {
-          if (!pqSigningHashReady)
+          // Checkpoint-zone decoupling: check_pq_tx_input's structural/reference checks ALWAYS run;
+          // only the cryptographic ring-signature verify is trusted-skipped inside a checkpoint zone.
+          const bool pqSkipVerify = isInCheckpointZone(getCurrentBlockchainHeight());
+          if (!pqSkipVerify && !pqSigningHashReady)
           {
             pqSigningHash = getTransactionPqSigningHash(tx);
             pqSigningHashReady = true;
           }
-          if (!check_pq_tx_input(pqin, pqSigningHash, pmax_used_block_height))
+          if (!check_pq_tx_input(pqin, pqSigningHash, pmax_used_block_height, pqSkipVerify))
           {
             logger(logging::INFO, logging::BRIGHT_WHITE) << "Failed to check PQ input in transaction " << transactionHash;
             return false;
@@ -204,14 +206,17 @@ namespace cn
           return false;
         }
         const PqMultisigInput &pqin = boost::get<PqMultisigInput>(txin);
-        if (!isInCheckpointZone(getCurrentBlockchainHeight()))
         {
-          if (!pqSigningHashReady)
+          // Checkpoint-zone decoupling: check_pq_multisig's structural/reference checks ALWAYS run
+          // (cell lookup, term, deposit lock, double-spend, zero-sig, sig count, key length); only the
+          // cryptographic ML-DSA m-of-n verify is trusted-skipped inside a checkpoint zone.
+          const bool pqSkipVerify = isInCheckpointZone(getCurrentBlockchainHeight());
+          if (!pqSkipVerify && !pqSigningHashReady)
           {
             pqSigningHash = getTransactionPqSigningHash(tx);
             pqSigningHashReady = true;
           }
-          if (!check_pq_multisig(pqin, transactionHash, pqSigningHash))
+          if (!check_pq_multisig(pqin, transactionHash, pqSigningHash, pqSkipVerify))
           {
             logger(logging::INFO, logging::BRIGHT_WHITE) << "Failed to check PQ multisignature input in transaction " << transactionHash;
             return false;

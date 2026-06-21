@@ -514,10 +514,12 @@ namespace cn
     //  BlockchainPq.cpp. check_pq_tx_input resolves the ring from m_pqOutputs and verifies the lattice
     //  linkable ring signature via the ccx-pqc FFI; check_pq_multisig gathers keys from the
     //  m_pqMultisigOutputs deposit cell and verifies the ML-DSA-65 m-of-n signatures.
+    // skipSignatureVerify (checkpoint-zone trust): run ALL structural/reference checks but skip ONLY
+    // the cryptographic ring-sig / ML-DSA verify. Decouples structural validation from sig skipping.
     bool check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash,
-                           uint32_t *pmax_related_block_height = nullptr);
+                           uint32_t *pmax_related_block_height = nullptr, bool skipSignatureVerify = false);
     bool check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash,
-                           const crypto::Hash &transactionPrefixHash);
+                           const crypto::Hash &transactionPrefixHash, bool skipSignatureVerify = false);
     // Hash signed by every PQ signature in a tx: the prefix with every PqKeyInput.ringSig and every
     // inline PqMultisigInput.signatures cleared (a signature cannot commit to itself). Injector and
     // validator MUST compute this identically.
