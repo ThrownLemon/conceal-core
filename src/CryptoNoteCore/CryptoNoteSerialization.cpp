@@ -388,18 +388,37 @@ void serialize(PqKeyInput& in, ISerializer& serializer) {
   serializeVarintVector(in.outputIndexes, serializer, "key_offsets");
   serializeAsBinary(in.nullifier, "nullifier", serializer);
   serializeAsBinary(in.ringSig, "ringsig", serializer);
-  // LOW-3 (audit): defense-in-depth parse-time bound — reject a hostile multi-MB ringSig before it
-  // forces a large allocation downstream. ccx_pq_verify's `sig_len <= ring_sig_size(ring_count)` is
-  // the tighter, authoritative reject; 1 MiB is far above any valid Raptor signature (ring-8 ~13 KB,
-  // ring-32 ~96 KB) so it never rejects a real sig, and far below CRYPTONOTE_MAX_TX_SIZE.
-  if (serializer.type() == ISerializer::INPUT && in.ringSig.size() > (1u << 20)) {
-    throw std::runtime_error("PqKeyInput.ringSig exceeds the 1 MiB parse bound");
+  // LOW-3 / M-new-6 (audit): defense-in-depth parse-time bounds — reject hostile oversized PQ blobs
+  // before they reach validation. The generic reader now materializes length-prefixed blobs
+  // incrementally (peak allocation tracks the bytes actually delivered, not the declared length), and
+  // these semantic caps reject impossible sizes early. The nullifier is a small fixed hash (64 KiB is
+  // far above any valid value); ccx_pq_verify's `sig_len <= ring_sig_size(ring_count)` is the tighter,
+  // authoritative ringSig reject — 1 MiB is far above any valid Raptor signature (ring-8 ~13 KB,
+  // ring-32 ~96 KB) yet far below CRYPTONOTE_MAX_TX_SIZE.
+  if (serializer.type() == ISerializer::INPUT) {
+    if (in.nullifier.size() > (1u << 16)) {
+      throw std::runtime_error("PqKeyInput.nullifier exceeds the parse bound");
+    }
+    if (in.ringSig.size() > (1u << 20)) {
+      throw std::runtime_error("PqKeyInput.ringSig exceeds the 1 MiB parse bound");
+    }
   }
 }
 
 void serialize(PqKeyOutput& out, ISerializer& serializer) {
   serializeAsBinary(out.key, "key", serializer);
   serializeAsBinary(out.kemCt, "kem", serializer);
+  // M-new-6 (audit): parse-time defense-in-depth — reject hostile oversized PQ output blobs early.
+  // key (one-time lattice pubkey ~1 KB) and kemCt (ML-KEM-768 ciphertext ~1 KB) are small fixed-size
+  // fields; 64 KiB is far above any valid value. check_outs_valid applies the exact-length reject.
+  if (serializer.type() == ISerializer::INPUT) {
+    if (out.key.size() > (1u << 16)) {
+      throw std::runtime_error("PqKeyOutput.key exceeds the parse bound");
+    }
+    if (out.kemCt.size() > (1u << 16)) {
+      throw std::runtime_error("PqKeyOutput.kemCt exceeds the parse bound");
+    }
+  }
 }
 
 namespace {
