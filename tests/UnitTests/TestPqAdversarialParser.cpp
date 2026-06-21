@@ -133,6 +133,26 @@ namespace
     appendVarint(raw, 0);  // term
     return raw;
   }
+
+  // Build a PqKeyInput whose ringSig length PREFIX declares declaredRingSigBytes but only
+  // actualRingSigBytes follow (the blob is truncated — the declared count is never present). A
+  // pre-materialization bound rejects this at the prefix; the old post-read cap would have tried to
+  // read the full declared blob (which the buffer cannot supply).
+  BinaryArray makePqKeyInputWithOverDeclaredTruncatedRingSig(size_t declaredRingSigBytes, size_t actualRingSigBytes)
+  {
+    BinaryArray raw;
+    appendByte(raw, 0x08); // PqKeyInput variant tag
+    appendVarint(raw, 1);  // amount
+
+    appendVarint(raw, 2);  // outputIndexes array length
+    appendVarint(raw, 1);
+    appendVarint(raw, 2);
+
+    appendBinaryBlob(raw, PQ_NULLIFIER_SIZE, 0xa0);
+    appendVarint(raw, declaredRingSigBytes);     // hostile over-declared ringSig length prefix
+    appendBytes(raw, actualRingSigBytes, 0xb0);  // ...but the blob is truncated to far fewer bytes
+    return raw;
+  }
 }
 
 TEST(PqAdversarialParser, UnknownPqAdjacentVariantTagsReject)
@@ -231,4 +251,14 @@ TEST(PqAdversarialParser, PqExtraRejectsTruncatedPqMessageBeforeFollowingField)
   std::vector<TransactionExtraField> fields;
   EXPECT_FALSE(parseTransactionExtra(extra, fields));
   EXPECT_TRUE(fields.empty());
+}
+
+TEST(PqAdversarialParser, PqKeyInputOverDeclaredRingSigPrefixRejectedBeforeMaterialization)
+{
+  // M-new-6 (audit) residual: the ringSig length PREFIX declares (1<<20)+1 bytes but the buffer
+  // supplies only 8 — the declared blob is never present. The bounded reader rejects the over-limit
+  // length prefix BEFORE allocating/copying, so parsing fails even though the full declared blob is
+  // absent (the pre-fix post-read cap would have first tried to read the whole declared size).
+  TransactionInput input;
+  EXPECT_FALSE(fromBinaryArray(input, makePqKeyInputWithOverDeclaredTruncatedRingSig((1u << 20) + 1, 8)));
 }
