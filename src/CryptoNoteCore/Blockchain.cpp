@@ -2250,10 +2250,12 @@ namespace cn
   // Walks the full m_pqOutputs[amount] index — the global index is the vector position — and projects
   // each PqKeyOutput's key / kemCt plus its containing tx hash, height and spendability. Mirrors the
   // access idioms in check_pq_tx_input; it never mutates state or touches consensus/validation.
-  bool Blockchain::getPqOutputs(uint64_t amount, std::vector<PqOutputEntry> &outs)
+  bool Blockchain::getPqOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqOutputEntry> &outs, uint32_t &nextIndex, bool &truncated)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     outs.clear();
+    nextIndex = 0;
+    truncated = false;
 
     auto it = m_pqOutputs.find(amount);
     if (it == m_pqOutputs.end())
@@ -2262,9 +2264,26 @@ namespace cn
     }
 
     const std::vector<std::pair<TransactionIndex, uint16_t>> &amount_outs_vec = it->second;
-    outs.reserve(amount_outs_vec.size());
+    const size_t bucketSize = amount_outs_vec.size();
 
-    for (size_t i = 0; i < amount_outs_vec.size(); ++i)
+    // Pagination (bounds the locked walk + copy to one page, not just the response size):
+    // emit [startIndex, end) where end = min(bucketSize, startIndex + effectiveLimit) and
+    // effectiveLimit = (limit == 0 ? bucketSize : limit). startIndex past the end yields an empty page.
+    if (startIndex >= bucketSize)
+    {
+      nextIndex = static_cast<uint32_t>(bucketSize);
+      return true; // start past the end: empty page, nothing more to resume
+    }
+    const size_t effectiveLimit = (limit == 0) ? bucketSize : static_cast<size_t>(limit);
+    // Compute end in size_t and clamp to bucketSize, guarding against startIndex + effectiveLimit overflow.
+    size_t end = bucketSize;
+    if (effectiveLimit < bucketSize - startIndex)
+    {
+      end = static_cast<size_t>(startIndex) + effectiveLimit;
+    }
+    outs.reserve(end - startIndex);
+
+    for (size_t i = startIndex; i < end; ++i)
     {
       const TransactionIndex &idx = amount_outs_vec[i].first;
       const uint16_t outInTx = amount_outs_vec[i].second;
@@ -2306,6 +2325,9 @@ namespace cn
       outs.push_back(entry);
     }
 
+    // One past the last emitted entry; truncated iff entries remain past the emitted page.
+    nextIndex = static_cast<uint32_t>(end);
+    truncated = (end < bucketSize);
     return true;
   }
 
@@ -2315,10 +2337,12 @@ namespace cn
   // withdrawal (the outputIndex into this vector is exactly PqMultisigInput.outputIndex, term binds the
   // input, isUsed is the consensus double-spend flag). Crash-guarded against stale/corrupt indices the
   // same way getPqOutputs is — this is a read-only RPC path and must never abort the daemon.
-  bool Blockchain::getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry> &outs)
+  bool Blockchain::getPqMultisigOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqMultisigOutputEntry> &outs, uint32_t &nextIndex, bool &truncated)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     outs.clear();
+    nextIndex = 0;
+    truncated = false;
 
     auto it = m_pqMultisigOutputs.find(amount);
     if (it == m_pqMultisigOutputs.end())
@@ -2327,9 +2351,24 @@ namespace cn
     }
 
     const std::vector<MultisignatureOutputUsage> &usages = it->second;
-    outs.reserve(usages.size());
+    const size_t bucketSize = usages.size();
 
-    for (size_t i = 0; i < usages.size(); ++i)
+    // Pagination, identical to getPqOutputs: emit [startIndex, end) with end clamped to bucketSize and
+    // effectiveLimit = (limit == 0 ? bucketSize : limit); startIndex past the end yields an empty page.
+    if (startIndex >= bucketSize)
+    {
+      nextIndex = static_cast<uint32_t>(bucketSize);
+      return true; // start past the end: empty page, nothing more to resume
+    }
+    const size_t effectiveLimit = (limit == 0) ? bucketSize : static_cast<size_t>(limit);
+    size_t end = bucketSize;
+    if (effectiveLimit < bucketSize - startIndex)
+    {
+      end = static_cast<size_t>(startIndex) + effectiveLimit;
+    }
+    outs.reserve(end - startIndex);
+
+    for (size_t i = startIndex; i < end; ++i)
     {
       const MultisignatureOutputUsage &usage = usages[i];
       const TransactionIndex &idx = usage.transactionIndex;
@@ -2371,6 +2410,9 @@ namespace cn
       outs.push_back(entry);
     }
 
+    // One past the last emitted cell; truncated iff cells remain past the emitted page.
+    nextIndex = static_cast<uint32_t>(end);
+    truncated = (end < bucketSize);
     return true;
   }
 
@@ -2472,16 +2514,18 @@ namespace cn
           return false;
         }
 
-        if (!isInCheckpointZone(getCurrentBlockchainHeight()))
         {
+          // Checkpoint-zone decoupling: check_pq_tx_input's structural/reference checks ALWAYS run;
+          // only the cryptographic ring-signature verify is trusted-skipped inside a checkpoint zone.
+          const bool pqSkipVerify = isInCheckpointZone(getCurrentBlockchainHeight());
           // The signed message is the prefix with all PqKeyInput.ringSig cleared (shared by every
           // PQ input in this tx) — compute it once on first use.
-          if (!pqSigningHashReady)
+          if (!pqSkipVerify && !pqSigningHashReady)
           {
             pqSigningHash = getTransactionPqSigningHash(tx);
             pqSigningHashReady = true;
           }
-          if (!check_pq_tx_input(pqin, pqSigningHash, pmax_used_block_height))
+          if (!check_pq_tx_input(pqin, pqSigningHash, pmax_used_block_height, pqSkipVerify))
           {
             logger(INFO, BRIGHT_WHITE) << "Failed to check PQ input in transaction " << transactionHash;
             return false;
@@ -2509,16 +2553,19 @@ namespace cn
       else if (txin.type() == typeid(PqMultisigInput))
       {
         const PqMultisigInput &pqin = boost::get<PqMultisigInput>(txin);
-        if (!isInCheckpointZone(getCurrentBlockchainHeight()))
         {
+          // Checkpoint-zone decoupling: check_pq_multisig's structural/reference checks ALWAYS run
+          // (cell lookup, term, deposit lock, double-spend, zero-sig, sig count, key length); only the
+          // cryptographic ML-DSA m-of-n verify is trusted-skipped inside a checkpoint zone.
+          const bool pqSkipVerify = isInCheckpointZone(getCurrentBlockchainHeight());
           // The signed message is the prefix with every inline PQ signature cleared (shared by all
           // PQ-bearing inputs in this tx) — compute it once on first use, identically to PqKeyInput.
-          if (!pqSigningHashReady)
+          if (!pqSkipVerify && !pqSigningHashReady)
           {
             pqSigningHash = getTransactionPqSigningHash(tx);
             pqSigningHashReady = true;
           }
-          if (!check_pq_multisig(pqin, transactionHash, pqSigningHash))
+          if (!check_pq_multisig(pqin, transactionHash, pqSigningHash, pqSkipVerify))
           {
             logger(INFO, BRIGHT_WHITE) << "Failed to check PQ multisignature input in transaction " << transactionHash;
             return false;
@@ -2688,7 +2735,7 @@ namespace cn
     return getObjectHash(prefix);
   }
 
-  bool Blockchain::check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash, uint32_t *pmax_related_block_height)
+  bool Blockchain::check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash, uint32_t *pmax_related_block_height, bool skipSignatureVerify)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
 
@@ -2787,28 +2834,35 @@ namespace cn
       }
     }
 
-    const size_t ringCount = absolute_offsets.size();
-
-    // Verify the lattice linkable ring signature and recover the spend tag (nullifier).
-    std::vector<uint8_t> recoveredNf(cn::PQ_NULLIFIER_SIZE, 0);
-    const int32_t rc = ccx_pq_verify(
-        reinterpret_cast<const uint8_t *>(&pq_signing_hash), sizeof(pq_signing_hash),
-        ring.data(), ringCount, pkBytes,
-        txin.ringSig.data(), txin.ringSig.size(),
-        recoveredNf.data(), recoveredNf.size());
-    if (rc != 0)
+    // Cryptographic verification. Skipped ONLY inside a checkpoint zone (skipSignatureVerify), where
+    // checkpoint trust already vouches for historical signatures; every structural/reference check
+    // above (ring resolution from m_pqOutputs, ring shape, sig-size bound) runs regardless. Decouples
+    // structural PQ validation from signature skipping (audit hardening).
+    if (!skipSignatureVerify)
     {
-      logger(INFO, BRIGHT_WHITE) << "PQ ring signature verification failed (rc=" << rc << ")";
-      return false;
-    }
+      const size_t ringCount = absolute_offsets.size();
 
-    // Bind the claimed nullifier to the signature: the tag recovered from the signature must equal
-    // the input's declared nullifier, otherwise an attacker could swap nullifiers to evade the
-    // double-spend set while presenting a valid signature.
-    if (recoveredNf != txin.nullifier)
-    {
-      logger(INFO, BRIGHT_WHITE) << "PQ recovered nullifier does not match declared input nullifier";
-      return false;
+      // Verify the lattice linkable ring signature and recover the spend tag (nullifier).
+      std::vector<uint8_t> recoveredNf(cn::PQ_NULLIFIER_SIZE, 0);
+      const int32_t rc = ccx_pq_verify(
+          reinterpret_cast<const uint8_t *>(&pq_signing_hash), sizeof(pq_signing_hash),
+          ring.data(), ringCount, pkBytes,
+          txin.ringSig.data(), txin.ringSig.size(),
+          recoveredNf.data(), recoveredNf.size());
+      if (rc != 0)
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ ring signature verification failed (rc=" << rc << ")";
+        return false;
+      }
+
+      // Bind the claimed nullifier to the signature: the tag recovered from the signature must equal
+      // the input's declared nullifier, otherwise an attacker could swap nullifiers to evade the
+      // double-spend set while presenting a valid signature.
+      if (recoveredNf != txin.nullifier)
+      {
+        logger(INFO, BRIGHT_WHITE) << "PQ recovered nullifier does not match declared input nullifier";
+        return false;
+      }
     }
 
     return true;
@@ -3861,7 +3915,7 @@ namespace cn
   // Ed25519 crypto::check_signature -> ML-DSA-65 ccx_pq_multisig_verify. The m ML-DSA detached sigs
   // are carried inline in input.signatures (NOT in tx.signatures) and verified over the SAME
   // transactionPrefixHash. term / interest / lock / double-spend (isUsed) semantics are IDENTICAL.
-  bool Blockchain::check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash)
+  bool Blockchain::check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash, bool skipSignatureVerify)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
 
@@ -3941,36 +3995,42 @@ namespace cn
       return false;
     }
 
-    // m-of-n match: the SAME greedy loop as the Ed25519 path (each signature must match a distinct,
-    // in-order key), only check_signature -> ccx_pq_multisig_verify over the prefix hash.
-    size_t inputSignatureIndex = 0;
-    size_t outputKeyIndex = 0;
-    while (inputSignatureIndex < input.signatureCount)
+    // m-of-n CRYPTOGRAPHIC match: the SAME greedy loop as the Ed25519 path (each signature must match
+    // a distinct, in-order key), only check_signature -> ccx_pq_multisig_verify over the prefix hash.
+    // Skipped ONLY inside a checkpoint zone (skipSignatureVerify); every structural/reference check
+    // above (cell lookup, term bind, deposit lock, double-spend, zero-sig, sig count, key length)
+    // runs regardless. Decouples structural PQ validation from signature skipping (audit hardening).
+    if (!skipSignatureVerify)
     {
-      if (outputKeyIndex == output.keys.size())
+      size_t inputSignatureIndex = 0;
+      size_t outputKeyIndex = 0;
+      while (inputSignatureIndex < input.signatureCount)
       {
-        logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid signatures.";
-        return false;
-      }
+        if (outputKeyIndex == output.keys.size())
+        {
+          logger(DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid signatures.";
+          return false;
+        }
 
-      // Exact-length guard at the verify boundary (DoS / malformed-key): the on-chain key was
-      // length-checked in check_outs_valid, but re-check here so a corrupt index can never reach
-      // the FFI with a wrong-length buffer.
-      if (output.keys[outputKeyIndex].size() != pkBytes)
-      {
-        logger(DEBUGGING) << "Transaction << " << transactionHash << " references PQ multisignature key of wrong length.";
-        return false;
-      }
+        // Exact-length guard at the verify boundary (DoS / malformed-key): the on-chain key was
+        // length-checked in check_outs_valid, but re-check here so a corrupt index can never reach
+        // the FFI with a wrong-length buffer.
+        if (output.keys[outputKeyIndex].size() != pkBytes)
+        {
+          logger(DEBUGGING) << "Transaction << " << transactionHash << " references PQ multisignature key of wrong length.";
+          return false;
+        }
 
-      if (ccx_pq_multisig_verify(
-              reinterpret_cast<const uint8_t *>(&transactionPrefixHash), sizeof(transactionPrefixHash),
-              output.keys[outputKeyIndex].data(), pkBytes,
-              input.signatures[inputSignatureIndex].data(), input.signatures[inputSignatureIndex].size()) == 0)
-      {
-        ++inputSignatureIndex;
-      }
+        if (ccx_pq_multisig_verify(
+                reinterpret_cast<const uint8_t *>(&transactionPrefixHash), sizeof(transactionPrefixHash),
+                output.keys[outputKeyIndex].data(), pkBytes,
+                input.signatures[inputSignatureIndex].data(), input.signatures[inputSignatureIndex].size()) == 0)
+        {
+          ++inputSignatureIndex;
+        }
 
-      ++outputKeyIndex;
+        ++outputKeyIndex;
+      }
     }
 
     return true;

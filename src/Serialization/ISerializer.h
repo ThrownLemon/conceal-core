@@ -45,6 +45,11 @@ public:
   // read/write binary block
   virtual bool binary(void* value, size_t size, common::StringView name) = 0;
   virtual bool binary(std::string& value, common::StringView name) = 0;
+  // Bounded variant: reject a length-prefixed blob whose declared size exceeds maxSize *before*
+  // materializing it. Non-pure with a default that ignores maxSize and forwards to binary(value,
+  // name), so existing serializers need no change; input serializers that can enforce the bound at
+  // the prefix override it (see BinaryInputStreamSerializer).
+  virtual bool binary(std::string& value, uint64_t maxSize, common::StringView name) { (void)maxSize; return binary(value, name); }
 
   template<typename T>
   bool operator()(T& value, common::StringView name);

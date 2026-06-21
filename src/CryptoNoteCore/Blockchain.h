@@ -108,11 +108,16 @@ namespace cn
     bool getBackwardBlocksSize(size_t from_height, std::vector<size_t> &sz, size_t count);
     bool getTransactionOutputGlobalIndexes(const crypto::Hash &tx_id, std::vector<uint32_t> &indexs);
     bool get_out_by_msig_gindex(uint64_t amount, uint64_t gindex, MultisignatureOutput &out);
-    // Read-only: enumerate every PqKeyOutput indexed under 'amount' from m_pqOutputs (PQ ring assembly).
-    bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry> &outs);
-    // Read-only: enumerate every PqMultisigOutput (PQ deposit cell) indexed under 'amount' from
-    // m_pqMultisigOutputs (so a wallet can find + withdraw its deposits).
-    bool getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry> &outs);
+    // Read-only: enumerate PqKeyOutputs indexed under 'amount' from m_pqOutputs (PQ ring assembly).
+    // Paginated by bucket position: emits [startIndex, startIndex + effectiveLimit) where
+    // effectiveLimit = (limit == 0 ? bucket.size() : limit). nextIndex = one past the last emitted
+    // entry; truncated = more entries remain past nextIndex. This bounds the locked walk + copy to the
+    // requested page so the per-request cost (and not just the response size) stays bounded.
+    bool getPqOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqOutputEntry> &outs, uint32_t &nextIndex, bool &truncated);
+    // Read-only: enumerate PqMultisigOutputs (PQ deposit cells) indexed under 'amount' from
+    // m_pqMultisigOutputs (so a wallet can find + withdraw its deposits). Paginated identically to
+    // getPqOutputs (startIndex/limit in, nextIndex/truncated out).
+    bool getPqMultisigOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqMultisigOutputEntry> &outs, uint32_t &nextIndex, bool &truncated);
     bool checkTransactionInputs(const Transaction &tx, uint32_t &pmax_used_block_height, crypto::Hash &max_used_block_id, BlockInfo *tail = nullptr);
     uint64_t getCurrentCumulativeBlocksizeLimit() const;
     uint64_t blockDifficulty(size_t i);
@@ -353,7 +358,9 @@ namespace cn
     bool check_tx_input(const KeyInput &txin, const crypto::Hash &tx_prefix_hash, const std::vector<crypto::Signature> &sig, uint32_t *pmax_related_block_height = nullptr);
     // Post-quantum input validation (CIP-0001, testnet PoC): resolve the PQ ring from
     // m_pqOutputs and verify the lattice linkable ring signature via the ccx-pqc FFI.
-    bool check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash, uint32_t *pmax_related_block_height = nullptr);
+    // skipSignatureVerify (checkpoint-zone trust): run ALL structural/reference checks but skip ONLY
+    // the cryptographic ring-sig / ML-DSA verify. Decouples structural validation from sig skipping.
+    bool check_pq_tx_input(const PqKeyInput &txin, const crypto::Hash &pq_signing_hash, uint32_t *pmax_related_block_height = nullptr, bool skipSignatureVerify = false);
     // Hash signed by PQ ring signatures: the tx prefix with every PqKeyInput.ringSig cleared
     // (the ringSig cannot commit to itself). Injector and validator must compute this identically.
     crypto::Hash getTransactionPqSigningHash(const Transaction &tx) const;
@@ -373,7 +380,7 @@ namespace cn
     // validateInput(MultisignatureInput) with the signature primitive swapped from Ed25519
     // check_signature to ML-DSA-65 ccx_pq_multisig_verify. term/interest/lock/double-spend logic is
     // IDENTICAL; the m ML-DSA sigs are carried inline in input.signatures over transactionPrefixHash.
-    bool check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash);
+    bool check_pq_multisig(const PqMultisigInput &input, const crypto::Hash &transactionHash, const crypto::Hash &transactionPrefixHash, bool skipSignatureVerify = false);
     bool removeLastBlock();
     bool checkCheckpoints(uint32_t &lastValidCheckpointHeight);
     bool storeBlockchainIndices();

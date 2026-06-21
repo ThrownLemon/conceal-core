@@ -933,24 +933,31 @@ bool RpcServer::on_get_pq_outputs(const COMMAND_RPC_GET_PQ_OUTPUTS::request& req
     return true;
   }
 
+  // Per-amount page cap (non-consensus): a single request enumerates at most this many entries per
+  // amount, and the cap is pushed INTO the bounded query so it limits the expensive locked walk + copy,
+  // not just the response size. limit == 0 (or above the cap) means "use the cap"; a caller paginates
+  // by re-issuing with start_index = next_index until truncated is false.
+  const uint32_t effectiveLimit =
+      (req.limit == 0 || req.limit > cn::PQ_GET_OUTPUTS_MAX_PER_AMOUNT)
+          ? static_cast<uint32_t>(cn::PQ_GET_OUTPUTS_MAX_PER_AMOUNT)
+          : req.limit;
+
   res.outs.reserve(req.amounts.size());
 
   for (uint64_t amount : req.amounts) {
     std::vector<PqOutputEntry> entries;
-    if (!m_core.getPqOutputs(amount, entries)) {
+    uint32_t nextIndex = 0;
+    bool truncated = false;
+    if (!m_core.getPqOutputs(amount, req.start_index, effectiveLimit, entries, nextIndex, truncated)) {
       return true;
     }
 
     COMMAND_RPC_GET_PQ_OUTPUTS::outs_for_amount ofa;
     ofa.amount = amount;
-
-    // Cap the entries returned per amount (lowest global indices first). getPqOutputs already
-    // returns entries in ascending global-index order, so the first N are the lowest indices; this
-    // bounds the per-entry hex/hash work the response builder does for one amount.
-    const size_t emit = std::min<size_t>(entries.size(), cn::PQ_GET_OUTPUTS_MAX_PER_AMOUNT);
-    ofa.truncated = (entries.size() > emit);
-    ofa.outs.reserve(emit);
-    for (size_t i = 0; i < emit; ++i) {
+    ofa.truncated = truncated;
+    ofa.next_index = nextIndex;
+    ofa.outs.reserve(entries.size());
+    for (size_t i = 0; i < entries.size(); ++i) {
       const PqOutputEntry& e = entries[i];
       COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry out;
       out.global_index = e.globalIndex;
@@ -978,22 +985,28 @@ bool RpcServer::on_get_pq_multisig_outputs(const COMMAND_RPC_GET_PQ_MULTISIG_OUT
     return true;
   }
 
+  // Per-amount page cap (non-consensus), pushed into the bounded query — same rationale as get_pq_outputs.
+  const uint32_t effectiveLimit =
+      (req.limit == 0 || req.limit > cn::PQ_GET_MULTISIG_OUTPUTS_MAX_PER_AMOUNT)
+          ? static_cast<uint32_t>(cn::PQ_GET_MULTISIG_OUTPUTS_MAX_PER_AMOUNT)
+          : req.limit;
+
   res.outs.reserve(req.amounts.size());
 
   for (uint64_t amount : req.amounts) {
     std::vector<PqMultisigOutputEntry> entries;
-    if (!m_core.getPqMultisigOutputs(amount, entries)) {
+    uint32_t nextIndex = 0;
+    bool truncated = false;
+    if (!m_core.getPqMultisigOutputs(amount, req.start_index, effectiveLimit, entries, nextIndex, truncated)) {
       return true;
     }
 
     COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::outs_for_amount ofa;
     ofa.amount = amount;
-
-    // Cap the cells returned per amount (lowest output indices first), bounding the per-entry hex work.
-    const size_t emit = std::min<size_t>(entries.size(), cn::PQ_GET_MULTISIG_OUTPUTS_MAX_PER_AMOUNT);
-    ofa.truncated = (entries.size() > emit);
-    ofa.outs.reserve(emit);
-    for (size_t i = 0; i < emit; ++i) {
+    ofa.truncated = truncated;
+    ofa.next_index = nextIndex;
+    ofa.outs.reserve(entries.size());
+    for (size_t i = 0; i < entries.size(); ++i) {
       const PqMultisigOutputEntry& e = entries[i];
       COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::pq_msig_out_entry out;
       out.output_index = e.outputIndex;

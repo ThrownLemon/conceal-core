@@ -38,6 +38,7 @@
 #include "NodeRpcProxy/NodeRpcProxy.h"
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
 #include "Rpc/HttpClient.h"
+#include "Rpc/PqEnumClient.h"
 #include "Rpc/PqSpendClient.h"
 #include "Rpc/PqDepositClient.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
@@ -1839,13 +1840,11 @@ cn::PqAccountKeys conceal_wallet::getPqAccountKeys() const
   return cn::PqAccount::generateFromSeed(spendSecretKey);
 }
 
-/* Upper bound on the number of PQ outputs a single pq_receive / pq_balance-mine command will scan
-   (KEM-decapsulate) across ALL amounts. The daemon already caps each amount's list at
-   cn::PQ_GET_OUTPUTS_MAX_PER_AMOUNT, but the wallet must bound its OWN work too: pqOutputIsMine runs
-   one KEM scan per (output × candidate secret), so a large multi-amount response would otherwise let
-   a node force unbounded wallet-side lattice work. When the response exceeds this, we fail closed
-   and warn rather than grinding. */
-static const size_t PQ_WALLET_MAX_SCAN_OUTPUTS = 4096;
+/* The wallet-side scan budget (max PQ entries a single paged enumeration accumulates across all pages
+   and amounts) lives in cn::PQ_WALLET_MAX_SCAN_OUTPUTS (CryptoNoteConfig.h) and is enforced by the
+   shared pqEnumerateAllPages helper: the daemon caps each amount's bucket per PAGE, the helper pages
+   through every bucket, and when the accumulated total would exceed the budget it stops and reports
+   scanCapped so the wallet fails closed rather than scanning a hostile, unbounded response. */
 
 /* The amounts a PQ output can carry on the testnet PoC: the coinbase denomination, plus the
    post-fee denominations produced by the default pq_transfer fees. The daemon enumerates per-amount,
@@ -1918,35 +1917,23 @@ bool conceal_wallet::pq_balance(const std::vector<std::string> &args)
 
     HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
 
-    cn::COMMAND_RPC_GET_PQ_OUTPUTS::request req;
-    req.amounts = pqCandidateAmounts();
+    // Page through every amount's full bucket (outputs past the node's per-page cap stay visible). The
+    // helper enforces the cn::PQ_WALLET_MAX_SCAN_OUTPUTS budget across all pages/amounts; a non-OK node
+    // status / no-progress node surfaces as err. "mine" mode KEM-scans every returned output, so the
+    // budget bounds that lattice work; default mode does no per-output crypto.
     cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
-    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
-
-    // A non-OK status means the node refused / errored; the response body is then meaningless.
-    if (res.status != CORE_RPC_STATUS_OK)
+    bool scanCapped = false;
+    std::string enumErr;
+    if (!cn::pqEnumerateAllPages<cn::COMMAND_RPC_GET_PQ_OUTPUTS>(httpClient, "get_pq_outputs", pqCandidateAmounts(), res, scanCapped, enumErr))
     {
-      fail_msg_writer() << "get_pq_outputs failed: " << res.status;
+      fail_msg_writer() << enumErr;
       return true;
     }
-
-    // "mine" mode KEM-scans every returned output; bound that work so a node cannot force unbounded
-    // wallet-side lattice decapsulation by returning a huge multi-amount response. (Default mode does
-    // no per-output crypto, so the cap only guards the scanning path.)
-    if (mineOnly)
+    if (scanCapped)
     {
-      size_t totalOuts = 0;
-      for (const auto& ofa : res.outs)
-      {
-        totalOuts += ofa.outs.size();
-      }
-      if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
-      {
-        fail_msg_writer() << "get_pq_outputs returned " << totalOuts
-                          << " outputs, exceeding the wallet scan budget of "
-                          << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
-        return true;
-      }
+      fail_msg_writer() << "PQ output set exceeds the wallet scan budget of "
+                        << cn::PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting (result would be incomplete).";
+      return true;
     }
 
     // Sum unlocked outputs * their amount, guarding against uint64 overflow on the running total.
@@ -2087,31 +2074,22 @@ bool conceal_wallet::pq_receive(const std::vector<std::string> &args)
 
     HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
 
-    cn::COMMAND_RPC_GET_PQ_OUTPUTS::request req;
-    req.amounts = pqCandidateAmounts();
+    // Page through every amount's full bucket so received outputs past the node's per-page cap are
+    // visible. pqOutputIsMine KEM-decapsulates every returned output against each candidate secret, so
+    // the helper's cn::PQ_WALLET_MAX_SCAN_OUTPUTS budget bounds that lattice work; we fail closed (do
+    // not partially scan) when the on-chain set would exceed it.
     cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
-    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
-
-    // A non-OK status means the node refused / errored; the response body is then meaningless.
-    if (res.status != CORE_RPC_STATUS_OK)
+    bool scanCapped = false;
+    std::string enumErr;
+    if (!cn::pqEnumerateAllPages<cn::COMMAND_RPC_GET_PQ_OUTPUTS>(httpClient, "get_pq_outputs", pqCandidateAmounts(), res, scanCapped, enumErr))
     {
-      fail_msg_writer() << "get_pq_outputs failed: " << res.status;
+      fail_msg_writer() << enumErr;
       return true;
     }
-
-    // Bound our own scanning work: pqOutputIsMine KEM-decapsulates every returned output against
-    // each candidate secret, so a huge multi-amount response would otherwise force unbounded
-    // wallet-side lattice work. Fail closed (do not partially scan) when the response is too large.
-    size_t totalOuts = 0;
-    for (const auto& ofa : res.outs)
+    if (scanCapped)
     {
-      totalOuts += ofa.outs.size();
-    }
-    if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
-    {
-      fail_msg_writer() << "get_pq_outputs returned " << totalOuts
-                        << " outputs, exceeding the wallet scan budget of "
-                        << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
+      fail_msg_writer() << "PQ output set exceeds the wallet scan budget of "
+                        << cn::PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting (result would be incomplete).";
       return true;
     }
 
@@ -2466,29 +2444,19 @@ bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
     HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
 
     // Enumerate the deposit cells for this amount and named-key match the wallet's account DSA pubkey.
-    cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::request greq;
-    greq.amounts.push_back(amount);
+    // Page through the full bucket so a cell at output_index past the node's per-page cap is still
+    // found (correctness: the target index can exceed the page size). The helper bounds the scan to
+    // cn::PQ_WALLET_MAX_SCAN_OUTPUTS cells so a hostile node cannot force unbounded wallet-side work.
     cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::response gres;
-    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_multisig_outputs", greq, gres);
-    if (gres.status != CORE_RPC_STATUS_OK)
+    bool scanCapped = false;
+    std::string enumErr;
     {
-      fail_msg_writer() << "get_pq_multisig_outputs failed: " << gres.status;
-      return true;
-    }
-
-    // Bound the cells we scan so a hostile node cannot force unbounded wallet-side work via a huge
-    // multi-amount response (mirrors the pq_balance / pq_receive scan-budget guard).
-    size_t totalOuts = 0;
-    for (const auto& ofa : gres.outs)
-    {
-      totalOuts += ofa.outs.size();
-    }
-    if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
-    {
-      fail_msg_writer() << "get_pq_multisig_outputs returned " << totalOuts
-                        << " outputs, exceeding the wallet scan budget of "
-                        << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
-      return true;
+      const std::vector<uint64_t> amts(1, amount);
+      if (!cn::pqEnumerateAllPages<cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS>(httpClient, "get_pq_multisig_outputs", amts, gres, scanCapped, enumErr))
+      {
+        fail_msg_writer() << enumErr;
+        return true;
+      }
     }
 
     const std::string dsaPubHex = common::toHex(dsaPubKey);
@@ -2522,6 +2490,15 @@ bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
     }
     if (!cell)
     {
+      if (scanCapped)
+      {
+        // The bucket is larger than the wallet scan budget and the cell was not in the scanned prefix.
+        // Do NOT report it as non-existent — the target index may simply lie beyond the capped range.
+        fail_msg_writer() << "PQ deposit cell with output_index " << outputIndex
+                          << " not found within the wallet scan budget of " << cn::PQ_WALLET_MAX_SCAN_OUTPUTS
+                          << " cells (amount " << m_currency.formatAmount(amount) << "); scan was capped.";
+        return true;
+      }
       fail_msg_writer() << "no PQ deposit cell with output_index " << outputIndex
                         << " and amount " << m_currency.formatAmount(amount);
       return true;

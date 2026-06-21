@@ -92,19 +92,24 @@ bool BinaryInputStreamSerializer::operator()(bool& value, common::StringView nam
 }
 
 bool BinaryInputStreamSerializer::operator()(std::string& value, common::StringView name) {
+  return readBinaryString(value, 128ull * 1024 * 1024);
+}
+
+bool BinaryInputStreamSerializer::readBinaryString(std::string& value, uint64_t maxSize) {
   uint64_t size;
   readVarint(stream, size);
 
-  if (size > 128*1024*1024) {
-    throw std::runtime_error("string size is too big");
+  if (size > maxSize) {
+    throw std::runtime_error("binary field exceeds the parse limit");
   } else if (size > 0) {
     // Read incrementally in bounded chunks instead of resizing to the full declared size up front.
     // A hostile length prefix that exceeds the bytes actually available would otherwise force a large
-    // allocation (up to the 128 MiB cap) before the read fails — a parse-time memory-amplification DoS
+    // allocation (up to the parse limit) before the read fails — a parse-time memory-amplification DoS
     // (tiny input claiming a huge blob). Reading in fixed chunks makes the peak allocation track the
     // bytes actually delivered: checkedRead throws as soon as the stream cannot supply the next chunk,
     // so an over-claimed length is rejected after reading only what exists. For valid input the result
-    // is byte-identical to the previous resize-then-read path.
+    // is byte-identical to the previous resize-then-read path. Callers that know a tighter bound pass
+    // it via maxSize so an over-limit length prefix is rejected before any chunk is allocated.
     static const uint64_t CHUNK = 1u << 16; // 64 KiB
     std::vector<char> chunk(static_cast<size_t>(size < CHUNK ? size : CHUNK));
     value.clear();
@@ -130,6 +135,10 @@ bool BinaryInputStreamSerializer::binary(void* value, size_t size, common::Strin
 
 bool BinaryInputStreamSerializer::binary(std::string& value, common::StringView name) {
   return (*this)(value, name);
+}
+
+bool BinaryInputStreamSerializer::binary(std::string& value, uint64_t maxSize, common::StringView name) {
+  return readBinaryString(value, maxSize);
 }
 
 bool BinaryInputStreamSerializer::operator()(double& value, common::StringView name) {

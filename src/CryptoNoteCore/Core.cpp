@@ -500,12 +500,12 @@ bool core::getOutByMSigGIndex(uint64_t amount, uint64_t gindex, MultisignatureOu
   return m_blockchain.get_out_by_msig_gindex(amount, gindex, out);
 }
 
-bool core::getPqOutputs(uint64_t amount, std::vector<PqOutputEntry>& outs) {
-  return m_blockchain.getPqOutputs(amount, outs);
+bool core::getPqOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqOutputEntry>& outs, uint32_t& nextIndex, bool& truncated) {
+  return m_blockchain.getPqOutputs(amount, startIndex, limit, outs, nextIndex, truncated);
 }
 
-bool core::getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry>& outs) {
-  return m_blockchain.getPqMultisigOutputs(amount, outs);
+bool core::getPqMultisigOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqMultisigOutputEntry>& outs, uint32_t& nextIndex, bool& truncated) {
+  return m_blockchain.getPqMultisigOutputs(amount, startIndex, limit, outs, nextIndex, truncated);
 }
 
 void core::pause_mining() {

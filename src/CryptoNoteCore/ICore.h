@@ -128,11 +128,14 @@ public:
   virtual bool getBlockTimestamp(uint32_t height, uint64_t &timestamp) = 0;
   virtual bool getBlockContainingTx(const crypto::Hash& txId, crypto::Hash& blockId, uint32_t& blockHeight) = 0;
   virtual bool getMultisigOutputReference(const MultisignatureInput& txInMultisig, std::pair<crypto::Hash, size_t>& outputReference) = 0;
-  // Read-only: enumerate every spendable PqKeyOutput indexed under 'amount' (for PQ ring assembly).
-  virtual bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry>& outs) = 0;
-  // Read-only: enumerate every PqMultisigOutput (PQ deposit cell) indexed under 'amount' (so a wallet
-  // can find its deposits by named-key match and resolve the withdrawal's (outputIndex, term, isUsed)).
-  virtual bool getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry>& outs) = 0;
+  // Read-only: enumerate spendable PqKeyOutputs indexed under 'amount' (for PQ ring assembly). Paginated
+  // by bucket position: emits [startIndex, startIndex + effectiveLimit), effectiveLimit = (limit == 0 ?
+  // bucket.size() : limit); nextIndex = one past the last emitted entry; truncated = more entries remain.
+  virtual bool getPqOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqOutputEntry>& outs, uint32_t& nextIndex, bool& truncated) = 0;
+  // Read-only: enumerate PqMultisigOutputs (PQ deposit cells) indexed under 'amount' (so a wallet can
+  // find its deposits by named-key match and resolve the withdrawal's (outputIndex, term, isUsed)).
+  // Paginated identically to getPqOutputs.
+  virtual bool getPqMultisigOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqMultisigOutputEntry>& outs, uint32_t& nextIndex, bool& truncated) = 0;
   virtual bool getTransaction(const crypto::Hash &id, Transaction &tx, bool checkTxPool = false) = 0;
   virtual bool getGeneratedTransactionsNumber(uint32_t height, uint64_t& generatedTransactions) = 0;
   virtual bool getOrphanBlocksByHeight(uint32_t height, std::vector<Block>& blocks) = 0;

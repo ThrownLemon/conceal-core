@@ -38,6 +38,7 @@ public:
   virtual bool operator()(std::string& value, common::StringView name) override;
   virtual bool binary(void* value, size_t size, common::StringView name) override;
   virtual bool binary(std::string& value, common::StringView name) override;
+  virtual bool binary(std::string& value, uint64_t maxSize, common::StringView name) override;
 
   template<typename T>
   bool operator()(T& value, common::StringView name) {
@@ -46,6 +47,7 @@ public:
 
 private:
 
+  bool readBinaryString(std::string& value, uint64_t maxSize);
   void checkedRead(char* buf, size_t size);
   common::IInputStream& stream;
 };

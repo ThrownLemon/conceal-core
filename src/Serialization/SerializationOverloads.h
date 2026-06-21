@@ -60,6 +60,43 @@ else
 }
 } // namespace cn
 
+// Bounded twin of serializeAsBinary(std::vector<T>&, ...): identical OUTPUT path, but on the INPUT
+// path the declared blob length is rejected at the prefix when it exceeds maxBytes (before the blob
+// is materialized). Lets consensus parsers reject a hostile over-limit length prefix without first
+// allocating/copying the full declared blob.
+template <typename T>
+typename std::enable_if<std::is_pod<T>::value>::type
+serializeAsBinaryBounded(std::vector<T> &value, common::StringView name, uint64_t maxBytes, cn::ISerializer &serializer)
+{
+  std::string blob;
+  if (serializer.type() == ISerializer::INPUT)
+  {
+    serializer.binary(blob, maxBytes, name);
+
+    const size_t blobSize = blob.size();
+
+    value.resize(blobSize / sizeof(T));
+
+    if (blobSize % sizeof(T) != 0)
+    {
+      throw std::runtime_error("Invalid blob size given!");
+    }
+
+    if (blobSize > 0)
+    {
+      memcpy(&value[0], blob.data(), blobSize);
+    }
+  }
+else
+{
+  if (!value.empty())
+  {
+    blob.assign(reinterpret_cast<const char *>(&value[0]), value.size() * sizeof(T));
+  }
+  serializer.binary(blob, name);
+}
+} // namespace cn
+
 template <typename T>
 typename std::enable_if<std::is_pod<T>::value>::type
 serializeAsBinary(std::list<T> &value, common::StringView name, cn::ISerializer &serializer)
