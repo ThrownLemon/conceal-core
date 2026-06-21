@@ -5,6 +5,25 @@ Branch: `pqc/mdbx-merge-poc`
 Reviewed commit: `1d5cda1483c70f51b081c9513b9497ec602ddb16`  
 Audit brief: `docs/design/quantum-resistance/security-audit-brief.md`
 
+## Current worktree addendum
+
+Claude's remediation pass has changed the worktree after the reviewed commit. I rechecked the current
+HEAD `411c848f7276ae5099b7e5c7e0fd01977f6ae243` plus dirty remediation files and recorded the delta in
+`docs/reviews/quantum-resistance-research/09-post-remediation-delta-audit.md`.
+
+Current delta:
+
+- The old adaptive Raptor programmed-key forgery path is rejected after binding ring public keys into
+  the challenge hash.
+- The malformed `PqKeyOutput` indexing issue is remediated in the current worktree.
+- Targeted Rust and WSL C++ PQ tests pass.
+- Mainnet remains no-go because the Raptor proof, B1/concrete-security artifacts, signer/decoy
+  statistics, and side-channel campaign are still not complete.
+- New residual issues were found in the remediation deliverables: ignored dudect-style tests use an
+  over-permissive `|t| < 500` threshold, the new proof document is not a completed reduction, the B1
+  document is internally inconsistent about estimator status, and 0x07 v2 lacks an explicit sub-version
+  or legacy-decrypt path.
+
 ## Scope and assurance
 
 This report covers the Raptor/Falcon construction, standardized PQ schemes, wallet cryptography,
