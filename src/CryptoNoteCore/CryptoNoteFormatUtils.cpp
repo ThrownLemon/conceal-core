@@ -483,6 +483,16 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
         if (error) { *error = "PQ multisignature output with too many keys"; }
         return false;
       }
+      // M-new-8 (audit): every deposit public key must be the exact ML-DSA pubkey length. Otherwise a
+      // wrong-length key passes output validation, enters the PQ multisig output index, and only fails
+      // on spend — burning funds into an unspendable cell. (check_pq_multisig assumes this check ran.)
+      const size_t pqMsigPkBytes = ccx_pq_multisig_pubkey_bytes();
+      for (size_t ki = 0; ki < pqMsig.keys.size(); ++ki) {
+        if (pqMsig.keys[ki].size() != pqMsigPkBytes) {
+          if (error) { *error = "PQ multisignature output with wrong-length public key"; }
+          return false;
+        }
+      }
     } else {
       if (error) {
         *error = "Output with invalid type";

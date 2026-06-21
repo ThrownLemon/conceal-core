@@ -196,6 +196,18 @@ namespace cn
         m_error = "contains PQ multisignature output with too many keys";
         return false;
       }
+      // M-new-8 (audit): every deposit public key must be the exact ML-DSA pubkey length, mirroring the
+      // PqKeyOutput key-length check above. Without it a wrong-length key passes output validation, is
+      // indexed as a PQ multisig output, and only fails on spend (ccx_pq_multisig_pubkey_bytes mismatch)
+      // — i.e. funds burned into an unspendable cell. check_pq_multisig assumes this earlier check ran.
+      for (size_t ki = 0; ki < out.keys.size(); ++ki)
+      {
+        if (out.keys[ki].size() != ccx_pq_multisig_pubkey_bytes())
+        {
+          m_error = "contains PQ multisignature output with wrong-length public key";
+          return false;
+        }
+      }
       return true;
     }
 
