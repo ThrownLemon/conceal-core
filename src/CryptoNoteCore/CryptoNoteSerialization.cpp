@@ -172,6 +172,27 @@ bool serializeVarintVector(std::vector<uint32_t>& vector, cn::ISerializer& seria
   return true;
 }
 
+// M-new-7 (audit): a count-bounded variant of serializeVarintVector. beginArray reads only the count
+// varint (no allocation yet), so rejecting an over-limit count here prevents resize() from materializing
+// a hostile array (e.g. a 2^20-entry PQ ring) before consensus enforces the small PQ ring-size band.
+bool serializeVarintVectorBounded(std::vector<uint32_t>& vector, cn::ISerializer& serializer,
+                                  common::StringView name, size_t maxCount) {
+  size_t size = vector.size();
+  if (!serializer.beginArray(size, name)) {
+    vector.clear();
+    return false;
+  }
+  if (serializer.type() == cn::ISerializer::INPUT && size > maxCount) {
+    throw std::runtime_error("varint array element count exceeds the parse bound");
+  }
+  vector.resize(size);
+  for (size_t i = 0; i < size; ++i) {
+    serializer(vector[i], "");
+  }
+  serializer.endArray();
+  return true;
+}
+
 }
 
 namespace crypto {
@@ -305,14 +326,43 @@ void serialize(MultisignatureInput& multisignature, ISerializer& serializer) {
 
 void serialize(PqKeyInput& in, ISerializer& serializer) {
   serializer(in.amount, "amount");
-  serializeVarintVector(in.outputIndexes, serializer, "key_offsets");
+  // M-new-7 (audit): cap the ring index count at parse, before the array is materialized. A PQ ring is
+  // tightly bounded ([PQ_MIN_RING_SIZE, PQ_MAX_RING_SIZE]); without this a hostile count (up to 2^20)
+  // would allocate the whole index vector before consensus (check_pq_tx_input) rejected the ring size.
+  serializeVarintVectorBounded(in.outputIndexes, serializer, "key_offsets", cn::PQ_MAX_RING_SIZE);
   serializeAsBinary(in.nullifier, "nullifier", serializer);
   serializeAsBinary(in.ringSig, "ringsig", serializer);
+  // LOW-3 / M-new-6 (audit): defense-in-depth parse-time bounds — reject hostile oversized PQ blobs
+  // before they reach validation. The generic reader now materializes length-prefixed blobs
+  // incrementally (peak allocation tracks the bytes actually delivered, not the declared length), and
+  // these semantic caps reject impossible sizes early. The nullifier is a small fixed hash (64 KiB is
+  // far above any valid value); ccx_pq_verify's `sig_len <= ring_sig_size(ring_count)` is the tighter,
+  // authoritative ringSig reject — 1 MiB is far above any valid Raptor signature (ring-8 ~13 KB,
+  // ring-32 ~96 KB) yet far below CRYPTONOTE_MAX_TX_SIZE.
+  if (serializer.type() == ISerializer::INPUT) {
+    if (in.nullifier.size() > (1u << 16)) {
+      throw std::runtime_error("PqKeyInput.nullifier exceeds the parse bound");
+    }
+    if (in.ringSig.size() > (1u << 20)) {
+      throw std::runtime_error("PqKeyInput.ringSig exceeds the 1 MiB parse bound");
+    }
+  }
 }
 
 void serialize(PqKeyOutput& out, ISerializer& serializer) {
   serializeAsBinary(out.key, "key", serializer);
   serializeAsBinary(out.kemCt, "kem", serializer);
+  // M-new-6 (audit): parse-time defense-in-depth — reject hostile oversized PQ output blobs early.
+  // key (one-time lattice pubkey ~1 KB) and kemCt (ML-KEM-768 ciphertext ~1 KB) are small fixed-size
+  // fields; 64 KiB is far above any valid value. check_outs_valid applies the exact-length reject.
+  if (serializer.type() == ISerializer::INPUT) {
+    if (out.key.size() > (1u << 16)) {
+      throw std::runtime_error("PqKeyOutput.key exceeds the parse bound");
+    }
+    if (out.kemCt.size() > (1u << 16)) {
+      throw std::runtime_error("PqKeyOutput.kemCt exceeds the parse bound");
+    }
+  }
 }
 
 namespace {
@@ -332,6 +382,13 @@ void serializePqMultisigArray(std::vector<std::vector<uint8_t>>& items, cn::ISer
   }
   for (auto& item : items) {
     serializeAsBinary(item, "", s);
+    // M-new-6 (audit): bound each inner PQ blob (multisig signature/key) at parse. The incremental
+    // string reader already prevents over-allocation, but reject impossible per-element sizes here so a
+    // hostile inner blob never reaches validation. 64 KiB is far above any valid ML-DSA signature
+    // (~3.3 KB) or public key (~2 KB); the exact length is enforced later in validation.
+    if (s.type() == cn::ISerializer::INPUT && item.size() > (1u << 16)) {
+      throw serialization_error("PQ multisig inner blob exceeds the parse bound");
+    }
   }
   s.endArray();
 }

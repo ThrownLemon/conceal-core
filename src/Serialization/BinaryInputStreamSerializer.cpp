@@ -98,11 +98,24 @@ bool BinaryInputStreamSerializer::operator()(std::string& value, common::StringV
   if (size > 128*1024*1024) {
     throw std::runtime_error("string size is too big");
   } else if (size > 0) {
-    std::vector<char> temp;
-    temp.resize(size);
-    checkedRead(&temp[0], size);
-    value.reserve(size);
-    value.assign(&temp[0], size);
+    // Read incrementally in bounded chunks instead of resizing to the full declared size up front.
+    // A hostile length prefix that exceeds the bytes actually available would otherwise force a large
+    // allocation (up to the 128 MiB cap) before the read fails — a parse-time memory-amplification DoS
+    // (tiny input claiming a huge blob). Reading in fixed chunks makes the peak allocation track the
+    // bytes actually delivered: checkedRead throws as soon as the stream cannot supply the next chunk,
+    // so an over-claimed length is rejected after reading only what exists. For valid input the result
+    // is byte-identical to the previous resize-then-read path.
+    static const uint64_t CHUNK = 1u << 16; // 64 KiB
+    std::vector<char> chunk(static_cast<size_t>(size < CHUNK ? size : CHUNK));
+    value.clear();
+    value.reserve(static_cast<size_t>(size < CHUNK ? size : CHUNK));
+    uint64_t remaining = size;
+    while (remaining > 0) {
+      const size_t want = static_cast<size_t>(remaining < CHUNK ? remaining : CHUNK);
+      checkedRead(&chunk[0], want);
+      value.append(&chunk[0], want);
+      remaining -= want;
+    }
   } else {
     value.clear();
   }
