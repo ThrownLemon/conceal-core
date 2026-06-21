@@ -65,9 +65,16 @@ void findMyOutputs(
     return;
   }
 
-  size_t keyIndex = 0;
   size_t outputCount = tx.getOutputCount();
 
+  // The sender derives each one-time output key at the output's ABSOLUTE position in tx.outputs
+  // (e.g. Currency::constructMinerTx: `derive_public_key(derivation, tx.outputs.size(), ...)`), so the
+  // scanner must underive at that same absolute index `idx` for EVERY output type. The old code used a
+  // running `keyIndex` that advanced only for Key/Multisig outputs; a non-Key output (a PqKeyOutput —
+  // GLM Blocker 2) before a Key output left keyIndex < idx, deriving the later Key output at the wrong
+  // index → the wallet missed its own funds (notably the coinbase classical remainder that follows the
+  // PQ stealth output at index 0). For purely classical Key-only txs keyIndex == idx, so this is a no-op
+  // there; it only corrects the interspersed (PQ / multisig-before-key) cases. Multisig already used idx.
   for (size_t idx = 0; idx < outputCount; ++idx) {
 
     auto outType = tx.getOutputType(size_t(idx));
@@ -77,8 +84,7 @@ void findMyOutputs(
       uint64_t amount;
       KeyOutput out;
       tx.getOutput(idx, out, amount);
-      checkOutputKey(derivation, out.key, keyIndex, idx, spendKeys, outputs);
-      ++keyIndex;
+      checkOutputKey(derivation, out.key, idx, idx, spendKeys, outputs);
 
     } else if (outType == transaction_types::OutputType::Multisignature) {
 
@@ -87,7 +93,6 @@ void findMyOutputs(
       tx.getOutput(idx, out, amount);
       for (const auto& key : out.keys) {
         checkOutputKey(derivation, key, idx, idx, spendKeys, outputs);
-        ++keyIndex;
      }
     }
   }

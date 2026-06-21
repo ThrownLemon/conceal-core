@@ -586,3 +586,69 @@ jobs:
             else print "ctgrind OK: no new secret-dependent branch in our glue"
           }
           ' /tmp/ctgrind.raw
+
+  pq-fuzz:
+    name: PQ FFI fuzz (smoke)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Install nightly + cargo-fuzz
+        shell: bash
+        run: |
+          rustup toolchain install nightly --profile minimal
+          cargo install cargo-fuzz --locked || true
+
+      - name: Fuzz the FFI / deserialization boundary (must be crash-free)
+        shell: bash
+        working-directory: pqc/ccx-pqc
+        run: |
+          # Each target runs crash-free for the smoke budget. `unpack` previously crashed (audit F12 —
+          # integer overflow in get_blob, now fixed with checked_add); this gate guards against that
+          # regressing and against new panics across the C ABI. ffi_boundary covers kem_scan /
+          # multisig_verify / msg_open / msg_open_v2.
+          for t in verify unpack pubkey_canonical ffi_boundary; do
+            echo "=== fuzz $t ==="
+            cargo +nightly fuzz run "$t" -- -max_total_time=30 -rss_limit_mb=4096
+          done
+
+  pq-determinism:
+    name: PQ keygen determinism matrix (cross-arch)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@master
+
+      - name: Install cross toolchains + qemu
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu gcc-i686-linux-gnu gcc-s390x-linux-gnu qemu-user-static
+          rustup target add aarch64-unknown-linux-gnu i686-unknown-linux-gnu s390x-unknown-linux-gnu
+
+      - name: keygen KAT must reproduce the pinned digest on every architecture
+        shell: bash
+        working-directory: pqc/ccx-pqc
+        run: |
+          # The Falcon keygen is integer-emulated FP; this proves it is byte-identical across LE/BE and
+          # 32/64-bit (a mismatch = the cross-platform FP-keygen hazard -> chain split / unspendable
+          # restore). keygen_kat_matches_reference asserts the digest == the pinned constant, so any
+          # drift fails the job. Covers aarch64 (LE), i686 (32-bit), s390x (big-endian) under qemu.
+          set -e
+          echo "=== aarch64 ==="
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+          CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc \
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_RUNNER=qemu-aarch64-static \
+          QEMU_LD_PREFIX=/usr/aarch64-linux-gnu \
+          cargo test --release --target aarch64-unknown-linux-gnu keygen_kat -- --nocapture
+          echo "=== i686 (32-bit) ==="
+          CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_LINKER=i686-linux-gnu-gcc \
+          CC_i686_unknown_linux_gnu=i686-linux-gnu-gcc \
+          CARGO_TARGET_I686_UNKNOWN_LINUX_GNU_RUNNER=qemu-i386-static \
+          QEMU_LD_PREFIX=/usr/i686-linux-gnu \
+          cargo test --release --target i686-unknown-linux-gnu keygen_kat -- --nocapture
+          echo "=== s390x (big-endian) ==="
+          CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_LINKER=s390x-linux-gnu-gcc \
+          CC_s390x_unknown_linux_gnu=s390x-linux-gnu-gcc \
+          CARGO_TARGET_S390X_UNKNOWN_LINUX_GNU_RUNNER=qemu-s390x-static \
+          QEMU_LD_PREFIX=/usr/s390x-linux-gnu \
+          cargo test --release --target s390x-unknown-linux-gnu keygen_kat -- --nocapture

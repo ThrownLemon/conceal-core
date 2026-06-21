@@ -1,5 +1,19 @@
 //! EXPERIMENTAL / UNVERIFIED lattice linkable ring signature (CIP-0001 §5.3, demo only).
 //!
+//! ╔══════════════════════════════════════════════════════════════════════════════════════════╗
+//! ║ DANGER — CRYPTOGRAPHICALLY BROKEN. NEVER WIRE TO CONSENSUS OR ANY SPEND / KEY PATH.         ║
+//! ║ Audit finding F8: the public key is `t = A*s` with `A` a RANDOM SQUARE (K=L=6) matrix over  ║
+//! ║ R_q and NO LWE error term. R_q (q=8380417) is fully split, so a random 6x6 matrix is        ║
+//! ║ invertible w.h.p. => `s = A^{-1}*t` is the UNIQUE (and short) preimage => the secret is      ║
+//! ║ recoverable from the PUBLIC key in polynomial time. This breaks unforgeability, anonymity,  ║
+//! ║ AND linkability. The in-crate `forge_no_secret` / `adversarial_soundness_ok` selftests only ║
+//! ║ model the naive hash-chain attack (NOT key recovery), so they PASS and thereby CERTIFY A    ║
+//! ║ BROKEN SCHEME — do not treat them as assurance. The live spend path is `raptor.rs` (Falcon),║
+//! ║ NOT this module; this file is reachable only via the `ccx_pqr_*` selftest ABI (no consensus ║
+//! ║ caller — verified on both pqc/mdbx-merge-poc and pqc/testnet-poc). RECOMMENDATION: gate this ║
+//! ║ module behind a non-default `legacy-ringsig-demo` cargo feature, or delete it.              ║
+//! ╚══════════════════════════════════════════════════════════════════════════════════════════╝
+//!
 //! Construction: an AOS/LSAG-style hash-chained ring of Fiat-Shamir-with-aborts (Dilithium-style)
 //! Sigma proofs over the module-SIS one-way function t = A*s (s short), with a linking tag
 //! I = A2*s bound into every branch's verification. The real branch forces I = A2*s_signer, so the
@@ -933,5 +947,59 @@ mod tests {
             "RING-4 TIMING: sign median={:.3} ms mean={:.3} ms | verify median={:.3} ms mean={:.3} ms | iters={}",
             med(&sign_ns), mean(&sign_ns), med(&verify_ns), mean(&verify_ns), iters
         );
+    }
+}
+
+#[cfg(test)]
+mod f8_key_recovery_poc {
+    // Audit finding F8 (proof-of-concept). The public key is t = A*s with NO error term and A a
+    // random SQUARE (K=L) matrix over the fully-split ring R_q, hence invertible with overwhelming
+    // probability. We recover the secret s from the PUBLIC key ALONE — slot-wise in the NTT domain,
+    // where A is K independent K×L matrices over Z_q; per slot we solve M_i · x = b_i by Gauss-Jordan
+    // mod q. A PASSING test means the secret is trivially recoverable -> the scheme is broken.
+    use super::*;
+    fn inv_modq(a: i64) -> i64 { powmod(((a % Q) + Q) % Q, Q - 2) } // Fermat: a^(q-2) mod q
+    #[test]
+    fn secret_is_recoverable_from_public_key() {
+        assert_eq!(K, L, "this PoC assumes a square A (K == L)");
+        let (_pk, s_real, t) = keygen(&[0x42u8; 32]);
+        // pre-transform A and t into the NTT domain (A becomes diagonal across N slots)
+        let a = matrix_a();
+        let mut a_ntt = [[[0i64; N]; L]; K];
+        for k in 0..K { for l in 0..L { a_ntt[k][l] = poly_to_ntt(&a[k][l]); } }
+        let mut t_ntt = [[0i64; N]; K];
+        for k in 0..K { t_ntt[k] = poly_to_ntt(&t[k]); }
+        // recover s slot by slot
+        let mut s_ntt = [[0i64; N]; L];
+        for i in 0..N {
+            let mut m = [[0i64; L]; K];
+            let mut b = [0i64; K];
+            for k in 0..K {
+                for l in 0..L { m[k][l] = ((a_ntt[k][l][i] % Q) + Q) % Q; }
+                b[k] = ((t_ntt[k][i] % Q) + Q) % Q;
+            }
+            // Gauss-Jordan over Z_q on the square system M x = b
+            for col in 0..L {
+                let mut piv = col;
+                while piv < K && m[piv][col] == 0 { piv += 1; }
+                assert!(piv < K, "A singular in slot {} (negligible probability; reseed)", i);
+                m.swap(col, piv); b.swap(col, piv);
+                let inv = inv_modq(m[col][col]);
+                for l in 0..L { m[col][l] = mulmod(m[col][l], inv); }
+                b[col] = mulmod(b[col], inv);
+                for r in 0..K {
+                    if r != col && m[r][col] != 0 {
+                        let f = m[r][col];
+                        for l in 0..L { m[r][l] = ((m[r][l] - mulmod(f, m[col][l])) % Q + Q) % Q; }
+                        b[r] = ((b[r] - mulmod(f, b[col])) % Q + Q) % Q;
+                    }
+                }
+            }
+            for l in 0..L { s_ntt[l][i] = b[l]; }
+        }
+        // inverse-transform and center the recovered secret, compare to the real one
+        let mut recovered: PolyVecL = [[0i64; N]; L];
+        for l in 0..L { let mut tmp = s_ntt[l]; intt(&mut tmp); for j in 0..N { recovered[l][j] = cmod(tmp[j]); } }
+        assert_eq!(recovered, s_real, "F8 CONFIRMED: secret key recovered from the public key alone");
     }
 }

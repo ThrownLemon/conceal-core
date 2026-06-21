@@ -792,10 +792,10 @@ namespace cn
       return false;
     }
 
-    // MEDIUM-3: cap the plaintext so the sealed `data` (plaintext + 16-byte AEAD tag) stays within the
-    // parser's TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE bound; otherwise the sender emits a field its own
-    // parser rejects, silently dropping the permanent on-chain message.
-    if (message.size() > TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE)
+    // v2 (audit F5): the AEAD nonce is now a FRESH 24-byte CSPRNG value (XChaCha20), not derived from
+    // (seed, index) — so a reused tx key to the same recipient/index can no longer reuse (key, nonce).
+    // Plaintext is capped to leave room for the nonce prefix + the 16-byte tag within the parser bound.
+    if (message.size() > TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE - TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE)
     {
       return false;
     }
@@ -809,18 +809,35 @@ namespace cn
     key_data.magic2 = TX_EXTRA_AUTH_MESSAGE_TAG; // domain separation from legacy 0x04 (magic2 == 0)
     Hash seedHash = cn_fast_hash(&key_data, sizeof(message_key_data));
 
+    // Fresh per-message CSPRNG nonce — uniqueness no longer rests on the tx-key-uniqueness invariant.
+    uint8_t nonce[TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE];
+    crypto::generate_random_bytes(sizeof(nonce), nonce);
+
+    // AAD binds the memo to (tx public key || output index): a sealed memo cannot be relocated to
+    // another output/tx (open() fails on any AAD mismatch). Both encrypt and decrypt compute it the
+    // same way from the tx public key + the output index.
+    std::vector<uint8_t> aad;
+    aad.insert(aad.end(), reinterpret_cast<const uint8_t *>(&txkey.publicKey),
+               reinterpret_cast<const uint8_t *>(&txkey.publicKey) + sizeof(txkey.publicKey));
+    const uint64_t idx = static_cast<uint64_t>(index);
+    for (int i = 0; i < 8; ++i) aad.push_back(static_cast<uint8_t>((idx >> (8 * i)) & 0xff));
+
     std::vector<uint8_t> sealed(message.size() + TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, 0);
     size_t sealedLen = 0;
-    int rc = ccx_pq_msg_seal(reinterpret_cast<const uint8_t *>(&seedHash), sizeof(seedHash),
-                             static_cast<uint64_t>(index),
-                             reinterpret_cast<const uint8_t *>(message.data()), message.size(),
-                             sealed.data(), sealed.size(), &sealedLen);
+    int rc = ccx_pq_msg_seal_v2(reinterpret_cast<const uint8_t *>(&seedHash), sizeof(seedHash),
+                                nonce, sizeof(nonce), aad.data(), aad.size(),
+                                reinterpret_cast<const uint8_t *>(message.data()), message.size(),
+                                sealed.data(), sealed.size(), &sealedLen);
     if (rc != 0 || sealedLen != sealed.size())
     {
       return false;
     }
 
-    data.assign(reinterpret_cast<const char *>(sealed.data()), sealedLen);
+    // Wire layout: data = nonce (24B) || sealed (ciphertext || 16-byte Poly1305 tag).
+    data.clear();
+    data.reserve(sizeof(nonce) + sealedLen);
+    data.append(reinterpret_cast<const char *>(nonce), sizeof(nonce));
+    data.append(reinterpret_cast<const char *>(sealed.data()), sealedLen);
     return true;
   }
 
@@ -844,20 +861,49 @@ namespace cn
     key_data.magic2 = TX_EXTRA_AUTH_MESSAGE_TAG; // domain separation from legacy 0x04 (magic2 == 0)
     Hash seedHash = cn_fast_hash(&key_data, sizeof(message_key_data));
 
-    std::vector<uint8_t> plain(data.size() - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, 0);
-    size_t plainLen = 0;
-    int rc = ccx_pq_msg_open(reinterpret_cast<const uint8_t *>(&seedHash), sizeof(seedHash),
-                             static_cast<uint64_t>(index),
-                             reinterpret_cast<const uint8_t *>(data.data()), data.size(),
-                             plain.data(), plain.size(), &plainLen);
-    // open() returns non-zero (and writes nothing) on auth failure / wrong recipient.
-    if (rc != 0 || plainLen != plain.size())
+    // Try v2 FIRST (audit F5): data = nonce (24B) || sealed; AAD = tx pubkey || output index. AEAD
+    // authentication makes a wrong-format / wrong-key decode fail, and v1/v2 derive DIFFERENT keys
+    // (SHAKE domains "…-v1" vs "…-v2"), so trying v2 then v1 is unambiguous (no false positive).
+    if (data.size() >= TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE + TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE)
     {
-      return false;
+      const uint8_t *noncePtr = reinterpret_cast<const uint8_t *>(data.data());
+      const uint8_t *sealedPtr = noncePtr + TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE;
+      const size_t sealedLen = data.size() - TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE;
+      std::vector<uint8_t> aad;
+      aad.insert(aad.end(), reinterpret_cast<const uint8_t *>(&txkey),
+                 reinterpret_cast<const uint8_t *>(&txkey) + sizeof(txkey));
+      const uint64_t idx = static_cast<uint64_t>(index);
+      for (int i = 0; i < 8; ++i) aad.push_back(static_cast<uint8_t>((idx >> (8 * i)) & 0xff));
+      std::vector<uint8_t> plain(sealedLen - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, 0);
+      size_t plainLen = 0;
+      int rc = ccx_pq_msg_open_v2(reinterpret_cast<const uint8_t *>(&seedHash), sizeof(seedHash),
+                                  noncePtr, TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE, aad.data(), aad.size(),
+                                  sealedPtr, sealedLen,
+                                  plain.data(), plain.size(), &plainLen);
+      if (rc == 0 && plainLen == plain.size())
+      {
+        message.assign(reinterpret_cast<const char *>(plain.data()), plainLen);
+        return true;
+      }
     }
 
-    message.assign(reinterpret_cast<const char *>(plain.data()), plainLen);
-    return true;
+    // v1 FALLBACK (GLM handoff): legacy 0x07 was a bare sealed blob with a DERIVED (seed,index) nonce
+    // and no AAD. Keep decrypting it so memos written before the v2 upgrade are not lost (no data loss).
+    {
+      std::vector<uint8_t> plain(data.size() - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, 0);
+      size_t plainLen = 0;
+      int rc = ccx_pq_msg_open(reinterpret_cast<const uint8_t *>(&seedHash), sizeof(seedHash),
+                               static_cast<uint64_t>(index),
+                               reinterpret_cast<const uint8_t *>(data.data()), data.size(),
+                               plain.data(), plain.size(), &plainLen);
+      if (rc == 0 && plainLen == plain.size())
+      {
+        message.assign(reinterpret_cast<const char *>(plain.data()), plainLen);
+        return true;
+      }
+    }
+
+    return false;
   }
 
   bool tx_extra_authenticated_message::serialize(ISerializer &s)

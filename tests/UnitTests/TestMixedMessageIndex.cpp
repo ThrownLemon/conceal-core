@@ -181,7 +181,9 @@ TEST(MixedMessageIndex, EncryptRejectsOversizePlaintext)
   KemKeyPair kem;
 
   const size_t pqMax = TX_EXTRA_PQ_MESSAGE_MAX_DATA_SIZE - TX_EXTRA_PQ_MESSAGE_AEAD_TAG_SIZE;
-  const size_t authMax = TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE;
+  // v2 (audit F5): the 0x07 sealed blob now also carries a 24-byte nonce prefix, so the max plaintext
+  // is reduced by TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE (data = nonce || ciphertext || tag <= MAX_DATA).
+  const size_t authMax = TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE - TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE - TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE;
 
   tx_extra_pq_message pqOk;
   EXPECT_TRUE(pqOk.encrypt(0, std::string(pqMax, 'x'), kem.pk));

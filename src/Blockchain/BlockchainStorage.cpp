@@ -42,6 +42,10 @@ namespace cn
     return false;
   }
 
+  // transactionContainsPqSpend (the PQ ring-sig SPEND predicate, audit F4) is now a shared free
+  // function in CryptoNoteFormatUtils.h — single source of truth + unit-testable, mirroring
+  // transactionContainsClassicalDeposit. The block-connect spend gates below call it.
+
   // Constructor
   Blockchain::Blockchain(const Currency &currency, tx_memory_pool &tx_pool, logging::ILogger &logger, bool blockchainIndexesEnabled)
       : m_currency(currency),
@@ -286,6 +290,21 @@ namespace cn
       return false;
     }
 
+    // HEIGHT GATE (CIP-0001 UPGRADE_HEIGHT_V10) for PQ SPENDS in the COINBASE — MAINNET only (audit
+    // finding F4): reject a pre-V10 coinbase that mints a PQ ring-sig output (PqKeyOutput). On mainnet
+    // constructMinerTx never emits one before V10, so this only rejects malicious blocks. TESTNET emits
+    // a PQ coinbase output every block under m_testnet (Currency::constructMinerTx), exercising the
+    // spend PoC from height 1, so the gate is mainnet-only — mirroring the pqTestnetTx / m_testnet PoC
+    // carve-outs already present. Never apply retroactively.
+    if (!m_currency.isTestnet() && transactionContainsPqSpend(blockData.baseTransaction) &&
+        block.height < m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10))
+    {
+      logger(logging::INFO, logging::BRIGHT_WHITE) << "Block " << blockHash << " coinbase contains a PQ spend output before height "
+                                                   << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10);
+      bvc.m_verification_failed = true;
+      return false;
+    }
+
     // PQ-ONLY DEPOSIT FREEZE (CIP-0001 UPGRADE_HEIGHT_V10, Option 3) for the COINBASE: symmetric with
     // the per-tx freeze in validateAndPushTransaction and with the PQ coinbase guard above. A genuine
     // coinbase never carries a deposit (constructMinerTx emits only KeyOutput/PqKeyOutput), so this
@@ -322,6 +341,15 @@ namespace cn
                                       transactionIndex, cumulative_block_size,
                                       fee_summary, interestSummary, blockHash, bvc))
       {
+        // tx[i] failed validation and was NOT pushed (validateAndPushTransaction only pushes after all
+        // checks pass). Roll back the i transactions ALREADY pushed (tx[0..i-1]) in reverse, then the
+        // coinbase. (GLM cross-verify, Low: the old code popped ONLY the coinbase here, leaking
+        // tx[0..i-1]'s key-image / nullifier / output-index mutations into the in-memory indices even
+        // though the block is rejected.) popTransactions() is NOT usable here: it pops ALL
+        // block.transactions, including the failed tx[i] and the un-pushed tx[i+1..], and popping tx[i]
+        // could erase a key image / nullifier legitimately spent by an earlier tx — corrupting state.
+        for (size_t j = i; j-- > 0; )
+          popTransaction(transactions[j], blockData.transactionHashes[j]);
         popTransaction(blockData.baseTransaction, minerTransactionHash);
         return false;
       }
@@ -423,6 +451,23 @@ namespace cn
       valid = false;
       logger(logging::INFO, logging::BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id
                                                    << " because PQ deposits are not active until height "
+                                                   << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10);
+    }
+
+    // HEIGHT GATE (CIP-0001 UPGRADE_HEIGHT_V10) for PQ SPENDS — MAINNET only (audit finding F4): a PQ
+    // ring-sig spend (PqKeyInput / PqKeyOutput) is only consensus-valid at/after V10, the symmetric
+    // twin of the PQ-deposit gate above. This closes the gap where pure ring-sig spends had NO explicit
+    // height gate and relied only on implicit tx-version coupling — without it a hand-crafted pre-V10
+    // PQ spend could activate the spend path early / asymmetrically across nodes. TESTNET runs the
+    // spend PoC from height 1 (coinbase PQ outputs + injector), so the gate is mainnet-only, mirroring
+    // the pqTestnetTx / m_testnet PoC carve-outs. Mainnet V10 is a far-future sentinel, so PQ spends
+    // never activate on mainnet until audited. NEVER apply retroactively.
+    if (valid && !m_currency.isTestnet() && transactionContainsPqSpend(tx) &&
+        block.height < m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10))
+    {
+      valid = false;
+      logger(logging::INFO, logging::BRIGHT_WHITE) << "Block " << blockHash << " can't contain transaction " << tx_id
+                                                   << " because PQ spends are not active until height "
                                                    << m_currency.upgradeHeight(BLOCK_MAJOR_VERSION_10);
     }
 

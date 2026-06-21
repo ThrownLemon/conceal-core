@@ -42,6 +42,7 @@
 #include "pow/backend.hpp"
 #include "pow/pow_service.hpp"
 #include "pow/pow_sync_log.hpp"
+#include "pq_ring_sig.h"
 
 #ifdef CONCEAL_WITH_OPENCL
 #include "pow/opencl/raii.hpp"
@@ -618,6 +619,26 @@ int main(int argc, char *argv[])
 
     if (gpuPowConfig.deviceIndex >= 0)
       cn::PowService::instance().updatePrefetchForConnections(p2psrv.getTargetOutgoingConnectionsCount());
+
+    // PQ crypto selftest gate (CIP-0001): run the critical PQ selftests at daemon startup. If any
+    // fails (keygen KAT drift, primitive break, encoding mismatch), abort BEFORE touching consensus
+    // state — a broken PQ backend would produce incompatible keys / nullifiers and fork the chain.
+    {
+      logger(INFO) << "Running PQ crypto selftests...";
+      auto pqFail = [&](const char *name) {
+        logger(ERROR, BRIGHT_RED) << "PQ selftest FAILED: " << name
+                                  << " — aborting (consensus-safety gate). Do NOT start with broken PQ crypto.";
+        return 1;
+      };
+      if (ccx_mlkem768_selftest().ok != 1) return pqFail("ML-KEM-768");
+      if (ccx_mldsa_selftest().ok != 1) return pqFail("ML-DSA-65");
+      if (ccx_pq_ringsig_selftest().ok != 1) return pqFail("Raptor ring-sig (incl. keygen KAT)");
+      if (ccx_pq_kem_stealth_selftest().ok != 1) return pqFail("KEM stealth");
+      if (ccx_pq_multisig_selftest().ok != 1) return pqFail("ML-DSA multisig");
+      if (ccx_pq_detkeygen_selftest().ok != 1) return pqFail("deterministic keygen");
+      logger(INFO) << "PQ selftests OK (keygen KAT verified, scheme_id=0x"
+                   << std::hex << ccx_pq_scheme_id() << std::dec << ")";
+    }
 
     // Initialize core
     logger(INFO) << "Initializing core...";

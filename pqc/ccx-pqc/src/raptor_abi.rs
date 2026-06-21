@@ -90,9 +90,13 @@ fn put_blob(out: &mut Vec<u8>, b: &[u8]) {
 }
 fn get_blob<'a>(inp: &'a [u8], pos: &mut usize) -> Option<&'a [u8]> {
     let len = get_varint(inp, pos)? as usize;
-    if *pos + len > inp.len() { return None; }
-    let b = &inp[*pos..*pos + len];
-    *pos += len;
+    // checked_add (audit F12, fuzz-found at raptor_abi.rs:93): a hostile varint length (up to
+    // usize::MAX) must NOT make `*pos + len` wrap (release, silent) or panic with "attempt to add
+    // with overflow" (debug overflow-checks). Reject out-of-range lengths cleanly.
+    let end = (*pos).checked_add(len)?;
+    if end > inp.len() { return None; }
+    let b = &inp[*pos..end];
+    *pos = end;
     Some(b)
 }
 

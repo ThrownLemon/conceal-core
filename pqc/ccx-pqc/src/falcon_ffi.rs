@@ -32,7 +32,7 @@ extern "C" {
     pub fn rfalcon_sqnorm(s: *const i16) -> u64;
 
     /// H1: bytes -> uniform ring element in R_q (random-oracle mask). out: uint16_t[N].
-    pub fn rfalcon_hash_to_rq(input: *const u8, inlen: usize, domain: *const i8, out: *mut u16);
+    pub fn rfalcon_hash_to_rq(input: *const u8, inlen: usize, domain: *const core::ffi::c_char, out: *mut u16);
     /// SHAKE256(in) -> out[outlen].
     pub fn rfalcon_shake256(input: *const u8, inlen: usize, out: *mut u8, outlen: usize);
 
@@ -162,4 +162,74 @@ pub fn modq_decode(input: &[u8]) -> Option<[u16; N]> {
     let n = unsafe { rfalcon_modq_decode(x.as_mut_ptr(), input.as_ptr(), input.len()) };
     if n == 0 { return None; }
     Some(x)
+}
+
+// ---- F6: dudect-style constant-time check for the Falcon preimage sampler ----
+#[cfg(test)]
+mod ct_dudect {
+    //! Self-contained dudect-style timing test for `sign_target` (the secret-key Gaussian sampler
+    //! flagged OPEN by ctgrind — it runs on the trapdoor every spend). Methodology (Reparaz et al.,
+    //! "dudect"): time the operation under a FIXED trapdoor (class A) vs ROTATING RANDOM trapdoors
+    //! (class B) over interleaved iterations with identical (seed, target) per iteration so the only
+    //! variable is the secret key; crop the slow tail (OS/cache noise); Welch's t-test. `|t| >> ~10`
+    //! indicates the sampler's timing depends on the secret -> a leak. PQClean's isochronous sampler
+    //! should keep `|t|` small. This in-suite version is a FIRST-ORDER check; a rigorous verdict needs
+    //! core-pinning (`taskset`), `performance` governor, and >=1e6 samples. Run explicitly:
+    //!   cargo test --release ct_dudect -- --ignored --nocapture
+    use super::*;
+
+    fn rand_target(ctr: u64) -> [u16; N] {
+        let bytes = shake256(&ctr.to_le_bytes(), N * 4);
+        let mut u = [0u16; N];
+        let mut bi = 0usize;
+        for k in 0..N {
+            loop {
+                let v = (u16::from_le_bytes([bytes[bi % bytes.len()], bytes[(bi + 1) % bytes.len()]]) & 0x3FFF) as u32;
+                bi += 2;
+                if v < Q { u[k] = v as u16; break; }
+            }
+        }
+        u
+    }
+
+    fn welch_t(a: &[f64], b: &[f64]) -> f64 {
+        let mean = |x: &[f64]| x.iter().sum::<f64>() / x.len() as f64;
+        let var = |x: &[f64], m: f64| x.iter().map(|v| (v - m) * (v - m)).sum::<f64>() / (x.len() as f64 - 1.0);
+        let (ma, mb) = (mean(a), mean(b));
+        let (va, vb) = (var(a, ma), var(b, mb));
+        (ma - mb) / (va / a.len() as f64 + vb / b.len() as f64).sqrt()
+    }
+
+    fn crop_fast(mut v: Vec<f64>, keep: f64) -> Vec<f64> {
+        v.sort_by(|x, y| x.partial_cmp(y).unwrap());
+        let hi = (v.len() as f64 * keep) as usize;
+        v[..hi.max(2)].to_vec()
+    }
+
+    #[test]
+    #[ignore]
+    fn falcon_sampler_timing_independent_of_key() {
+        use std::time::Instant;
+        let fixed = FalconKey::keygen_det(&[0x11u8; 48]);
+        let pool: Vec<FalconKey> =
+            (0..32u64).map(|i| FalconKey::keygen_det(&shake256(&i.to_le_bytes(), 48))).collect();
+        // Sample count; override for a rigorous run: CCX_DUDECT_ITERS=1000000 (default 4000).
+        let iters: usize = std::env::var("CCX_DUDECT_ITERS").ok().and_then(|s| s.parse().ok()).unwrap_or(4000);
+        let mut ta = Vec::with_capacity(iters);
+        let mut tb = Vec::with_capacity(iters);
+        for w in 0..50u64 { let u = rand_target(w); let _ = fixed.sign_target(&shake256(&u[0].to_le_bytes(), 48), &u); }
+        for i in 0..iters as u64 {
+            let u = rand_target(i ^ 0xabcd);
+            let seed = shake256(&i.to_le_bytes(), 48);
+            let t0 = Instant::now(); let _ = fixed.sign_target(&seed, &u); ta.push(t0.elapsed().as_nanos() as f64);
+            let rk = &pool[(i as usize) % pool.len()];
+            let t1 = Instant::now(); let _ = rk.sign_target(&seed, &u); tb.push(t1.elapsed().as_nanos() as f64);
+        }
+        let t_full = welch_t(&ta, &tb);
+        let t_crop = welch_t(&crop_fast(ta, 0.7), &crop_fast(tb, 0.7));
+        println!("DUDECT falcon sign_target: Welch t(full)={:.2}  t(fast-70%-cropped)={:.2}  n={}", t_full, t_crop, iters);
+        // generous bound: an unpinned shared host inflates |t| from noise; the printed value is the
+        // real signal (compare across runs). |t|>=500 would be an unambiguous, noise-immune leak.
+        assert!(t_crop.abs() < 500.0, "cropped |t|={:.2} — sampler timing appears key-dependent; investigate", t_crop);
+    }
 }

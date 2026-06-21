@@ -429,6 +429,19 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
       // paths must reject a malformed key so it can never be indexed in m_pqOutputs (a wrong-size or
       // non-canonical key would be consensus-valid but unspendable, letting an attacker flood the PQ
       // output bucket and shift global indices — a wallet ring-assembly liveness DoS).
+      //
+      // Version gate (GLM verification, Low): a PqKeyOutput is only valid in a v4 tx — the format-level
+      // twin of the PqKeyInput / PqMultisigOutput v4 gates — EXCEPT the coinbase, which is v1
+      // (TRANSACTION_VERSION_1, Currency::constructMinerTx) yet legitimately carries the testnet PQ
+      // stealth output under m_testnet. A genuine PQ spend always carries a PqKeyInput (already v4-gated
+      // above), so the only legitimate v1 carrier of a PqKeyOutput is the miner tx; this closes the gap
+      // where a NON-coinbase pre-v4 tx could smuggle one in. (On mainnet the coinbase never emits a
+      // PqKeyOutput, and the F4 block-connect gate rejects any pre-V10 PQ output regardless.)
+      const bool isCoinbase = tx.inputs.size() == 1 && tx.inputs[0].type() == typeid(BaseInput);
+      if (!isCoinbase && tx.version < TRANSACTION_VERSION_4) {
+        if (error) { *error = "PQ key output but tx version < 4 (non-coinbase)"; }
+        return false;
+      }
       if (out.amount == 0) {
         if (error) { *error = "Zero amount PQ output"; }
         return false;
@@ -663,6 +676,20 @@ bool transactionContainsClassicalDeposit(const Transaction& tx) {
   for (const auto& out : tx.outputs) {
     if (out.target.type() == typeid(MultisignatureOutput) &&
         boost::get<MultisignatureOutput>(out.target).term != 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool transactionContainsPqSpend(const Transaction& tx) {
+  for (const auto& in : tx.inputs) {
+    if (in.type() == typeid(PqKeyInput)) {
+      return true;
+    }
+  }
+  for (const auto& out : tx.outputs) {
+    if (out.target.type() == typeid(PqKeyOutput)) {
       return true;
     }
   }

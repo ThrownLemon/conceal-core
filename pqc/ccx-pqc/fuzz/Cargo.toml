@@ -1,0 +1,28 @@
+[package]
+name = "ccx-pqc-fuzz"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+ccx-pqc = { path = ".." }
+libfuzzer-sys = "0.4"
+
+[[bin]]
+name = "unpack"
+path = "fuzz_targets/unpack.rs"
+
+[[bin]]
+name = "verify"
+path = "fuzz_targets/verify.rs"
+
+[[bin]]
+name = "pubkey_canonical"
+path = "fuzz_targets/pubkey_canonical.rs"
+
+[[bin]]
+name = "ffi_boundary"
+path = "fuzz_targets/ffi_boundary.rs"

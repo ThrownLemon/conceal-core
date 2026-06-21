@@ -13,7 +13,7 @@
 //!     ai = a0_i - H1(aots)                 (so a_pi == signer's real main a)
 //!     for i != pi:  b_i <- {0,1}^256 ;  (r0_i, r1_i) <- short Gaussian ;  c_i = r0_i + ai*r1_i + h*b_i
 //!     for i == pi:  c_pi <- random in R_q
-//!     b_pi = H(msg, c_1..c_L) XOR (XOR_{i!=pi} b_i)
+//!     b_pi = H(msg, a0_1..a0_L, c_1..c_L) XOR (XOR_{i!=pi} b_i)
 //!     u_pi = c_pi - h*b_pi
 //!     (r0_pi, r1_pi) = Falcon.sign_target(a_pi; u_pi)   s.t. r0_pi + r1_pi*a_pi = u_pi
 //!     ots_sig = Falcon.sign(aots; ({r0_i,r1_i,b_i}, {a0_i}, aots))
@@ -238,11 +238,19 @@ pub struct OtsSig {
 
 // ---- transcript hashing ----
 
-/// H : (msg, c_1..c_L) -> {0,1}^256.  Absorb domain || msg || each c_i (modq-encoded).
-fn hash_transcript_to_b(msg: &[u8], cs: &[[u16; N]]) -> [u8; 32] {
+/// H : (msg, ring, c_1..c_L) -> {0,1}^256.  Absorb domain || msg || ring a0_i || each c_i
+/// (modq-encoded). The ring public keys are bound directly into the challenge so that a
+/// "programmed" (rogue) key cannot be constructed after seeing the challenge — the standard
+/// defense against the key-cancellation / rogue-key attack on ring signatures (HIGH-1 fix).
+fn hash_transcript_to_b(msg: &[u8], ring: &[[u16; N]], cs: &[[u16; N]]) -> [u8; 32] {
     let mut input = Vec::from(DOM_H_TRANSCRIPT);
     input.extend_from_slice(&(msg.len() as u64).to_le_bytes());
     input.extend_from_slice(msg);
+    input.extend_from_slice(&(ring.len() as u64).to_le_bytes());
+    for a0 in ring {
+        let e = fc::modq_encode(a0).expect("encode a0");
+        input.extend_from_slice(&e);
+    }
     for c in cs {
         let e = fc::modq_encode(c).expect("encode c");
         input.extend_from_slice(&e);
@@ -461,8 +469,8 @@ pub fn sign(
         }
         cs[pi] = cpi;
 
-        // b_pi = H(msg, c_1..c_L) XOR b_acc
-        let hdig = hash_transcript_to_b(msg, &cs);
+        // b_pi = H(msg, ring, c_1..c_L) XOR b_acc
+        let hdig = hash_transcript_to_b(msg, ring, &cs);
         let bpi = xor32(&hdig, &b_acc);
 
         // u_pi = c_pi - h*b_pi
@@ -540,8 +548,8 @@ pub fn verify(msg: &[u8], ring: &[[u16; N]], sig: &Signature) -> Result<[u8; 32]
         b_xor = xor32(&b_xor, &m.b);
     }
 
-    // check XOR relation:  XOR_i b_i == H(msg, c_1..c_L)
-    let hdig = hash_transcript_to_b(msg, &cs);
+    // check XOR relation:  XOR_i b_i == H(msg, ring, c_1..c_L)
+    let hdig = hash_transcript_to_b(msg, ring, &cs);
     if b_xor != hdig { return Err("ring hash relation failed"); }
 
     // verify ots signature: s0 + s1*aots == ots_target(transcript), and (s0,s1) short.
@@ -576,6 +584,111 @@ mod determinism_kat {
         let hex: String = d.iter().map(|b| format!("{:02x}", b)).collect();
         println!("KEYGEN_KAT_DIGEST={}", hex);
         assert!(keygen_kat_ok(), "keygen KAT digest drifted from the pinned reference");
+    }
+
+    /// Frozen specification of paramch_h (NUMS ceremony, Option C — frozen spec). The system
+    /// parameter h is derived deterministically from a public domain string via SHAKE256. This
+    /// test pins the SHAKE256 digest of the derived polynomial so any accidental or malicious
+    /// change to the derivation inputs is caught at test time. See paramch-h-spec.md.
+    #[test]
+    fn paramch_h_matches_frozen_spec() {
+        let h = paramch_h();
+        let enc = fc::modq_encode(&h).expect("encode paramch_h");
+        let digest = fc::shake256(&enc, 32);
+        let hex: String = digest.iter().map(|b| format!("{:02x}", b)).collect();
+        println!("PARAMCH_H_DIGEST={}", hex);
+        // Pinned on the reference build (WSL x86_64, gcc 13.3, 2026-06-21). A mismatch means
+        // either the derivation inputs changed (re-pin deliberately) or there is a build drift.
+        const PINNED: [u8; 32] = [
+            0xa1, 0x29, 0x88, 0x3f, 0x81, 0xf9, 0x78, 0x25,
+            0xb3, 0x44, 0xe0, 0x2d, 0x35, 0x7f, 0x85, 0xed,
+            0x34, 0x47, 0x11, 0x66, 0x44, 0xf0, 0x31, 0x2d,
+            0x48, 0xbf, 0xb8, 0x66, 0x05, 0x44, 0x48, 0x11,
+        ];
+        assert_eq!(digest, PINNED, "paramch_h digest drifted from the frozen specification");
+    }
+}
+
+#[cfg(test)]
+mod adaptive_ring_forgery {
+    use super::*;
+
+    /// After the ring-keys-into-challenge fix (HIGH-1), the programmed-key forgery is REJECTED.
+    ///
+    /// The attacker tries the old trick: pick c, derive b from a challenge computed WITHOUT the ring
+    /// (the pre-fix construction), then solve a_i = c - h*b and publish a0 = a_i + mask. But verify()
+    /// now recomputes the challenge WITH the ring bound in, so the attacker's b values no longer
+    /// satisfy the XOR relation — the forgery is detected and rejected.
+    #[test]
+    fn programmed_key_forgery_is_rejected() {
+        let (victim_pk, _) = keygen(b"raptor-forgery-victim");
+        let (_, attacker) = keygen(b"raptor-forgery-attacker-ots");
+        let msg = b"adaptive-ring-forgery";
+        let h = paramch_h();
+
+        // The victim branch uses no secret relation: r1 = 0 removes ai.
+        let victim_b = [0x5au8; 32];
+        let victim_r0 = [0i16; N];
+        let victim_r1 = [0i16; N];
+        let victim_c = fc::polymul(&h, &bits_to_poly(&victim_b));
+
+        // Attacker chooses the second commitment freely.
+        let mut programmed_c = [0u16; N];
+        for (i, coefficient) in programmed_c.iter_mut().enumerate() {
+            *coefficient = ((i as u32 * 37 + 11) % fc::Q) as u16;
+        }
+
+        // Attacker computes the challenge WITHOUT the ring (the old, pre-fix construction).
+        // We inline the old hash here because hash_transcript_to_b now requires the ring.
+        let mut old_input = Vec::from(DOM_H_TRANSCRIPT);
+        old_input.extend_from_slice(&(msg.len() as u64).to_le_bytes());
+        old_input.extend_from_slice(msg);
+        for c in &[victim_c, programmed_c] {
+            old_input.extend_from_slice(&fc::modq_encode(c).unwrap());
+        }
+        let mut old_challenge = [0u8; 32];
+        old_challenge.copy_from_slice(&fc::shake256(&old_input, 32));
+
+        let programmed_b = xor32(&old_challenge, &victim_b);
+
+        // With r1 = e_0, solve ai = ci - h*bi after seeing the challenge, then publish
+        // a0i = ai + H1(aots). No Falcon trapdoor for this programmed key exists.
+        let programmed_r0 = [0i16; N];
+        let mut programmed_r1 = [0i16; N];
+        programmed_r1[0] = 1;
+        let programmed_ai = fc::polysub(&programmed_c, &fc::polymul(&h, &bits_to_poly(&programmed_b)));
+        let programmed_a0 = fc::polyadd(&programmed_ai, &attacker.mask);
+        let ring = [victim_pk.a0, programmed_a0];
+
+        let members = vec![
+            Member { r0: victim_r0, r1: victim_r1, b: victim_b },
+            Member { r0: programmed_r0, r1: programmed_r1, b: programmed_b },
+        ];
+
+        // The attacker signs the OTS transcript with their own aots key.
+        let target = ots_target(&members, &ring, &attacker.aots);
+        let mut attempt = 0u32;
+        let (s0, s1) = loop {
+            attempt += 1;
+            let mut seed = Vec::from(b"adaptive-ring-forgery-ots".as_slice());
+            seed.extend_from_slice(&attempt.to_le_bytes());
+            let pair = attacker.ots.sign_target(&fc::shake256(&seed, 48), &target);
+            if pair_is_valid(&pair.0, &pair.1) {
+                break pair;
+            }
+            assert!(attempt < 64);
+        };
+
+        let forged = Signature {
+            members,
+            aots: attacker.aots,
+            ots_sig: OtsSig { s0, s1 },
+        };
+
+        // After the fix: verify() recomputes the challenge WITH the ring bound in.
+        // The attacker's challenge (without the ring) differs → XOR mismatch → rejection.
+        assert!(verify(msg, &ring, &forged).is_err(),
+            "programmed-key forgery must be rejected after binding ring keys into the challenge");
     }
 }
 

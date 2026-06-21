@@ -17,8 +17,8 @@
 //! milestone (CIP §5.3 / C1). Not constant-time. Do not use on mainnet.
 use sha3::Shake256;
 use sha3::digest::{Update, ExtendableOutput, XofReader};
-use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce};
-use chacha20poly1305::aead::{Aead, KeyInit};
+use chacha20poly1305::{ChaCha20Poly1305, Key, Nonce, XChaCha20Poly1305, XNonce};
+use chacha20poly1305::aead::{Aead, KeyInit, Payload};
 use pqcrypto_kyber::kyber768;
 use pqcrypto_dilithium::dilithium3;
 use pqcrypto_traits::kem::{PublicKey as KP, SecretKey as KS, Ciphertext as KC, SharedSecret as KSS};
@@ -26,11 +26,15 @@ use pqcrypto_traits::sign::{PublicKey as SP, SecretKey as SS, SignedMessage as S
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use rand::RngCore; // OsRng → fresh per-spend signing entropy in ccx_pq_sign (anti lattice-nonce-reuse)
 
-mod ringsig; // LEGACY demo stand-in — RETAINED (compiled) only for its adversarial selftests (A/B); the
-             // production ccx_pq_* ring-sig core now dispatches to `raptor` below.
-mod raptor;      // clean-room Raptor linkable ring sig (eprint 2018/857) over PQClean Falcon-512
+// LEGACY demo stand-in — CRYPTOGRAPHICALLY BROKEN (audit F8: t=A*s, square A, no error -> key
+// recovery). Gated behind the non-default `legacy-ringsig-demo` feature so it is EXCLUDED from the
+// production daemon staticlib; the broken code + its misleading selftests can never ship. The
+// production ccx_pq_* ring-sig core dispatches to `raptor` below (always compiled).
+#[cfg(feature = "legacy-ringsig-demo")]
+mod ringsig;
+pub mod raptor;      // clean-room Raptor linkable ring sig (eprint 2018/857) over PQClean Falcon-512
 mod falcon_ffi;  // FFI to the vendored Falcon C (rfalcon_*) + modq/comp codec helpers
-mod raptor_abi;  // Raptor compact packing + size/canonicity helpers (the codec for ccx_pq_sign/verify)
+pub mod raptor_abi;  // Raptor compact packing + size/canonicity helpers (the codec for ccx_pq_sign/verify)
 mod detkeygen; // Deterministic FIPS-203/204 keygen from a seed (mnemonic-restorable PQ wallet keys)
 mod walletcrypto; // Wallet-file at-rest KDF (Argon2id) + AEAD (XChaCha20-Poly1305) — client-side only
 
@@ -165,20 +169,27 @@ pub extern "C" fn ccx_pq_sign(msg: *const u8, msg_len: usize,
     let ringb = unsafe { std::slice::from_raw_parts(ring, ring_bytes) };
     let ring_polys = match decode_ring(ringb, ring_count, member_stride) { Some(p) => p, None => return -1 };
     let secret = raptor_secret(skb);
-    // Per-spend signing randomness: FRESH OS entropy mixed with sk + msg, so two spends from the SAME
-    // key never reuse the sampler randomness across different messages — a deterministic, message-
-    // independent seed is the classic lattice nonce-reuse that leaks the Falcon trapdoor after two
-    // signatures (Codex C-1). The nullifier is derived from the SECRET (aots), NOT from this seed, so
-    // randomizing here does NOT affect double-spend linkability or verification. PROD GATE: a production
-    // wallet should derive this from a hardened per-spend KDF over wallet state (still an audit item),
-    // but this closes the reuse break — see raptor-integration-plan.md §5.
+    // Per-spend signing randomness via a two-phase KDF (HKDF-like extract-then-expand over SHAKE256):
+    //
+    //   PRK       = SHAKE256("ccx-spend-extract-v1" || sk || os_entropy)
+    //   sign_seed = SHAKE256("ccx-spend-expand-v1"  || PRK || msg)
+    //
+    // This prevents lattice nonce-reuse (two spends from the same key get different sampler seeds
+    // because OsRng provides fresh entropy per call) without introducing determinism that could
+    // leak the trapdoor (the expand phase mixes the message, so the seed is unique per (key,msg)
+    // pair even if OsRng were compromised). The nullifier is derived from the SECRET (aots), NOT
+    // from this seed, so randomizing here does NOT affect double-spend linkability or verification.
+    //
+    // The extract-expand split (vs raw concatenation) is a defense-in-depth standardisation:
+    // - Extract: the PRK is a pseudorandom key that isolates the secret from the public parameters.
+    // - Expand: the output is bound to the message without re-using the secret directly.
+    // This matches NIST SP 800-56C / RFC 5869 (HKDF) over SHAKE256.
     let mut os_rand = [0u8; 32];
     rand::rngs::OsRng.fill_bytes(&mut os_rand);
-    let mut sign_seed = Vec::with_capacity(15 + SK + 32 + msg.len());
-    sign_seed.extend_from_slice(b"ccx-raptor-sign");
-    sign_seed.extend_from_slice(skb);
-    sign_seed.extend_from_slice(&os_rand);
-    sign_seed.extend_from_slice(msg);
+    let mut prk = [0u8; 48];
+    shake(&[b"ccx-spend-extract-v1", skb, &os_rand], &mut prk);
+    let mut sign_seed = vec![0u8; 48];
+    shake(&[b"ccx-spend-expand-v1", &prk, msg], &mut sign_seed);
     let sig = match raptor::sign(msg, &ring_polys, &secret, signer_index, &sign_seed) {
         Ok(s) => s,
         Err(_) => return -6, // signing aborted (rejection sampling / bad inputs)
@@ -478,6 +489,172 @@ pub extern "C" fn ccx_pq_msg_open(seed: *const u8, seed_len: usize, index: u64,
   })
 }
 
+// --- F5: 0x07 AEAD v2 — XChaCha20-Poly1305 with a CALLER-SUPPLIED nonce + bound AAD ---------------
+// Fixes the 0x07 authenticated-message nonce-reuse hazard (audit F5; see docs/design/quantum-
+// resistance/msg-aead-0x07-nonce-fix.md). v1 (ccx_pq_msg_seal/open) DERIVES a 96-bit nonce from
+// (seed, index); when `seed` is a reusable ECDH product, a tx-key reuse to the same recipient/index
+// reuses (key, nonce) -> catastrophic. v2 takes a 24-byte XChaCha nonce the CALLER must source fresh
+// (OsRng) per message, so uniqueness no longer depends on the tx-key-uniqueness invariant, and binds
+// `aad` (e.g. tx_pubkey || output_index) so a sealed memo cannot be relocated to another output/tx.
+// Key = SHAKE256("ccx-msg-aead-v2" || seed); domain-separated from v1 so the two never collide.
+// Wire integration (new tag, height gate) is a separate gated change — see the spec.
+const AEAD_V2_NONCE: usize = 24;
+
+#[no_mangle]
+pub extern "C" fn ccx_pq_msg_seal_v2(seed: *const u8, seed_len: usize,
+                                     nonce: *const u8, nonce_len: usize,
+                                     aad: *const u8, aad_len: usize,
+                                     pt: *const u8, pt_len: usize,
+                                     ct_out: *mut u8, ct_cap: usize, ct_len_out: *mut usize) -> i32 {
+  ffi_guard(-99, || {
+    if seed.is_null() || nonce.is_null() || ct_out.is_null() || ct_len_out.is_null() { return -1; }
+    if pt.is_null() && pt_len != 0 { return -1; }
+    if aad.is_null() && aad_len != 0 { return -1; }
+    if seed_len != 32 || nonce_len != AEAD_V2_NONCE { return -2; }
+    let need = pt_len.checked_add(AEAD_TAG).unwrap_or(usize::MAX);
+    if ct_cap < need { unsafe { *ct_len_out = need; } return -2; }
+    let mut seed32 = [0u8; 32];
+    seed32.copy_from_slice(unsafe { std::slice::from_raw_parts(seed, 32) });
+    let nonce24 = unsafe { std::slice::from_raw_parts(nonce, AEAD_V2_NONCE) };
+    let aadb = if aad_len == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(aad, aad_len) } };
+    let ptb = if pt_len == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(pt, pt_len) } };
+    let mut key = [0u8; 32];
+    shake(&[b"ccx-msg-aead-v2", &seed32], &mut key);
+    let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
+    let sealed = match cipher.encrypt(XNonce::from_slice(nonce24), Payload { msg: ptb, aad: aadb }) { Ok(c) => c, Err(_) => return -3 };
+    if sealed.len() != need { return -3; }
+    unsafe {
+        std::ptr::copy_nonoverlapping(sealed.as_ptr(), ct_out, sealed.len());
+        *ct_len_out = sealed.len();
+    }
+    0
+  })
+}
+
+#[no_mangle]
+pub extern "C" fn ccx_pq_msg_open_v2(seed: *const u8, seed_len: usize,
+                                     nonce: *const u8, nonce_len: usize,
+                                     aad: *const u8, aad_len: usize,
+                                     ct: *const u8, ct_len: usize,
+                                     pt_out: *mut u8, pt_cap: usize, pt_len_out: *mut usize) -> i32 {
+  ffi_guard(-99, || {
+    if seed.is_null() || nonce.is_null() || ct.is_null() || pt_len_out.is_null() { return -1; }
+    if aad.is_null() && aad_len != 0 { return -1; }
+    if seed_len != 32 || nonce_len != AEAD_V2_NONCE { return -2; }
+    if ct_len < AEAD_TAG { return -4; }
+    let pt_len = ct_len - AEAD_TAG;
+    if pt_out.is_null() && pt_len != 0 { return -1; }
+    if pt_cap < pt_len { unsafe { *pt_len_out = pt_len; } return -2; }
+    let mut seed32 = [0u8; 32];
+    seed32.copy_from_slice(unsafe { std::slice::from_raw_parts(seed, 32) });
+    let nonce24 = unsafe { std::slice::from_raw_parts(nonce, AEAD_V2_NONCE) };
+    let aadb = if aad_len == 0 { &[][..] } else { unsafe { std::slice::from_raw_parts(aad, aad_len) } };
+    let ctb = unsafe { std::slice::from_raw_parts(ct, ct_len) };
+    let mut key = [0u8; 32];
+    shake(&[b"ccx-msg-aead-v2", &seed32], &mut key);
+    let cipher = XChaCha20Poly1305::new(Key::from_slice(&key));
+    // decrypt() verifies the Poly1305 tag over (ciphertext, aad); a wrong AAD (relocated memo) fails.
+    let plain = match cipher.decrypt(XNonce::from_slice(nonce24), Payload { msg: ctb, aad: aadb }) { Ok(p) => p, Err(_) => return -3 };
+    if plain.len() != pt_len { return -3; }
+    if pt_len != 0 { unsafe { std::ptr::copy_nonoverlapping(plain.as_ptr(), pt_out, plain.len()); } }
+    unsafe { *pt_len_out = plain.len(); }
+    0
+  })
+}
+
+#[cfg(test)]
+mod f5_aead_v2 {
+    use super::*;
+    fn seal(seed: &[u8;32], nonce: &[u8;24], aad: &[u8], pt: &[u8]) -> Option<Vec<u8>> {
+        let mut ct = vec![0u8; pt.len() + AEAD_TAG]; let mut n = 0usize;
+        let rc = ccx_pq_msg_seal_v2(seed.as_ptr(), 32, nonce.as_ptr(), 24, aad.as_ptr(), aad.len(),
+                                    pt.as_ptr(), pt.len(), ct.as_mut_ptr(), ct.len(), &mut n);
+        if rc == 0 { ct.truncate(n); Some(ct) } else { None }
+    }
+    fn open(seed: &[u8;32], nonce: &[u8;24], aad: &[u8], ct: &[u8]) -> Option<Vec<u8>> {
+        let mut pt = vec![0u8; ct.len()]; let mut n = 0usize;
+        let rc = ccx_pq_msg_open_v2(seed.as_ptr(), 32, nonce.as_ptr(), 24, aad.as_ptr(), aad.len(),
+                                    ct.as_ptr(), ct.len(), pt.as_mut_ptr(), pt.len(), &mut n);
+        if rc == 0 { pt.truncate(n); Some(pt) } else { None }
+    }
+    #[test]
+    fn v2_roundtrip_and_nonce_aad_safety() {
+        let seed = [0x33u8; 32];
+        let aad = b"txpub||outindex".as_slice();
+        let pt = b"secret memo payload".as_slice();
+        let n1 = [0x01u8; 24];
+        let n2 = [0x02u8; 24];
+        // round-trip
+        let ct1 = seal(&seed, &n1, aad, pt).expect("seal");
+        assert_eq!(open(&seed, &n1, aad, &ct1).as_deref(), Some(pt), "round-trip");
+        // (A) NO keystream reuse: same key+pt, different nonce => different ciphertext bytes.
+        let ct2 = seal(&seed, &n2, aad, pt).expect("seal2");
+        assert_ne!(ct1, ct2, "different nonce must give different ciphertext");
+        // (B) AAD binding: opening with a DIFFERENT aad (relocated memo) must fail.
+        assert!(open(&seed, &n1, b"other-context", &ct1).is_none(), "wrong AAD must reject");
+        // (C) wrong seed rejects; (D) tamper rejects.
+        assert!(open(&[0x44u8;32], &n1, aad, &ct1).is_none(), "wrong seed must reject");
+        let mut bad = ct1.clone(); bad[0] ^= 0xff;
+        assert!(open(&seed, &n1, aad, &bad).is_none(), "tamper must reject");
+    }
+}
+
+#[cfg(test)]
+mod f6_mlkem_dudect {
+    //! F6: dudect-style FO-decapsulation timing test for ML-KEM-768. The classic CCA/timing hole is
+    //! whether decapsulation leaks (via timing) that a ciphertext was INVALID — i.e. whether the FO
+    //! implicit-reject branch is constant-time. Class A = decap a fresh VALID ct; class B = decap a
+    //! CORRUPTED ct (implicit reject). The secret key is fixed; the ciphertext validity is the
+    //! attacker-controlled variable. `|t|` small ⇒ no validity timing oracle. First-order check
+    //! (n=4000, pinned core); a rigorous run needs >=1e6 samples. Run:
+    //!   cargo test --release f6_mlkem -- --ignored --nocapture
+    use super::*;
+    use std::time::Instant;
+    fn welch_t(a: &[f64], b: &[f64]) -> f64 {
+        let m = |x: &[f64]| x.iter().sum::<f64>() / x.len() as f64;
+        let v = |x: &[f64], mm: f64| x.iter().map(|t| (t - mm) * (t - mm)).sum::<f64>() / (x.len() as f64 - 1.0);
+        let (ma, mb) = (m(a), m(b)); let (va, vb) = (v(a, ma), v(b, mb));
+        (ma - mb) / (va / a.len() as f64 + vb / b.len() as f64).sqrt()
+    }
+    fn crop(mut v: Vec<f64>, keep: f64) -> Vec<f64> {
+        v.sort_by(|x, y| x.partial_cmp(y).unwrap()); let hi = (v.len() as f64 * keep) as usize; v[..hi.max(2)].to_vec()
+    }
+    #[test]
+    #[ignore]
+    fn mlkem_decap_no_validity_timing_oracle() {
+        let (pk, sk) = kyber768::keypair();
+        // Sample count; override for a rigorous run: CCX_DUDECT_ITERS=1000000 (default 4000).
+        let iters: usize = std::env::var("CCX_DUDECT_ITERS").ok().and_then(|s| s.parse().ok()).unwrap_or(4000);
+        let mut ta = Vec::with_capacity(iters);
+        let mut tb = Vec::with_capacity(iters);
+        // Pre-build matched pools so the ONLY difference fed to the timed decap is ciphertext validity:
+        // every ct (valid AND invalid) is constructed identically via from_bytes, eliminating the
+        // surrounding-work / allocation-pattern asymmetry that could otherwise bias the t-statistic.
+        let pool = 256usize;
+        let mut valids: Vec<kyber768::Ciphertext> = Vec::with_capacity(pool);
+        let mut invalids: Vec<kyber768::Ciphertext> = Vec::with_capacity(pool);
+        for j in 0..pool {
+            let (_s, ct) = kyber768::encapsulate(&pk);
+            let vb = ct.as_bytes().to_vec();
+            valids.push(<kyber768::Ciphertext as KC>::from_bytes(&vb).unwrap());
+            let mut ib = vb.clone();
+            let p = (j * 7 + 1) % ib.len();
+            ib[p] ^= 0xff;
+            invalids.push(<kyber768::Ciphertext as KC>::from_bytes(&ib).unwrap());
+        }
+        for j in 0..50 { let _ = kyber768::decapsulate(&valids[j % pool], &sk); }
+        for i in 0..iters {
+            let v = &valids[i % pool];
+            let t0 = Instant::now(); let _ = kyber768::decapsulate(v, &sk); ta.push(t0.elapsed().as_nanos() as f64);
+            let bad = &invalids[i % pool];
+            let t1 = Instant::now(); let _ = kyber768::decapsulate(bad, &sk); tb.push(t1.elapsed().as_nanos() as f64);
+        }
+        let tf = welch_t(&ta, &tb); let tc = welch_t(&crop(ta, 0.7), &crop(tb, 0.7));
+        println!("DUDECT mlkem768 decap valid-vs-invalid: t(full)={:.2} t(cropped)={:.2} n={}", tf, tc, iters);
+        assert!(tc.abs() < 500.0, "ML-KEM decap validity timing oracle? cropped |t|={:.2}", tc);
+    }
+}
+
 /// Selftest: seal->open round-trips; flipping ANY sealed byte (ciphertext or tag) makes open fail;
 /// a wrong seed makes open fail; a wrong index makes open fail. ok=1 means all checks passed.
 #[no_mangle]
@@ -562,6 +739,7 @@ pub extern "C" fn ccx_pq_kem_stealth_selftest() -> CcxPqSizes {
 /// different tag), and rejects a tampered signature. Anonymity is structural (the ring chain is
 /// symmetric across members). ok=1 means all checks passed.
 #[no_mangle]
+#[cfg(feature = "legacy-ringsig-demo")]
 pub extern "C" fn ccx_pqr_ringsig_selftest() -> CcxPqSizes {
   ffi_guard(CCX_SIZES_PANIC, || {
     let n = 4usize;
@@ -603,6 +781,7 @@ pub extern "C" fn ccx_pqr_ringsig_selftest() -> CcxPqSizes {
 /// Returns 1 if a no-secret forgery VERIFIES (scheme universally forgeable / BROKEN), else 0.
 /// Tests the security review's CRITICAL universal-forgery claim directly.
 #[no_mangle]
+#[cfg(feature = "legacy-ringsig-demo")]
 pub extern "C" fn ccx_pqr_forgery_test() -> i32 {
   // On panic, return 0 ("not forgeable") — the safe answer that does not falsely flag a break.
   ffi_guard(0, || {
@@ -618,6 +797,7 @@ pub extern "C" fn ccx_pqr_forgery_test() -> i32 {
 /// the construction resisted all of them (HEURISTIC — empirical, not a proof or audit). On panic
 /// returns 0 (treated as "not sound", the conservative answer that flags rather than hides a problem).
 #[no_mangle]
+#[cfg(feature = "legacy-ringsig-demo")]
 pub extern "C" fn ccx_pqr_soundness_test() -> i32 {
   ffi_guard(0, || ringsig::adversarial_soundness_ok() as i32)
 }
@@ -628,6 +808,7 @@ pub extern "C" fn ccx_pqr_soundness_test() -> i32 {
 /// signature bytes (and brick stored testnet PQ outputs) is caught at startup, not in production. On
 /// panic returns a large nonzero (treated as failure). Runs `iters` random trials (deterministic PRNG).
 #[no_mangle]
+#[cfg(feature = "legacy-ringsig-demo")]
 pub extern "C" fn ccx_pqr_ntt_equiv_test(iters: u32) -> u32 {
   ffi_guard(u32::MAX, || ringsig::ntt_matches_schoolbook(iters))
 }

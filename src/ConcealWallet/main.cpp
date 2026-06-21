@@ -9,6 +9,7 @@
 #include "ConcealWallet.h"
 #include "ClientHelper.h"
 #include "Const.h"
+#include "pq_ring_sig.h" // ccx-pqc FFI: PQ selftest gate (audit F3)
 
 #include "Common/CommandLine.h"
 #include "Common/PathTools.h"
@@ -101,6 +102,26 @@ int main(int argc, char* argv[])
   bool testnet = command_line::get_arg(vm, arg_testnet);
   if (testnet)
     logger(INFO, MAGENTA) << "/!\\ Starting in testnet mode /!\\";
+
+  // PQ crypto selftest gate (CIP-0001 / audit F3): verify the PQ backend BEFORE any key operation.
+  // The wallet restores keys deterministically from the mnemonic; a keygen-KAT drift (cross-platform
+  // Falcon FP divergence) or a det-keygen/encoding mismatch would silently derive WRONG, unrestorable
+  // keys -> fund loss. Abort loudly here rather than produce incompatible keys. Twin of the daemon gate.
+  {
+    logger(INFO) << "Running PQ crypto selftests...";
+    auto pqFail = [&](const char *name) -> int {
+      logger(ERROR, BRIGHT_RED) << "PQ selftest FAILED: " << name
+                                << " — aborting (funds-safety gate). Do NOT use a wallet with broken PQ crypto.";
+      return 1;
+    };
+    if (ccx_mlkem768_selftest().ok != 1) return pqFail("ML-KEM-768");
+    if (ccx_mldsa_selftest().ok != 1) return pqFail("ML-DSA-65");
+    if (ccx_pq_ringsig_selftest().ok != 1) return pqFail("Raptor ring-sig (incl. keygen KAT)");
+    if (ccx_pq_kem_stealth_selftest().ok != 1) return pqFail("KEM stealth");
+    if (ccx_pq_multisig_selftest().ok != 1) return pqFail("ML-DSA multisig");
+    if (ccx_pq_detkeygen_selftest().ok != 1) return pqFail("deterministic keygen");
+    logger(INFO) << "PQ selftests OK (keygen KAT verified, deterministic restore validated)";
+  }
 
   cn::Currency currency = cn::CurrencyBuilder(logManager).
     testnet(testnet).currency();

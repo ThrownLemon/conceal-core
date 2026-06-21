@@ -6,7 +6,7 @@ description = "Conceal post-quantum crypto module (C-ABI). Real ML-KEM/ML-DSA; r
 
 [lib]
 name = "ccx_pqc"
-crate-type = ["staticlib"]
+crate-type = ["staticlib", "rlib"]
 
 # The FFI panic guards (std::panic::catch_unwind in src/lib.rs) only work if panics unwind. Pin
 # unwind so a future "panic = abort" optimisation can't silently turn every extern "C" guard into a
@@ -61,6 +61,13 @@ crabgrind = { version = "0.1", optional = true }
 [features]
 # Enable only on a box with valgrind installed: `cargo test --features ctgrind` (run under valgrind).
 ctgrind = ["dep:crabgrind"]
+
+# Audit F8: the `ringsig` module (the K=L=6 demo) is CRYPTOGRAPHICALLY BROKEN (t=A*s, square A, no
+# error -> key recovery) and exists only for its adversarial selftests + the key-recovery PoC. It is
+# NOT default — the production daemon staticlib (cargo `build --release`, no features) EXCLUDES it, so
+# the broken code + its misleading "soundness" selftests can never ship. Exercise it (incl. the F8 PoC)
+# with `cargo test --features legacy-ringsig-demo`. The live ring sig is `raptor` (always compiled).
+legacy-ringsig-demo = []
 
 # Compile the vendored PQClean Falcon-512 "clean" C (integer-FP only) + the clean-room raptor_falcon.c
 # shim into the staticlib. All vendored C is MIT (Falcon Project) / public-domain (fips202, randombytes)

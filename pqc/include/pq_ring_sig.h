@@ -67,6 +67,20 @@ int32_t ccx_pq_msg_seal(const uint8_t *seed, size_t seed_len, uint64_t index,
 int32_t ccx_pq_msg_open(const uint8_t *seed, size_t seed_len, uint64_t index,
                         const uint8_t *ct, size_t ct_len,
                         uint8_t *pt_out, size_t pt_cap, size_t *pt_len_out);
+/* v2 (audit F5): XChaCha20-Poly1305 with a CALLER-SUPPLIED 24-byte nonce (must be fresh/random per
+   message — removes the 0x07 derived-nonce reuse hazard) + bound `aad` (e.g. tx_pubkey || index, so a
+   sealed memo cannot be relocated). Key = SHAKE256("ccx-msg-aead-v2" || seed). seed_len must be 32,
+   nonce_len 24. seal writes pt_len + 16 bytes; open writes NOTHING on auth/AAD failure. 0 on success. */
+int32_t ccx_pq_msg_seal_v2(const uint8_t *seed, size_t seed_len,
+                           const uint8_t *nonce, size_t nonce_len,
+                           const uint8_t *aad, size_t aad_len,
+                           const uint8_t *pt, size_t pt_len,
+                           uint8_t *ct_out, size_t ct_cap, size_t *ct_len_out);
+int32_t ccx_pq_msg_open_v2(const uint8_t *seed, size_t seed_len,
+                           const uint8_t *nonce, size_t nonce_len,
+                           const uint8_t *aad, size_t aad_len,
+                           const uint8_t *ct, size_t ct_len,
+                           uint8_t *pt_out, size_t pt_cap, size_t *pt_len_out);
 /* ML-DSA-65 (FIPS 204 / dilithium3) PQ MULTISIG for post-quantum deposits (CIP-0001
    UPGRADE_HEIGHT_V9). Plain m-of-n detached signatures over the tx prefix hash — no ring, no
    nullifier (double-spend caught by the chain isUsed flag). Standardized NIST primitive, used as-is

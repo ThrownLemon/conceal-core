@@ -43,6 +43,7 @@
 // field so the same early-reject guard protects the no-default-case parser.
 #define TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE 16
 #define TX_EXTRA_AUTH_MESSAGE_MAX_DATA_SIZE 8192
+#define TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE 24 // v2 (audit F5): random XChaCha20 nonce prefixed to `data`
 
 namespace cn {
 

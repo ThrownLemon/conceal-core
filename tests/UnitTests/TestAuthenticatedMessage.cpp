@@ -92,8 +92,8 @@ TEST(AuthenticatedMessage, RoundTripVariousSizesAndIndices)
     {
       tx_extra_authenticated_message field;
       ASSERT_TRUE(field.encrypt(idx, msg, &p.recipientPub, p.txkey));
-      // data is the AEAD-sealed blob: plaintext + 16-byte Poly1305 tag.
-      ASSERT_EQ(msg.size() + TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE, field.data.size());
+      // v2 (audit F5): data = 24-byte random nonce || sealed (plaintext + 16-byte Poly1305 tag).
+      ASSERT_EQ(msg.size() + TX_EXTRA_AUTH_MESSAGE_AEAD_TAG_SIZE + TX_EXTRA_AUTH_MESSAGE_NONCE_SIZE, field.data.size());
 
       // Round-trip through the production serializer/parser.
       std::vector<uint8_t> extra = writeAuthExtra(field);

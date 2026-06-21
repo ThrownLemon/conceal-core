@@ -388,6 +388,13 @@ void serialize(PqKeyInput& in, ISerializer& serializer) {
   serializeVarintVector(in.outputIndexes, serializer, "key_offsets");
   serializeAsBinary(in.nullifier, "nullifier", serializer);
   serializeAsBinary(in.ringSig, "ringsig", serializer);
+  // LOW-3 (audit): defense-in-depth parse-time bound — reject a hostile multi-MB ringSig before it
+  // forces a large allocation downstream. ccx_pq_verify's `sig_len <= ring_sig_size(ring_count)` is
+  // the tighter, authoritative reject; 1 MiB is far above any valid Raptor signature (ring-8 ~13 KB,
+  // ring-32 ~96 KB) so it never rejects a real sig, and far below CRYPTONOTE_MAX_TX_SIZE.
+  if (serializer.type() == ISerializer::INPUT && in.ringSig.size() > (1u << 20)) {
+    throw std::runtime_error("PqKeyInput.ringSig exceeds the 1 MiB parse bound");
+  }
 }
 
 void serialize(PqKeyOutput& out, ISerializer& serializer) {

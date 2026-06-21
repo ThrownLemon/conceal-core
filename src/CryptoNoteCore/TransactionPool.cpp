@@ -71,6 +71,13 @@ namespace cn
           (void)r; //just to make compiler to shut up
           assert(r.second);
         }
+        else if (in.type() == typeid(PqKeyInput))
+        {
+          const auto &pkin = boost::get<PqKeyInput>(in);
+          auto r = m_pqNullifiers.insert(pkin.nullifier);
+          (void)r;
+          assert(r.second);
+        }
       }
 
       m_txHashes.push_back(txid);
@@ -110,6 +117,14 @@ namespace cn
             return false;
           }
         }
+        else if (in.type() == typeid(PqKeyInput))
+        {
+          const auto &pkin = boost::get<PqKeyInput>(in);
+          if (m_pqNullifiers.count(pkin.nullifier))
+          {
+            return false;
+          }
+        }
       }
       return true;
     }
@@ -119,6 +134,9 @@ namespace cn
     // CIP-0001: PQ deposit cells (PqMultisigInput) used by txs already in this block template, so two
     // conflicting PQ deposit withdrawals can't both be selected into one block (twin of m_usedOutputs).
     std::set<std::pair<uint64_t, uint64_t>> m_usedPqCells;
+    // CIP-0001: PQ spend nullifiers (PqKeyInput) already in this block template, so two transactions
+    // spending the same PQ output (same nullifier) can't both be selected into one block.
+    std::set<std::vector<uint8_t>> m_pqNullifiers;
     std::vector<crypto::Hash> m_txHashes;
   };
 
@@ -642,6 +660,7 @@ namespace cn
     KV_MEMBER(m_spent_key_images);
     KV_MEMBER(m_spentOutputs);
     KV_MEMBER(m_spent_pq_deposit_cells);
+    KV_MEMBER(m_spent_pq_nullifiers);
     KV_MEMBER(m_recentlyDeletedTransactions);
   }
 

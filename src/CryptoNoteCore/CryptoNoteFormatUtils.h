@@ -109,6 +109,12 @@ std::vector<uint32_t> absolute_output_offsets_to_relative(const std::vector<uint
 // drift apart. Creation-side only: spending an existing classical deposit is unaffected.
 bool transactionContainsClassicalDeposit(const Transaction& tx);
 
+// True if the transaction carries any PQ ring-sig SPEND variant (PqKeyInput / PqKeyOutput) — the
+// predicate used to height-gate PQ spends behind UPGRADE_HEIGHT_V10 on MAINNET (audit finding F4).
+// Shared free function (single source of truth, unit-testable) so the block-connect spend gate and any
+// mempool/template policy gate cannot drift apart, mirroring transactionContainsClassicalDeposit above.
+bool transactionContainsPqSpend(const Transaction& tx);
+
 
 // 62387455827 -> 455827 + 7000000 + 80000000 + 300000000 + 2000000000 + 60000000000, where 455827 <= dust_threshold
 template<typename chunk_handler_t, typename dust_handler_t>
