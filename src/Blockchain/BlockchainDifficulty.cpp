@@ -54,6 +54,13 @@ namespace cn
   difficulty_type Blockchain::get_next_difficulty_for_alternative_chain(
       const std::list<crypto::Hash> &alt_chain, const BlockEntry &bei)
   {
+    // M-new-10: testnet uses a fixed PoC difficulty for BOTH the main-chain template
+    // (getDifficultyForNextBlock) and alternative-block validation. Without mirroring it here, a valid
+    // fork block mined at the fixed difficulty is rejected under the dynamic retarget, so two testnet
+    // nodes following the advertised template diverge. Testnet-only; mainnet falls through to retarget.
+    if (m_currency.isTestnet())
+      return cn::parameters::TESTNET_PQ_POC_DIFFICULTY;
+
     std::vector<uint64_t> timestamps;
     std::vector<difficulty_type> cumulative_difficulties;
 

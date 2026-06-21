@@ -554,8 +554,6 @@ namespace cn
                                        size_t rollback_height);
     bool findPreviousBlockHeight(const crypto::Hash &prevHash,
                                  uint32_t &height, bool &inMainChain);
-    bool verifyAlternativeChainTransactions(const std::list<crypto::Hash> &alt_chain,
-                                            uint32_t split_height);
 
     //  Private methods — Sync
     std::vector<crypto::Hash> doBuildSparseChain(const crypto::Hash &startBlockId) const;

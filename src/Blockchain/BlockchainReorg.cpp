@@ -358,9 +358,16 @@ namespace cn
         return false;
       }
 
-      // ── Verify transaction coverage ────────────────────────────────────
-      if (!verifyAlternativeChainTransactions(alt_chain, split_height))
-        return false;
+      // ── (H-new-1) NO displaced-main-transaction subset rule ────────────
+      // A heavier valid fork may legitimately contain a DIFFERENT transaction set — e.g. a competing PQ
+      // deposit spending the same funding output / nullifier, which cannot coexist with the main one in
+      // a single chain. The removed verifyAlternativeChainTransactions() rejected the switch unless the
+      // alternative repeated every displaced main-chain tx, making the objectively-heavier chain
+      // unselectable (nodes stuck on incompatible tips). Correct reorg semantics: pop the main segment
+      // (popBlock returns its txs to the pool; ones now conflicting are dropped on re-validation), then
+      // push the alternative — pushBlock validates each alt block and any unavailable/invalid alt tx
+      // fails the push and triggers rollback_blockchain_switching() below. (Matches upstream CryptoNote,
+      // which has no such subset pre-check.)
 
       // ── Verify block versions ──────────────────────────────────────────
       for (const auto &hash : alt_chain)
@@ -446,37 +453,6 @@ namespace cn
       logger(logging::ERROR, logging::BRIGHT_RED) << "Error during blockchain switching";
       return false;
     }
-  }
-
-  //  Transaction verification for chain switching
-  bool Blockchain::verifyAlternativeChainTransactions(
-      const std::list<crypto::Hash> &alt_chain, uint32_t split_height)
-  {
-    // Collect transaction hashes from the main chain segment being replaced
-    std::unordered_set<crypto::Hash> mainChainTxHashes;
-    for (size_t i = blocksSize() - 1; i >= split_height; i--)
-    {
-      const Block &b = blocksAt(i).bl;
-      mainChainTxHashes.insert(b.transactionHashes.begin(), b.transactionHashes.end());
-    }
-
-    // Check every main chain transaction exists in the alternative chain
-    for (const auto &hash : alt_chain)
-    {
-      const Block &b = m_alternative_chains[hash].bl;
-      for (const auto &tx_hash : b.transactionHashes)
-        mainChainTxHashes.erase(tx_hash);
-    }
-
-    if (!mainChainTxHashes.empty())
-    {
-      logger(logging::ERROR, logging::BRIGHT_RED) << "Alternative chain lacks transaction "
-                                                  << common::podToHex(*mainChainTxHashes.begin())
-                                                  << " from main chain, rejected";
-      return false;
-    }
-
-    return true;
   }
 
 } // namespace cn
