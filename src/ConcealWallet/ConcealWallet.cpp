@@ -2002,6 +2002,15 @@ bool conceal_wallet::pqOutputIsMine(const cn::COMMAND_RPC_GET_PQ_OUTPUTS::pq_out
     return false;
   }
 
+  // Bound untrusted daemon hex BEFORE decoding — legit PQ fields are fixed-size, so a multi-MB hex
+  // string is malformed and must not be allowed to force a large allocation. kemCt = ML-KEM-768
+  // ciphertext (ccx_pq_kem_ct_bytes), key = lattice one-time pubkey (ccx_pq_pubkey_bytes).
+  const size_t ctHexLen = ccx_pq_kem_ct_bytes() * 2;
+  const size_t keyHexLen = ccx_pq_pubkey_bytes() * 2;
+  if (ctHexLen == 0 || keyHexLen == 0 || e.kem.size() != ctHexLen || e.key.size() != keyHexLen)
+  {
+    return false; // wrong-size on-chain hex — not a legit scannable PQ output
+  }
   std::vector<uint8_t> kemCt;
   if (!common::fromHex(e.kem, kemCt))
   {
@@ -2467,6 +2476,21 @@ bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
       return true;
     }
 
+    // Bound the cells we scan so a hostile node cannot force unbounded wallet-side work via a huge
+    // multi-amount response (mirrors the pq_balance / pq_receive scan-budget guard).
+    size_t totalOuts = 0;
+    for (const auto& ofa : gres.outs)
+    {
+      totalOuts += ofa.outs.size();
+    }
+    if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
+    {
+      fail_msg_writer() << "get_pq_multisig_outputs returned " << totalOuts
+                        << " outputs, exceeding the wallet scan budget of "
+                        << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
+      return true;
+    }
+
     const std::string dsaPubHex = common::toHex(dsaPubKey);
     const cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::pq_msig_out_entry* cell = nullptr;
     for (const auto& ofa : gres.outs)
@@ -2527,6 +2551,15 @@ bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
     // exactly mirroring Currency::getInterestForInput (verified by the interest-parity unit test).
     const uint32_t lockHeight = currentHeight - cell->term;
     const uint64_t interest = m_currency.calculateInterest(amount, cell->term, lockHeight);
+
+    // required_signature_count is uint32 on the wire but narrows to uint8 in the withdraw call; a
+    // hostile/garbage value > 255 would silently truncate into a malformed request. Reject it.
+    if (cell->required_signature_count > 0xFFu)
+    {
+      fail_msg_writer() << "deposit cell has unsupported required_signature_count="
+                        << cell->required_signature_count;
+      return true;
+    }
 
     std::string txHash, status, err;
     if (cn::pqWithdrawViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
