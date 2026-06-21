@@ -38,6 +38,7 @@ mod falcon_ffi;  // FFI to the vendored Falcon C (rfalcon_*) + modq/comp codec h
 pub mod raptor_abi;  // Raptor compact packing + size/canonicity helpers (the codec for ccx_pq_sign/verify)
 mod detkeygen; // Deterministic FIPS-203/204 keygen from a seed (mnemonic-restorable PQ wallet keys)
 mod walletcrypto; // Wallet-file at-rest KDF (Argon2id) + AEAD (XChaCha20-Poly1305) — client-side only
+#[cfg(test)] mod adv_tests; // adversarial edge-case probes
 
 // FFI panic guard: a Rust panic unwinding across the `extern "C"` boundary into the C++ daemon is
 // undefined behaviour. Every entry point runs its body inside catch_unwind and, on panic, returns

@@ -188,6 +188,15 @@ namespace cn
       return false;
     }
 
+    // Defense-in-depth: reject 0-of-n even though the output side (check_outs_valid) already
+    // prevents requiredSignatureCount=0. Without this guard, a future bypass of the output-side
+    // check would allow anyone to spend any deposit cell with zero signatures.
+    if (input.signatureCount == 0)
+    {
+      logger(logging::DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with zero signature count.";
+      return false;
+    }
+
     MultisignatureOutputsContainer::const_iterator amountOutputs = m_pqMultisigOutputs.find(input.amount);
     if (amountOutputs == m_pqMultisigOutputs.end())
     {
