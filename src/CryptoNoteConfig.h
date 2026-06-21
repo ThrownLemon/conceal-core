@@ -211,11 +211,19 @@ namespace cn
 	const size_t  PQ_MULTISIG_MAX_KEYS = 16;    /* max n keys / m sigs in a PQ multisig (deposit) output/input;
 	                                               bounds the attacker-controlled length-prefixed arrays at the
 	                                               serialization boundary (OOM + verify-CPU DoS guard) */
-	/* RPC-only (NOT consensus) bounds for the read-only get_pq_outputs enumeration. */
+	/* RPC-only (NOT consensus) bounds for the read-only get_pq_outputs enumeration. *_MAX_PER_AMOUNT is
+	   the per-amount PAGE cap the node enforces inside the bounded query (start_index/limit pagination):
+	   one request enumerates at most this many entries per amount, and a client pages by re-issuing with
+	   start_index = next_index until the response is no longer truncated. */
 	const size_t  PQ_GET_OUTPUTS_MAX_AMOUNTS  = 64;
 	const size_t  PQ_GET_OUTPUTS_MAX_PER_AMOUNT = 1000;
 	const size_t  PQ_GET_MULTISIG_OUTPUTS_MAX_AMOUNTS  = 64;
 	const size_t  PQ_GET_MULTISIG_OUTPUTS_MAX_PER_AMOUNT = 1000;
+	/* Wallet/client-side hard cap on the TOTAL number of PQ entries a single paged enumeration will
+	   accumulate across ALL requested pages (and amounts). Bounds wallet-side per-output work (KEM scans,
+	   ring assembly) so a hostile node cannot force unbounded paging/lattice work. When a paged scan hits
+	   this cap the helper stops and reports the scan was capped (it never silently drops entries). */
+	const size_t  PQ_WALLET_MAX_SCAN_OUTPUTS = 4096;
 	/* Testnet PoC only (CIP-0001): deterministic seed for the PQ keypair that owns testnet coinbase
 	   PQ outputs. The daemon (coinbase) derives the public key; the injector derives the secret key. */
 	const uint8_t PQ_TESTNET_COINBASE_SEED[32] = {

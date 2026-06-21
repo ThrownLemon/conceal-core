@@ -305,10 +305,12 @@ namespace cn
   // Walks the full m_pqOutputs[amount] index — the global index is the vector position — and projects
   // each PqKeyOutput's key / kemCt plus its containing tx hash, height and spendability. Mirrors the
   // access idioms in check_pq_tx_input; it never mutates state or touches consensus/validation.
-  bool Blockchain::getPqOutputs(uint64_t amount, std::vector<PqOutputEntry> &outs)
+  bool Blockchain::getPqOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqOutputEntry> &outs, uint32_t &nextIndex, bool &truncated)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     outs.clear();
+    nextIndex = 0;
+    truncated = false;
 
     auto it = m_pqOutputs.find(amount);
     if (it == m_pqOutputs.end())
@@ -317,9 +319,26 @@ namespace cn
     }
 
     const std::vector<std::pair<TransactionIndex, uint16_t>> &amount_outs_vec = it->second;
-    outs.reserve(amount_outs_vec.size());
+    const size_t bucketSize = amount_outs_vec.size();
 
-    for (size_t i = 0; i < amount_outs_vec.size(); ++i)
+    // Pagination (bounds the locked walk + copy to one page, not just the response size):
+    // emit [startIndex, end) where end = min(bucketSize, startIndex + effectiveLimit) and
+    // effectiveLimit = (limit == 0 ? bucketSize : limit). startIndex past the end yields an empty page.
+    if (startIndex >= bucketSize)
+    {
+      nextIndex = static_cast<uint32_t>(bucketSize);
+      return true; // start past the end: empty page, nothing more to resume
+    }
+    const size_t effectiveLimit = (limit == 0) ? bucketSize : static_cast<size_t>(limit);
+    // Compute end in size_t and clamp to bucketSize, guarding against startIndex + effectiveLimit overflow.
+    size_t end = bucketSize;
+    if (effectiveLimit < bucketSize - startIndex)
+    {
+      end = static_cast<size_t>(startIndex) + effectiveLimit;
+    }
+    outs.reserve(end - startIndex);
+
+    for (size_t i = startIndex; i < end; ++i)
     {
       const TransactionIndex &idx = amount_outs_vec[i].first;
       const uint16_t outInTx = amount_outs_vec[i].second;
@@ -350,6 +369,9 @@ namespace cn
       outs.push_back(entry);
     }
 
+    // One past the last emitted entry; truncated iff entries remain past the emitted page.
+    nextIndex = static_cast<uint32_t>(end);
+    truncated = (end < bucketSize);
     return true;
   }
 
@@ -359,10 +381,12 @@ namespace cn
   // withdrawal (the outputIndex into this vector is exactly PqMultisigInput.outputIndex, term binds the
   // input, isUsed is the consensus double-spend flag). Mirrors check_pq_multisig's read idioms — this
   // is a read-only RPC path and must never abort the daemon.
-  bool Blockchain::getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry> &outs)
+  bool Blockchain::getPqMultisigOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqMultisigOutputEntry> &outs, uint32_t &nextIndex, bool &truncated)
   {
     std::lock_guard<decltype(m_blockchain_lock)> lk(m_blockchain_lock);
     outs.clear();
+    nextIndex = 0;
+    truncated = false;
 
     auto it = m_pqMultisigOutputs.find(amount);
     if (it == m_pqMultisigOutputs.end())
@@ -371,9 +395,24 @@ namespace cn
     }
 
     const std::vector<MultisignatureOutputUsage> &usages = it->second;
-    outs.reserve(usages.size());
+    const size_t bucketSize = usages.size();
 
-    for (size_t i = 0; i < usages.size(); ++i)
+    // Pagination, identical to getPqOutputs: emit [startIndex, end) with end clamped to bucketSize and
+    // effectiveLimit = (limit == 0 ? bucketSize : limit); startIndex past the end yields an empty page.
+    if (startIndex >= bucketSize)
+    {
+      nextIndex = static_cast<uint32_t>(bucketSize);
+      return true; // start past the end: empty page, nothing more to resume
+    }
+    const size_t effectiveLimit = (limit == 0) ? bucketSize : static_cast<size_t>(limit);
+    size_t end = bucketSize;
+    if (effectiveLimit < bucketSize - startIndex)
+    {
+      end = static_cast<size_t>(startIndex) + effectiveLimit;
+    }
+    outs.reserve(end - startIndex);
+
+    for (size_t i = startIndex; i < end; ++i)
     {
       const MultisignatureOutputUsage &usage = usages[i];
 
@@ -405,6 +444,9 @@ namespace cn
       outs.push_back(entry);
     }
 
+    // One past the last emitted cell; truncated iff cells remain past the emitted page.
+    nextIndex = static_cast<uint32_t>(end);
+    truncated = (end < bucketSize);
     return true;
   }
 

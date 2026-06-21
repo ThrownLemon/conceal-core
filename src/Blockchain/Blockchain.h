@@ -216,8 +216,12 @@ namespace cn
 
     // Read-only post-quantum output enumeration (for the get_pq_outputs / get_pq_multisig_outputs RPCs).
     // Additive, never mutates state; projects m_pqOutputs[amount] / m_pqMultisigOutputs[amount].
-    bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry> &outs);
-    bool getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry> &outs);
+    // Paginated by bucket position: emits [startIndex, startIndex + effectiveLimit) where
+    // effectiveLimit = (limit == 0 ? bucket.size() : limit). nextIndex = one past the last emitted
+    // entry; truncated = more entries remain past nextIndex. This bounds the locked walk + copy to the
+    // requested page so the per-request cost (and not just the response size) stays bounded.
+    bool getPqOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqOutputEntry> &outs, uint32_t &nextIndex, bool &truncated);
+    bool getPqMultisigOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqMultisigOutputEntry> &outs, uint32_t &nextIndex, bool &truncated);
 
     // Deposit tracking
     uint64_t fullDepositAmount() const;

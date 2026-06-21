@@ -13,6 +13,7 @@
 #include "HttpClient.h"                      // HttpClient, invokeJsonCommand (direct-path)
 #include "JsonRpc.h"                          // JsonRpc::invokeJsonRpcCommand
 #include "CoreRpcServerCommandsDefinitions.h"
+#include "PqEnumClient.h"                     // pqEnumerateAllPages (paged get_pq_outputs)
 #include "crypto/crypto.h"                    // crypto::rand<T> (CSPRNG; NOT std::mt19937)
 #include "pq_ring_sig.h"                      // ccx_pq_kem_scan / ccx_pq_keygen (signer-ownership scan)
 
@@ -173,17 +174,23 @@ namespace cn
     {
       HttpClient httpClient(dispatcher, daemonHost, daemonPort);
 
-      // ---- 1. enumerate PQ outputs for this amount ----------------------------------------------
-      COMMAND_RPC_GET_PQ_OUTPUTS::request greq;
-      greq.amounts.push_back(amount);
+      // ---- 1. enumerate PQ outputs for this amount (paged) --------------------------------------
+      // Page through the full bucket via the shared helper so outputs past the node's per-page cap
+      // are still reachable; the helper enforces the PQ_WALLET_MAX_SCAN_OUTPUTS budget. A non-OK
+      // node status / no-progress node surfaces as err (FIX A: never treat that as "no outputs").
+      const std::vector<uint64_t> amts(1, amount);
       COMMAND_RPC_GET_PQ_OUTPUTS::response gres;
-      cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", greq, gres);
-
-      // FIX A: a non-OK status means the node refused / errored; the response body is then
-      // meaningless. Surface it instead of treating an empty/partial result as "no outputs".
-      if (gres.status != CORE_RPC_STATUS_OK)
+      bool scanCapped = false;
+      if (!pqEnumerateAllPages<COMMAND_RPC_GET_PQ_OUTPUTS>(httpClient, "get_pq_outputs", amts, gres, scanCapped, err))
       {
-        err = "get_pq_outputs failed: " + gres.status;
+        return false; // err already set by the helper
+      }
+      if (scanCapped)
+      {
+        // The on-chain set for this amount exceeds the wallet scan budget; the ring we could assemble
+        // would be drawn from a truncated view. Refuse rather than silently spend from a partial set.
+        err = "PQ output set for amount " + std::to_string(amount) + " exceeds the wallet scan budget of " +
+              std::to_string(cn::PQ_WALLET_MAX_SCAN_OUTPUTS) + "; aborting.";
         return false;
       }
 

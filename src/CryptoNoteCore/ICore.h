@@ -98,11 +98,14 @@ public:
   virtual bool get_random_outs_for_amounts(const COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_request& req, COMMAND_RPC_GET_RANDOM_OUTPUTS_FOR_AMOUNTS_response& res) = 0;
   virtual bool get_tx_outputs_gindexs(const crypto::Hash& tx_id, std::vector<uint32_t>& indexs) = 0;
   virtual bool getOutByMSigGIndex(uint64_t amount, uint64_t gindex, MultisignatureOutput& out) = 0;
-  // Read-only: enumerate every spendable PqKeyOutput indexed under 'amount' (for PQ ring assembly).
-  virtual bool getPqOutputs(uint64_t amount, std::vector<PqOutputEntry>& outs) = 0;
-  // Read-only: enumerate every PqMultisigOutput (PQ deposit cell) indexed under 'amount' (so a wallet
-  // can find its deposits by named-key match and resolve the withdrawal's (outputIndex, term, isUsed)).
-  virtual bool getPqMultisigOutputs(uint64_t amount, std::vector<PqMultisigOutputEntry>& outs) = 0;
+  // Read-only: enumerate spendable PqKeyOutputs indexed under 'amount' (for PQ ring assembly). Paginated
+  // by bucket position: emits [startIndex, startIndex + effectiveLimit), effectiveLimit = (limit == 0 ?
+  // bucket.size() : limit); nextIndex = one past the last emitted entry; truncated = more entries remain.
+  virtual bool getPqOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqOutputEntry>& outs, uint32_t& nextIndex, bool& truncated) = 0;
+  // Read-only: enumerate PqMultisigOutputs (PQ deposit cells) indexed under 'amount' (so a wallet can
+  // find its deposits by named-key match and resolve the withdrawal's (outputIndex, term, isUsed)).
+  // Paginated identically to getPqOutputs.
+  virtual bool getPqMultisigOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<PqMultisigOutputEntry>& outs, uint32_t& nextIndex, bool& truncated) = 0;
   virtual i_cryptonote_protocol* get_protocol() = 0;
   virtual bool handle_incoming_tx(const BinaryArray& tx_blob, tx_verification_context& tvc, bool keeped_by_block) = 0; //Deprecated. Should be removed with CryptoNoteProtocolHandler.
   virtual std::vector<Transaction> getPoolTransactions() = 0;

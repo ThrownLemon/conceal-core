@@ -1354,9 +1354,13 @@ struct COMMAND_RPC_GET_DOMAIN
 struct COMMAND_RPC_GET_PQ_OUTPUTS {
   struct request {
     std::vector<uint64_t> amounts;
+    uint32_t start_index = 0;  // bucket position to begin enumeration from (for pagination; 0 = start)
+    uint32_t limit = 0;        // max entries to return per amount (0 = node default page cap)
 
     void serialize(ISerializer& s) {
       KV_MEMBER(amounts)
+      KV_MEMBER(start_index)
+      KV_MEMBER(limit)
     }
   };
 
@@ -1382,11 +1386,13 @@ struct COMMAND_RPC_GET_PQ_OUTPUTS {
     uint64_t amount;
     std::vector<pq_out_entry> outs;
     bool truncated = false;  // true if the node capped this amount's bucket (more entries exist on-chain)
+    uint32_t next_index = 0; // bucket position to resume from on the next page (meaningful when truncated)
 
     void serialize(ISerializer& s) {
       KV_MEMBER(amount)
       KV_MEMBER(outs)
       KV_MEMBER(truncated)
+      KV_MEMBER(next_index)
     }
   };
 
@@ -1408,9 +1414,13 @@ struct COMMAND_RPC_GET_PQ_OUTPUTS {
 struct COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS {
   struct request {
     std::vector<uint64_t> amounts;
+    uint32_t start_index = 0;  // bucket position to begin enumeration from (for pagination; 0 = start)
+    uint32_t limit = 0;        // max cells to return per amount (0 = node default page cap)
 
     void serialize(ISerializer& s) {
       KV_MEMBER(amounts)
+      KV_MEMBER(start_index)
+      KV_MEMBER(limit)
     }
   };
 
@@ -1440,11 +1450,13 @@ struct COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS {
     uint64_t amount;
     std::vector<pq_msig_out_entry> outs;
     bool truncated = false;  // true if the node capped this amount's bucket (more cells exist on-chain)
+    uint32_t next_index = 0; // bucket position to resume from on the next page (meaningful when truncated)
 
     void serialize(ISerializer& s) {
       KV_MEMBER(amount)
       KV_MEMBER(outs)
       KV_MEMBER(truncated)
+      KV_MEMBER(next_index)
     }
   };
 

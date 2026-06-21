@@ -61,8 +61,8 @@ public:
   virtual bool handle_get_objects(cn::NOTIFY_REQUEST_GET_OBJECTS::request& arg, cn::NOTIFY_RESPONSE_GET_OBJECTS::request& rsp) override { return false; }
   virtual void on_synchronized() override {}
   virtual bool getOutByMSigGIndex(uint64_t amount, uint64_t gindex, cn::MultisignatureOutput& out) override { return true; }
-  virtual bool getPqOutputs(uint64_t amount, std::vector<cn::PqOutputEntry>& outs) override { return true; }
-  virtual bool getPqMultisigOutputs(uint64_t amount, std::vector<cn::PqMultisigOutputEntry>& outs) override { return true; }
+  virtual bool getPqOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<cn::PqOutputEntry>& outs, uint32_t& nextIndex, bool& truncated) override { outs.clear(); nextIndex = 0; truncated = false; return true; }
+  virtual bool getPqMultisigOutputs(uint64_t amount, uint32_t startIndex, uint32_t limit, std::vector<cn::PqMultisigOutputEntry>& outs, uint32_t& nextIndex, bool& truncated) override { outs.clear(); nextIndex = 0; truncated = false; return true; }
   virtual size_t addChain(const std::vector<const cn::IBlock*>& chain) override;
 
   virtual crypto::Hash getBlockIdByHeight(uint32_t height) override;
