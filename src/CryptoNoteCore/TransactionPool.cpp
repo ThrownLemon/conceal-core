@@ -801,8 +801,15 @@ namespace cn
       }
       else if (in.type() == typeid(PqMultisigInput))
       {
-        const auto &pqmin = boost::get<PqMultisigInput>(in);
-        m_spent_pq_deposit_cells.erase(GlobalOutput(pqmin.amount, pqmin.outputIndex));
+        // M-new-11: only a non-keptByBlock tx reserves the deposit cell (mirror the add path below and
+        // the MultisignatureInput branch above). A keptByBlock withdrawal made no reservation, so
+        // erasing on its removal would wrongly free a DIFFERENT tx's single-owner reservation and admit
+        // a conflicting spend.
+        if (!keptByBlock)
+        {
+          const auto &pqmin = boost::get<PqMultisigInput>(in);
+          m_spent_pq_deposit_cells.erase(GlobalOutput(pqmin.amount, pqmin.outputIndex));
+        }
       }
     }
 
