@@ -1,9 +1,13 @@
 # Cross-Platform Keygen KAT Matrix — 6 Platforms
 
-**Status: COMPLETE. All 6 platforms produce byte-identical keygen output.**
+**Status: Raptor/Falcon keygen KAT COMPLETE across all 6 platforms (byte-identical output).
+Full PQ-artifact determinism matrix (ML-KEM, ML-DSA, address-v2 bytes, wallet PQ-section bytes,
+serialized PQ tx fixtures) is OPEN/pending — those artifacts are not yet KAT-pinned across arches.**
 
 The Falcon-512 integer-emulated FP keygen is bit-identical across all tested platforms —
-confirming cross-platform consensus determinism (no chain-split risk from keygen divergence).
+confirming cross-platform consensus determinism for the keygen path (no chain-split risk from
+keygen divergence). This scope is keygen only; see the OPEN items above for the remaining
+PQ artifacts.
 
 ## Matrix
 

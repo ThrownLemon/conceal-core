@@ -15,7 +15,7 @@
 
 *Ordered port plan (multi-agent integration-surface map + verified synthesis, 2026-06-20). Replaces
 conceal-core's demo-grade in-house lattice ring-sig stand-in (`pqc/ccx-pqc/src/ringsig.rs`,
-SCHEME_ID `0xC0DE0004`) with the clean-room **Raptor** implementation (built + hardened isolated spike
+SCHEME_ID `0xC0DE0004`, now `0x52415054` "RAPT") with the clean-room **Raptor** implementation (built + hardened isolated spike
 at `~/raptor-spike` on WSL, same `ccx_pq_*` C ABI). **Target branch `pqc/testnet-poc` — LOCAL, NOT
 pushed.** Every choice below (SCHEME_ID value, ring sizes, FP strategy) is a **provisional default
 awaiting team + external-audit consensus**, never "decided." This wires an **UNAUDITED** research

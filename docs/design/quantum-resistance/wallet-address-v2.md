@@ -35,7 +35,7 @@ Grounded in the real branch:
   - `ccx_pq_kem_pubkey_bytes()` = **1184 B** (ML-KEM-768 PK),
     `ccx_pq_kem_seckey_bytes()` = **2400 B** (SK),
     `ccx_pq_kem_ct_bytes()` = **1088 B** (`kemCt`).
-  - `ccx_pq_scheme_id()` = `0xC0DE_0003`.
+  - `ccx_pq_scheme_id()` = `0x52415054` ("RAPT").
 
 These sizes drive the address size (see §2) and storage (§4).
 
@@ -130,7 +130,7 @@ struct PqAccountPublicAddress {
   uint8_t  pqVersion;                 // = 2; format/versioning byte inside the payload
   uint8_t  flags;                     // bit0: hybrid, bit1: reserved …
   uint32_t kemSchemeId;               // pin = ccx_pq_kem scheme (ML-KEM-768) for agility
-  uint32_t ringSchemeId;              // pin = ccx_pq_scheme_id() (0xC0DE0003) for agility
+  uint32_t ringSchemeId;              // pin = ccx_pq_scheme_id() (0x52415054 "RAPT") for agility
   std::vector<uint8_t> kemPublicKey;  // 1184 B (ML-KEM-768 PK) — length-validated on parse
   // hybrid only (present iff flags.hybrid):
   crypto::PublicKey legacySpendPublicKey; // 32 B
@@ -406,7 +406,7 @@ land first.
    section through the existing IV chain or funds become unrecoverable. Test
    save→load→rekey→load.
 6. **Scheme-agility churn.** Pinning `kemSchemeId`/`ringSchemeId` in the address is
-   correct, but when CIP C1 recalibrates the ring sig (new `0xC0DE_xxxx`), all PQ-only
+   correct, but when CIP C1 recalibrates the ring sig (new `PQ_RING_SCHEME_ID`), all PQ-only
    addresses minted against the old ring scheme are conceptually fine (ring key isn't in
    the address) — but any *outputs/spends* are not; ensure the agility story is
    "address survives, spend rules height-gate." Document.

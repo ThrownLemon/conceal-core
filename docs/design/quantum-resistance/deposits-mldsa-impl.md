@@ -7,7 +7,8 @@ branch to the fork + org (`pqc/testnet-poc`); NOT merged, NOT mainnet, still pen
 Implements the blueprint `docs/design/quantum-resistance/deposits-mldsa.md` exactly: a dedicated
 `PqMultisigInput`/`PqMultisigOutput` variant pair (tag **0x5**, `BLOCK_MAJOR_VERSION_9` /
 `UPGRADE_HEIGHT_V9`) that is a faithful PQ analogue of the Ed25519 deposit path — only the signature
-primitive is swapped to ML-DSA-65 (FIPS 204, `dilithium3`). Term / interest / lock / double-spend
+primitive is swapped to Dilithium3 / ML-DSA-65-compatible (`pqcrypto-dilithium`'s `dilithium3`; no
+independent FIPS-204 validation artifact for this verifier). Term / interest / lock / double-spend
 semantics are byte-identical; the only crypto change is `crypto::check_signature` →
 `ccx_pq_multisig_verify`.
 
@@ -29,8 +30,9 @@ New ML-DSA-65 (dilithium3) DETACHED-signature C-ABI, distinct from the experimen
 | `ccx_pq_multisig_selftest()` | roundtrip + tamper / wrong-key / wrong-message reject |
 
 Detached signatures keep the sig fixed-size and the message un-embedded — the daemon verifies against
-the supplied prefix hash. The dilithium3 primitive is the standardized NIST scheme used as-is (no
-ring, no nullifier).
+the supplied prefix hash. The dilithium3 primitive is `pqcrypto-dilithium`'s Dilithium3 /
+ML-DSA-65-compatible implementation used as-is (no ring, no nullifier); it is not an
+independently FIPS-204-validated module.
 
 ### Types + serialization
 - `include/CryptoNote.h`: `PqMultisigInput { amount, signatureCount, outputIndex, term, signatures }`

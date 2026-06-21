@@ -12,7 +12,7 @@ see [`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md); for the accepted-lim
 |---|---|---|
 | **PQ spend** | v3 tx with `PqKeyInput`/`PqKeyOutput`; anonymous + linkable lattice ring signature; nullifier double-spend protection (mempool + chain + restart) | `pqc/ccx-pqc/src/ringsig.rs`, `CryptoNoteCore/Blockchain.cpp` (`check_pq_tx_input`), `CryptoNoteCore/PqSpendBuilder.{h,cpp}` |
 | **Stealth outputs** | ML-KEM-768 KEM-encapsulated one-time keys (real recipient unlinkability) | `lib.rs` (`ccx_pq_kem_derive_output`/`_scan`), `Currency.cpp` (coinbase) |
-| **Deterministic keygen** | FIPS-203/204 seed-based ML-KEM/ML-DSA keygen (mnemonic-restorable) | `pqc/ccx-pqc/src/detkeygen.rs` |
+| **Deterministic keygen** | FIPS-203/204-style seed-based ML-KEM/ML-DSA keygen via RustCrypto `ml-kem 0.3.2`/`ml-dsa 0.1.1` (mnemonic-restorable; not an independently FIPS-validated module — separate stack from the deposit `pqcrypto-dilithium` signer) | `pqc/ccx-pqc/src/detkeygen.rs` |
 | **Deposits** | ML-DSA-65 PQ multisig deposits, height-gated `UPGRADE_HEIGHT_V9` | `CryptoNote.h` (`PqMultisig*`), `Blockchain.cpp` |
 | **Deposit freeze (Option 3)** | classical (Ed25519) deposit creation frozen at/after V9 — PQ-only deposits after the fork; creation-side only (existing deposits stay spendable). 4 gates: `pushBlock` per-tx + coinbase, `add_tx` acceptance, `fill_block_template` skip (anti-stall) | predicate `transactionContainsClassicalDeposit` shared in `CryptoNoteFormatUtils`; `Blockchain.cpp`, `TransactionPool.cpp`; see [`deposit-freeze-impl.md`](deposit-freeze-impl.md) |
 | **PQ deposit wallet** *(merged; e2e VERIFIED)* | `concealwallet` `pq_deposit`/`pq_withdraw` — create/withdraw an ML-DSA-65 (`PqMultisig*`) deposit. Builders + `get_pq_multisig_outputs` RPC + account-level ML-DSA key derivation. **Unit-tested + GLM-reviewed (0 findings)**; merged `17e4f0b`. **Live e2e GREEN** (`8d4a50c`): create ACCEPTED + visible, mature, withdraw ACCEPTED (principal+interest), double-spend REJECTED, restore-from-mnemonic proven. The earlier "finds 0 outputs" was a **harness bug** (deposit cell indexed under the *deposited* amount, not the coinbase denomination; + JSON field-order parsing) — `PqDepositClient` was never the bug. walletd RPC still pending | `CryptoNoteCore/PqDepositBuilder.{h,cpp}`, `Rpc/PqDepositClient.{h,cpp}`, `Wallet/PqAccount.{h,cpp}`, `ConcealWallet.cpp`; see [`pq-deposit-wallet-blueprint.md`](pq-deposit-wallet-blueprint.md) |
@@ -31,7 +31,7 @@ see [`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md); for the accepted-lim
 - **Consensus gating.** New rules are height-gated (`UPGRADE_HEIGHT_V9` / `TESTNET_..._V9=80`) behind
   `BLOCK_MAJOR_VERSION_9`; variant tags `0x4` (PqKey), `0x5` (PqMultisig); tx-extra `0x06`/`0x07`. PQ
   output index `m_pqOutputs` + spent set `m_spent_pq_nullifiers` are persisted + rebuilt on restart.
-  The lattice ring sig wire format is versioned by `SCHEME_ID` (`0xC0DE_0004`, K=L=6).
+  The Raptor linkable-ring-sig wire format is versioned by `SCHEME_ID` (`0x52415054` "RAPT", K=L=6).
 - **Wallet file** is a versioned container (v6 legacy → v7 AEAD → v8 authenticated-prefix), migrate-on-
   save, atomic writes.
 - **C++ never hardcodes PQ sizes** — it queries `ccx_pq_pubkey_bytes()` etc. at runtime, so a param

@@ -2,7 +2,8 @@
 //!
 //! Real post-quantum primitives:
 //!   * ML-KEM-768 (Kyber)  — stealth-output KEM + selftest
-//!   * ML-DSA-65 (Dilithium-3, FIPS 204) — the LINKABLE-SIGNATURE backend
+//!   * Dilithium-3 / ML-DSA-65-compatible (`pqcrypto-dilithium`; not an independently
+//!     FIPS-204-validated module) — the LINKABLE-SIGNATURE backend
 //!
 //! The "ring signature" here is a REAL ML-DSA signature plus a secret-bound link tag
 //! (nullifier = SHAKE256(seed)). It is genuinely unforgeable (a valid signature requires a ring
@@ -842,8 +843,9 @@ pub extern "C" fn ccx_pq_ringsig_selftest() -> CcxPqSizes {
 }
 
 // --- ML-DSA-65 PQ MULTISIG (deposits) -----------------------------------------------------------
-// FIPS 204 (Dilithium-3) plain m-of-n signatures for the post-quantum deposit path (CIP-0001
-// UPGRADE_HEIGHT_V9). Unlike the experimental ring signature above, this is the standardized NIST
+// Dilithium-3 / ML-DSA-65-compatible (`pqcrypto-dilithium`; not an independently FIPS-204-validated
+// module) plain m-of-n signatures for the post-quantum deposit path (CIP-0001
+// UPGRADE_HEIGHT_V9). Unlike the experimental ring signature above, this is the NIST Dilithium
 // primitive used as-is: a deposit is a NAMED cell (n public keys + requiredSignatureCount + term),
 // so it needs no anonymity, no ring, and no nullifier — double-spend is caught by the chain's
 // isUsed flag, exactly like the legacy Ed25519 multisig it replaces. Each spend signature is a
