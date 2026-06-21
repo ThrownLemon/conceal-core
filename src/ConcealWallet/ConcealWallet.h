@@ -18,6 +18,8 @@
 #include "IWallet.h"
 #include "PasswordContainer.h"
 #include "ClientHelper.h"
+#include "Wallet/PqAccount.h"               // cn::PqAccount / PqAccountKeys (deterministic PQ KEM keypair)
+#include "Rpc/CoreRpcServerCommandsDefinitions.h"  // cn::COMMAND_RPC_GET_PQ_OUTPUTS (pq_receive scan)
 
 #include "Common/ConsoleHandler.h"
 #include "CryptoNoteCore/CryptoNoteBasicImpl.h"
@@ -110,7 +112,23 @@ namespace cn
     bool list_deposits(const std::vector<std::string> &args);
     bool deposit_info(const std::vector<std::string> &args);
     bool check_address(const std::vector<std::string> &args);
+    bool pq_balance(const std::vector<std::string> &args);
+    bool pq_transfer(const std::vector<std::string> &args);
+    bool pq_address(const std::vector<std::string> &args);
+    bool pq_receive(const std::vector<std::string> &args);
+    bool pq_deposit(const std::vector<std::string> &args);
+    bool pq_withdraw(const std::vector<std::string> &args);
     /* End of Commands */
+
+    /* Derive this wallet's deterministic PQ KEM keypair (mnemonic-restorable) from the legacy spend
+       secret key. Mirrors cn::PqAccount's domain discipline. Throws std::runtime_error on FFI error. */
+    cn::PqAccountKeys getPqAccountKeys() const;
+
+    /* Read-only: does the given get_pq_outputs entry belong to this wallet under any of the supplied
+       candidate KEM secrets? Scans kemCt with each secret (ccx_pq_kem_scan + ccx_pq_keygen) and
+       compares the recovered one-time key to the on-chain output key. No signing. */
+    bool pqOutputIsMine(const cn::COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry &e,
+                        const std::vector<std::vector<uint8_t>> &kemSecrets) const;
 
     std::string resolveAlias(const std::string& aliasUrl);
     void printConnectionError() const;

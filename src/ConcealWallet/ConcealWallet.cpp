@@ -37,7 +37,16 @@
 #include "NodeRpcProxy/NodeRpcProxy.h"
 #include "Rpc/CoreRpcServerCommandsDefinitions.h"
 #include "Rpc/HttpClient.h"
+#include "Rpc/PqSpendClient.h"
+#include "Rpc/PqDepositClient.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"
+#include "Wallet/PqAccount.h"                 // cn::PqAccount (deterministic, mnemonic-restorable PQ KEM keypair)
+#include "pq_testnet_kem_keypair.h"           // PQ_TESTNET_KEM_PK / PQ_TESTNET_KEM_SK (fixed testnet KEM keypair)
+
+extern "C"
+{
+#include "pq_ring_sig.h"                      // ccx_pq_kem_scan / ccx_pq_keygen (pq_receive output scan)
+}
 
 #include "Wallet/WalletGreen.h"
 #include "Wallet/WalletRpcServer.h"
@@ -61,6 +70,19 @@ using common::JsonValue;
 #undef ERROR
 
 namespace {
+
+// Best-effort zeroisation of a sensitive buffer the optimiser may not elide. Uses a volatile byte
+// writer so the stores are not dead-code-eliminated (a plain std::fill on a soon-to-die buffer can
+// be). Mirrors cn::secure_wipe in PqSpendBuilder.cpp. Used on transient PQ KEM secret material.
+void secure_wipe(void* p, size_t n) {
+  if (p == nullptr || n == 0) {
+    return;
+  }
+  volatile uint8_t* vp = static_cast<volatile uint8_t*>(p);
+  while (n-- > 0) {
+    *vp++ = 0;
+  }
+}
 
 inline std::string interpret_rpc_response(bool ok, const std::string& status) {
   std::string err;
@@ -323,6 +345,12 @@ conceal_wallet::conceal_wallet(platform_system::Dispatcher& dispatcher, const cn
   m_consoleHandler.setHandler("deposit_info", boost::bind(&conceal_wallet::deposit_info, this, boost::arg<1>()), "deposit_info <id> - Get infomation for deposit <id>");
   m_consoleHandler.setHandler("save_txs_to_file", boost::bind(&conceal_wallet::save_all_txs_to_file, this, boost::arg<1>()), "save_txs_to_file - Saves all known transactions to <wallet_name>_conceal_transactions.txt");
   m_consoleHandler.setHandler("check_address", boost::bind(&conceal_wallet::check_address, this, boost::arg<1>()), "check_address <address> - Checks to see if given wallet is valid.");
+  m_consoleHandler.setHandler("pq_balance", boost::bind(&conceal_wallet::pq_balance, this, boost::arg<1>()), "pq_balance [mine] - Show unlocked post-quantum (testnet PoC) outputs from the remote node; 'mine' counts only outputs this wallet can scan");
+  m_consoleHandler.setHandler("pq_transfer", boost::bind(&conceal_wallet::pq_transfer, this, boost::arg<1>()), "pq_transfer <pq_address | self> [ringSize] [fee] - Build + relay a post-quantum (testnet PoC) spend to a PQ address (or back to this wallet) via the remote node");
+  m_consoleHandler.setHandler("pq_address", boost::bind(&conceal_wallet::pq_address, this, boost::arg<1>()), "pq_address - Show this wallet's deterministic post-quantum (testnet PoC) receive address (ccxp)");
+  m_consoleHandler.setHandler("pq_receive", boost::bind(&conceal_wallet::pq_receive, this, boost::arg<1>()), "pq_receive - Show post-quantum (testnet PoC) outputs received to THIS wallet's PQ address");
+  m_consoleHandler.setHandler("pq_deposit", boost::bind(&conceal_wallet::pq_deposit, this, boost::arg<1>()), "pq_deposit <months> <amount> [fee] [ringSize] - Lock a post-quantum (testnet PoC) deposit of <amount> for <months> (term = months * depositMinTermV3), funded from a PQ output, via the remote node");
+  m_consoleHandler.setHandler("pq_withdraw", boost::bind(&conceal_wallet::pq_withdraw, this, boost::arg<1>()), "pq_withdraw <output_index> [amount] - Withdraw a matured post-quantum (testnet PoC) deposit owned by this wallet (principal + interest), via the remote node");
 }
 
 std::string conceal_wallet::wallet_menu(bool do_ext)
@@ -1778,6 +1806,767 @@ bool conceal_wallet::check_address(const std::vector<std::string> &args)
   }
 
   logger(INFO) << "The wallet " << addr << " seems to be valid, please still be cautious still.";
+
+  return true;
+}
+
+/* Post-quantum (testnet PoC) commands. These talk directly to the remote node's PQ JSON-RPC and
+   the shared cn::buildPqSpendTransaction builder via cn::pqSpendViaDaemon — no wallet-side crypto
+   for the spend. The wallet's OWN PQ KEM keypair (address-bearing receive key) is derived
+   deterministically from the legacy spend secret key, mirroring cn::PqAccount — so the SAME
+   mnemonic always reproduces the SAME PQ address (mnemonic-restorable). */
+
+/* Derive this wallet's deterministic PQ KEM keypair from the legacy spend secret key. The seed
+   discipline lives in cn::PqAccount (cn_fast_hash("ccx-pq-kem-acct" || spendSecret) -> ML-KEM
+   det-keygen); we reuse it verbatim so the wallet address matches what PqAccount would produce. */
+cn::PqAccountKeys conceal_wallet::getPqAccountKeys() const
+{
+  const crypto::SecretKey spendSecretKey = m_wallet->getAddressSpendKey(0).secretKey;
+  return cn::PqAccount::generateFromSeed(spendSecretKey);
+}
+
+/* Upper bound on the number of PQ outputs a single pq_receive / pq_balance-mine command will scan
+   (KEM-decapsulate) across ALL amounts. The daemon already caps each amount's list at
+   cn::PQ_GET_OUTPUTS_MAX_PER_AMOUNT, but the wallet must bound its OWN work too: pqOutputIsMine runs
+   one KEM scan per (output × candidate secret), so a large multi-amount response would otherwise let
+   a node force unbounded wallet-side lattice work. When the response exceeds this, we fail closed
+   and warn rather than grinding. */
+static const size_t PQ_WALLET_MAX_SCAN_OUTPUTS = 4096;
+
+/* The amounts a PQ output can carry on the testnet PoC: the coinbase denomination, plus the
+   post-fee denominations produced by the default pq_transfer fees. The daemon enumerates per-amount,
+   so we ask for each candidate amount. */
+static std::vector<uint64_t> pqCandidateAmounts()
+{
+  std::vector<uint64_t> amounts;
+  amounts.push_back(cn::PQ_TESTNET_COINBASE_AMOUNT);
+  // A spend's single output = inputAmount - fee. The common default fees yield these denominations;
+  // include them so received funds at the post-fee amount are visible too. Duplicates / amounts the
+  // daemon has no outputs for are harmless (it simply returns an empty list for them).
+  const uint64_t defaultFees[] = {1000, 100, 10};
+  for (size_t i = 0; i < sizeof(defaultFees) / sizeof(defaultFees[0]); ++i)
+  {
+    if (cn::PQ_TESTNET_COINBASE_AMOUNT > defaultFees[i])
+    {
+      amounts.push_back(cn::PQ_TESTNET_COINBASE_AMOUNT - defaultFees[i]);
+    }
+  }
+  return amounts;
+}
+
+bool conceal_wallet::pq_balance(const std::vector<std::string> &args)
+{
+  // Optional "mine" mode counts only the unlocked outputs THIS wallet can actually scan (owned by
+  // either the fixed testnet KEM key or the wallet's own seed-derived key). Default = all unlocked.
+  const bool mineOnly = (!args.empty() && (args[0] == "mine" || args[0] == "owned"));
+
+  try
+  {
+    // Build the candidate KEM secrets once (only needed in "mine" mode). Wipe them on every exit
+    // path (the secrets hold live ML-KEM secret-key bytes).
+    std::vector<std::vector<uint8_t>> kemSecrets;
+    struct KemSecretsWiper {
+      std::vector<std::vector<uint8_t>>& v;
+      ~KemSecretsWiper() {
+        for (size_t i = 0; i < v.size(); ++i) {
+          secure_wipe(v[i].data(), v[i].size());
+        }
+      }
+    } kemSecretsWiper{kemSecrets};
+    if (mineOnly)
+    {
+      const cn::PqAccountKeys keys = getPqAccountKeys();
+      kemSecrets.push_back(keys.kemSecretKey);
+      kemSecrets.push_back(std::vector<uint8_t>(
+          cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
+    }
+
+    HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
+
+    cn::COMMAND_RPC_GET_PQ_OUTPUTS::request req;
+    req.amounts = pqCandidateAmounts();
+    cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
+    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
+
+    // A non-OK status means the node refused / errored; the response body is then meaningless.
+    if (res.status != CORE_RPC_STATUS_OK)
+    {
+      fail_msg_writer() << "get_pq_outputs failed: " << res.status;
+      return true;
+    }
+
+    // "mine" mode KEM-scans every returned output; bound that work so a node cannot force unbounded
+    // wallet-side lattice decapsulation by returning a huge multi-amount response. (Default mode does
+    // no per-output crypto, so the cap only guards the scanning path.)
+    if (mineOnly)
+    {
+      size_t totalOuts = 0;
+      for (const auto& ofa : res.outs)
+      {
+        totalOuts += ofa.outs.size();
+      }
+      if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
+      {
+        fail_msg_writer() << "get_pq_outputs returned " << totalOuts
+                          << " outputs, exceeding the wallet scan budget of "
+                          << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
+        return true;
+      }
+    }
+
+    // Sum unlocked outputs * their amount, guarding against uint64 overflow on the running total.
+    uint64_t total = 0;
+    size_t spendable = 0;
+    bool overflow = false;
+    for (const auto& ofa : res.outs)
+    {
+      for (const auto& e : ofa.outs)
+      {
+        if (!e.spendable)
+        {
+          continue;
+        }
+        if (mineOnly && !pqOutputIsMine(e, kemSecrets))
+        {
+          continue;
+        }
+        ++spendable;
+        if (ofa.amount != 0 && total > (UINT64_MAX - ofa.amount))
+        {
+          overflow = true;
+        }
+        else
+        {
+          total += ofa.amount;
+        }
+      }
+    }
+
+    const std::string totalStr = overflow ? "(overflow)" : m_currency.formatAmount(total);
+    success_msg_writer() << (mineOnly ? "unlocked PQ outputs (mine): " : "unlocked PQ outputs: ")
+                         << spendable << ", total " << totalStr;
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to query PQ outputs: " << e.what();
+  }
+
+  return true;
+}
+
+/* Scan a single get_pq_outputs entry against a list of candidate KEM secrets, the SAME way the
+   shared builder recovers a signer's one-time key: ccx_pq_kem_scan(secret, kemCt) -> 32-byte seed,
+   ccx_pq_keygen(seed) -> one-time pubkey, compare to the on-chain output key. Returns true iff any
+   candidate owns the output. Read-only; no signing. */
+bool conceal_wallet::pqOutputIsMine(const cn::COMMAND_RPC_GET_PQ_OUTPUTS::pq_out_entry &e,
+                                    const std::vector<std::vector<uint8_t>> &kemSecrets) const
+{
+  // An output with no kemCt is a throwaway/injector output — not scannable, never "ours".
+  if (e.kem.empty())
+  {
+    return false;
+  }
+
+  // Bound untrusted daemon hex BEFORE decoding — legit PQ fields are fixed-size, so a multi-MB hex
+  // string is malformed and must not be allowed to force a large allocation. kemCt = ML-KEM-768
+  // ciphertext (ccx_pq_kem_ct_bytes), key = lattice one-time pubkey (ccx_pq_pubkey_bytes).
+  const size_t ctHexLen = ccx_pq_kem_ct_bytes() * 2;
+  const size_t keyHexLen = ccx_pq_pubkey_bytes() * 2;
+  if (ctHexLen == 0 || keyHexLen == 0 || e.kem.size() != ctHexLen || e.key.size() != keyHexLen)
+  {
+    return false; // wrong-size on-chain hex — not a legit scannable PQ output
+  }
+  std::vector<uint8_t> kemCt;
+  if (!common::fromHex(e.kem, kemCt))
+  {
+    return false; // malformed on-chain kem hex — skip
+  }
+  std::vector<uint8_t> outKey;
+  if (!common::fromHex(e.key, outKey))
+  {
+    return false; // malformed on-chain key hex — skip
+  }
+
+  const size_t pkBytes = ccx_pq_pubkey_bytes();
+  const size_t skBytes = ccx_pq_seckey_bytes();
+  const size_t kemSkBytes = ccx_pq_kem_seckey_bytes();
+  if (pkBytes == 0 || skBytes == 0 || kemSkBytes == 0 || outKey.size() != pkBytes)
+  {
+    return false;
+  }
+
+  for (size_t c = 0; c < kemSecrets.size(); ++c)
+  {
+    const std::vector<uint8_t> &kemSk = kemSecrets[c];
+    if (kemSk.size() != kemSkBytes)
+    {
+      continue; // wrong-size candidate — skip (defensive; never hand a bad length to the FFI)
+    }
+
+    uint8_t otSeed[32];
+    if (ccx_pq_kem_scan(kemSk.data(), kemSk.size(), kemCt.data(), kemCt.size(),
+                        otSeed, sizeof(otSeed)) != 0)
+    {
+      continue; // not ours under this candidate
+    }
+    std::vector<uint8_t> otPk(pkBytes, 0), otSk(skBytes, 0);
+    const int32_t rc = ccx_pq_keygen(otSeed, sizeof(otSeed), otPk.data(), otPk.size(),
+                                     otSk.data(), otSk.size());
+    // Wipe the recovered secret material immediately; pq_receive/pq_balance never sign with it.
+    // Use the non-elidable secure_wipe — a std::fill on these soon-to-die buffers can be optimised
+    // away, leaving the one-time secret in freed memory.
+    secure_wipe(otSeed, sizeof(otSeed));
+    secure_wipe(otSk.data(), otSk.size());
+    if (rc != 0)
+    {
+      continue;
+    }
+    if (otPk == outKey)
+    {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool conceal_wallet::pq_transfer(const std::vector<std::string> &args)
+{
+  if (args.empty())
+  {
+    fail_msg_writer() << "Usage: pq_transfer <pq_address | self> [ringSize] [fee]";
+    return true;
+  }
+
+  uint32_t ringSize = 4;
+  uint64_t fee = 1000;
+
+  try
+  {
+    if (args.size() >= 2)
+    {
+      ringSize = boost::lexical_cast<uint32_t>(args[1]);
+    }
+    if (args.size() >= 3)
+    {
+      fee = boost::lexical_cast<uint64_t>(args[2]);
+    }
+  }
+  catch (const boost::bad_lexical_cast&)
+  {
+    fail_msg_writer() << "Usage: pq_transfer <pq_address | self> [ringSize] [fee]";
+    return true;
+  }
+
+  // Resolve the recipient KEM public key. Spend to a REAL, scannable, re-spendable stealth output —
+  // NOT a burn. An empty recipient key would destroy the funds (injector-only A/B path).
+  std::vector<uint8_t> recipientKemPubKey;
+  try
+  {
+    if (args[0] == "self")
+    {
+      // Self-send: recipient = this wallet's own PQ KEM public key (re-spendable by this wallet).
+      const cn::PqAccountKeys keys = getPqAccountKeys();
+      recipientKemPubKey = keys.kemPublicKey;
+    }
+    else
+    {
+      // Parse the recipient's PQ-only ("ctp") or hybrid ("cth") address -> KEM pubkey. This is the
+      // TESTNET PoC branch, so accept ONLY the testnet prefixes. A mainnet PQ/hybrid address
+      // ("ccxp"/"ccxh") is a wrong-network mistake — reject it with a clear message rather than
+      // silently sending testnet funds to a key from another network. (No override for the PoC.)
+      uint64_t prefix = 0;
+      cn::PqAccountPublicAddress addr;
+      if (!cn::parsePqAccountAddressString(prefix, addr, args[0]))
+      {
+        fail_msg_writer() << "Invalid PQ address: " << args[0];
+        return true;
+      }
+      if (prefix == cn::CRYPTONOTE_PUBLIC_PQ_ADDRESS_BASE58_PREFIX ||
+          prefix == cn::CRYPTONOTE_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX)
+      {
+        fail_msg_writer() << "wrong network: that is a MAINNET PQ/hybrid address (ccxp/ccxh); this "
+                             "testnet PoC only accepts testnet addresses (ctp/cth): " << args[0];
+        return true;
+      }
+      if (prefix != cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX &&
+          prefix != cn::TESTNET_PUBLIC_HYBRID_ADDRESS_BASE58_PREFIX)
+      {
+        fail_msg_writer() << "PQ address has an unexpected prefix (not a testnet PQ/hybrid address): " << args[0];
+        return true;
+      }
+      recipientKemPubKey = addr.kemPublicKey;
+    }
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to resolve recipient: " << e.what();
+    return true;
+  }
+
+  // Candidate KEM secrets the spend may need: the wallet's OWN seed-derived key (to spend funds it
+  // received) AND the fixed testnet key (to spend the bootstrapped coinbase outputs). The builder
+  // tries each per signer; a wrong one just fails the scan and the next is tried. Wipe the live
+  // ML-KEM secret-key bytes on every exit path once the spend is done.
+  std::vector<std::vector<uint8_t>> candidateKemSecretKeys;
+  struct KemSecretsWiper {
+    std::vector<std::vector<uint8_t>>& v;
+    ~KemSecretsWiper() {
+      for (size_t i = 0; i < v.size(); ++i) {
+        secure_wipe(v[i].data(), v[i].size());
+      }
+    }
+  } candidateKemSecretsWiper{candidateKemSecretKeys};
+  try
+  {
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    candidateKemSecretKeys.push_back(keys.kemSecretKey);
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to derive wallet PQ key: " << e.what();
+    return true;
+  }
+  candidateKemSecretKeys.push_back(std::vector<uint8_t>(
+      cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
+
+  std::string txHash;
+  std::string status;
+  std::string err;
+  if (cn::pqSpendViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
+                           cn::PQ_TESTNET_COINBASE_AMOUNT, fee, ringSize,
+                           candidateKemSecretKeys, recipientKemPubKey, txHash, status, err))
+  {
+    success_msg_writer() << "PQ tx relayed: " << txHash << " status=" << status;
+  }
+  else
+  {
+    fail_msg_writer() << err;
+  }
+
+  return true;
+}
+
+bool conceal_wallet::pq_address(const std::vector<std::string> &args)
+{
+  try
+  {
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    const cn::PqAccountPublicAddress addr = cn::PqAccount::toPublicAddress(keys);
+
+    // Testnet PoC: format with the testnet PQ-address prefix ("ctp..." class).
+    const std::string addrStr = cn::getPqAccountAddressAsStr(
+        cn::TESTNET_PUBLIC_PQ_ADDRESS_BASE58_PREFIX, addr);
+
+    success_msg_writer() << "PQ address (testnet PoC): " << addrStr;
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to derive PQ address: " << e.what();
+  }
+
+  return true;
+}
+
+bool conceal_wallet::pq_receive(const std::vector<std::string> &args)
+{
+  try
+  {
+    // Candidate secrets to scan with: the wallet's own seed-derived key first (received funds), then
+    // the fixed testnet key (so coinbase outputs the wallet bootstrapped from also show up). Wipe
+    // them on every exit path (they hold live ML-KEM secret-key bytes).
+    std::vector<std::vector<uint8_t>> kemSecrets;
+    struct KemSecretsWiper {
+      std::vector<std::vector<uint8_t>>& v;
+      ~KemSecretsWiper() {
+        for (size_t i = 0; i < v.size(); ++i) {
+          secure_wipe(v[i].data(), v[i].size());
+        }
+      }
+    } kemSecretsWiper{kemSecrets};
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    kemSecrets.push_back(keys.kemSecretKey);
+    kemSecrets.push_back(std::vector<uint8_t>(
+        cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
+
+    HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
+
+    cn::COMMAND_RPC_GET_PQ_OUTPUTS::request req;
+    req.amounts = pqCandidateAmounts();
+    cn::COMMAND_RPC_GET_PQ_OUTPUTS::response res;
+    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_outputs", req, res);
+
+    // A non-OK status means the node refused / errored; the response body is then meaningless.
+    if (res.status != CORE_RPC_STATUS_OK)
+    {
+      fail_msg_writer() << "get_pq_outputs failed: " << res.status;
+      return true;
+    }
+
+    // Bound our own scanning work: pqOutputIsMine KEM-decapsulates every returned output against
+    // each candidate secret, so a huge multi-amount response would otherwise force unbounded
+    // wallet-side lattice work. Fail closed (do not partially scan) when the response is too large.
+    size_t totalOuts = 0;
+    for (const auto& ofa : res.outs)
+    {
+      totalOuts += ofa.outs.size();
+    }
+    if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
+    {
+      fail_msg_writer() << "get_pq_outputs returned " << totalOuts
+                        << " outputs, exceeding the wallet scan budget of "
+                        << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
+      return true;
+    }
+
+    size_t count = 0;
+    uint64_t total = 0;
+    bool overflow = false;
+    for (const auto& ofa : res.outs)
+    {
+      for (const auto& e : ofa.outs)
+      {
+        if (!pqOutputIsMine(e, kemSecrets))
+        {
+          continue;
+        }
+        ++count;
+        const char* lock = e.spendable ? "unlocked" : "locked";
+        success_msg_writer() << "  global_index=" << e.global_index
+                             << " amount=" << m_currency.formatAmount(ofa.amount)
+                             << " (" << lock << ")";
+        if (ofa.amount != 0 && total > (UINT64_MAX - ofa.amount))
+        {
+          overflow = true;
+        }
+        else
+        {
+          total += ofa.amount;
+        }
+      }
+    }
+
+    if (count == 0)
+    {
+      success_msg_writer() << "No PQ outputs received to this wallet.";
+    }
+    else
+    {
+      const std::string totalStr = overflow ? "(overflow)" : m_currency.formatAmount(total);
+      success_msg_writer() << "Received PQ outputs: " << count << ", total " << totalStr;
+    }
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to scan PQ outputs: " << e.what();
+  }
+
+  return true;
+}
+
+bool conceal_wallet::pq_deposit(const std::vector<std::string> &args)
+{
+  // pq_deposit <months> <amount> [fee] [ringSize]
+  if (args.size() < 2)
+  {
+    fail_msg_writer() << "Usage: pq_deposit <months> <amount> [fee] [ringSize]";
+    return true;
+  }
+
+  uint32_t months = 0;
+  uint64_t amount = 0;
+  uint64_t fee = 1000;
+  uint32_t ringSize = 4;
+  try
+  {
+    months = boost::lexical_cast<uint32_t>(args[0]);
+    if (!m_currency.parseAmount(args[1], amount))
+    {
+      fail_msg_writer() << "Invalid amount: " << args[1];
+      return true;
+    }
+    if (args.size() >= 3)
+    {
+      fee = boost::lexical_cast<uint64_t>(args[2]);
+    }
+    if (args.size() >= 4)
+    {
+      ringSize = boost::lexical_cast<uint32_t>(args[3]);
+    }
+  }
+  catch (const boost::bad_lexical_cast&)
+  {
+    fail_msg_writer() << "Usage: pq_deposit <months> <amount> [fee] [ringSize]";
+    return true;
+  }
+
+  if (months == 0)
+  {
+    fail_msg_writer() << "months must be >= 1";
+    return true;
+  }
+
+  // term = months * depositMinTermV3 — byte-identical to what consensus enforces, so pre-validate
+  // exactly what Currency::validateOutput(PqMultisigOutput) accepts (term band + % depositMinTermV3
+  // + depositMinAmount). Off-band terms / too-small amounts are rejected client-side with a clear
+  // message instead of bouncing off the daemon.
+  const uint64_t termWide = static_cast<uint64_t>(months) * m_currency.depositMinTermV3();
+  if (termWide > m_currency.depositMaxTermV3())
+  {
+    fail_msg_writer() << "term " << termWide << " exceeds the maximum deposit term "
+                      << m_currency.depositMaxTermV3() << " (reduce <months>)";
+    return true;
+  }
+  const uint32_t term = static_cast<uint32_t>(termWide);
+  if (term < m_currency.depositMinTermV3() || term % m_currency.depositMinTermV3() != 0)
+  {
+    fail_msg_writer() << "term " << term << " is out of band (must be a multiple of "
+                      << m_currency.depositMinTermV3() << ")";
+    return true;
+  }
+  if (amount < m_currency.depositMinAmount())
+  {
+    fail_msg_writer() << "amount " << m_currency.formatAmount(amount)
+                      << " is below the minimum deposit amount "
+                      << m_currency.formatAmount(m_currency.depositMinAmount());
+    return true;
+  }
+
+  // The deposit is funded from one fixed-denomination PQ coinbase output. The deposit locks `amount`
+  // and the remainder (inputAmount - amount - fee) is returned to this wallet as PQ change.
+  const uint64_t inputAmount = cn::PQ_TESTNET_COINBASE_AMOUNT;
+  if (inputAmount < amount || inputAmount - amount < fee)
+  {
+    fail_msg_writer() << "deposit amount + fee exceeds a single PQ funding output ("
+                      << m_currency.formatAmount(inputAmount) << ")";
+    return true;
+  }
+
+  std::vector<uint8_t> depositDsaPubKey;
+  std::vector<uint8_t> changeKemPubKey;
+  std::vector<std::vector<uint8_t>> candidateKemSecretKeys;
+  // Wipe the live ML-KEM secret-key copies on every exit path.
+  struct KemSecretsWiper
+  {
+    std::vector<std::vector<uint8_t>>& v;
+    ~KemSecretsWiper()
+    {
+      for (size_t i = 0; i < v.size(); ++i)
+      {
+        secure_wipe(v[i].data(), v[i].size());
+      }
+    }
+  } kemSecretsWiper{candidateKemSecretKeys};
+  try
+  {
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    depositDsaPubKey = keys.dsaPublicKey;     // the deposit cell names this wallet's account ML-DSA key
+    changeKemPubKey = keys.kemPublicKey;      // PQ change comes back to this wallet
+    candidateKemSecretKeys.push_back(keys.kemSecretKey);
+    candidateKemSecretKeys.push_back(std::vector<uint8_t>(
+        cn::PQ_TESTNET_KEM_SK, cn::PQ_TESTNET_KEM_SK + sizeof(cn::PQ_TESTNET_KEM_SK)));
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to derive PQ keys: " << e.what();
+    return true;
+  }
+
+  std::string txHash, status, err;
+  if (cn::pqDepositViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
+                             inputAmount, amount, fee, term, ringSize,
+                             candidateKemSecretKeys, depositDsaPubKey, changeKemPubKey,
+                             txHash, status, err))
+  {
+    success_msg_writer() << "PQ deposit relayed: " << txHash << " status=" << status
+                         << " (amount=" << m_currency.formatAmount(amount)
+                         << " term=" << term << " blocks)";
+  }
+  else
+  {
+    fail_msg_writer() << err;
+  }
+
+  return true;
+}
+
+bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
+{
+  // pq_withdraw <output_index> [amount]
+  if (args.empty())
+  {
+    fail_msg_writer() << "Usage: pq_withdraw <output_index> [amount]";
+    return true;
+  }
+
+  uint32_t outputIndex = 0;
+  // A deposit cell is indexed in m_pqMultisigOutputs under the amount that was DEPOSITED (the builder
+  // sets depositOut.amount = req.amount), which is NOT the funding coinbase denomination. output_index
+  // is per-amount, so the cell can only be resolved under its own deposit amount. We default to
+  // PQ_TESTNET_COINBASE_AMOUNT only as a convenience for the common 0.1-CCX deposit; for any other
+  // deposit the caller MUST pass the deposited amount as the optional second argument.
+  uint64_t amount = cn::PQ_TESTNET_COINBASE_AMOUNT; // default cell denomination (0.1 CCX); override via [amount]
+  try
+  {
+    outputIndex = boost::lexical_cast<uint32_t>(args[0]);
+    if (args.size() >= 2 && !m_currency.parseAmount(args[1], amount))
+    {
+      fail_msg_writer() << "Invalid amount: " << args[1];
+      return true;
+    }
+  }
+  catch (const boost::bad_lexical_cast&)
+  {
+    fail_msg_writer() << "Usage: pq_withdraw <output_index> [amount]";
+    return true;
+  }
+
+  std::vector<uint8_t> dsaPubKey;
+  std::vector<std::vector<uint8_t>> signingSecretKeys;
+  std::vector<uint8_t> payoutKemPubKey;
+  struct DsaWiper
+  {
+    std::vector<std::vector<uint8_t>>& v;
+    ~DsaWiper()
+    {
+      for (size_t i = 0; i < v.size(); ++i)
+      {
+        secure_wipe(v[i].data(), v[i].size());
+      }
+    }
+  } dsaWiper{signingSecretKeys};
+  try
+  {
+    const cn::PqAccountKeys keys = getPqAccountKeys();
+    dsaPubKey = keys.dsaPublicKey;
+    signingSecretKeys.push_back(keys.dsaSecretKey);
+    payoutKemPubKey = keys.kemPublicKey;
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "Failed to derive PQ keys: " << e.what();
+    return true;
+  }
+
+  try
+  {
+    HttpClient httpClient(m_dispatcher, m_daemon_host, m_daemon_port);
+
+    // Enumerate the deposit cells for this amount and named-key match the wallet's account DSA pubkey.
+    cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::request greq;
+    greq.amounts.push_back(amount);
+    cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::response gres;
+    cn::JsonRpc::invokeJsonRpcCommand(httpClient, "get_pq_multisig_outputs", greq, gres);
+    if (gres.status != CORE_RPC_STATUS_OK)
+    {
+      fail_msg_writer() << "get_pq_multisig_outputs failed: " << gres.status;
+      return true;
+    }
+
+    // Bound the cells we scan so a hostile node cannot force unbounded wallet-side work via a huge
+    // multi-amount response (mirrors the pq_balance / pq_receive scan-budget guard).
+    size_t totalOuts = 0;
+    for (const auto& ofa : gres.outs)
+    {
+      totalOuts += ofa.outs.size();
+    }
+    if (totalOuts > PQ_WALLET_MAX_SCAN_OUTPUTS)
+    {
+      fail_msg_writer() << "get_pq_multisig_outputs returned " << totalOuts
+                        << " outputs, exceeding the wallet scan budget of "
+                        << PQ_WALLET_MAX_SCAN_OUTPUTS << "; aborting.";
+      return true;
+    }
+
+    const std::string dsaPubHex = common::toHex(dsaPubKey);
+    const cn::COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::pq_msig_out_entry* cell = nullptr;
+    for (const auto& ofa : gres.outs)
+    {
+      if (ofa.amount != amount)
+      {
+        continue;
+      }
+      for (const auto& e : ofa.outs)
+      {
+        if (e.output_index != outputIndex)
+        {
+          continue;
+        }
+        // Named-key match: keys[0] must equal this wallet's account DSA pubkey (the D1 single-key
+        // ownership test). An empty key list is a malformed cell.
+        if (e.keys.empty() || e.keys[0] != dsaPubHex)
+        {
+          fail_msg_writer() << "deposit cell " << outputIndex << " is not owned by this wallet";
+          return true;
+        }
+        cell = &e;
+        break;
+      }
+      if (cell)
+      {
+        break;
+      }
+    }
+    if (!cell)
+    {
+      fail_msg_writer() << "no PQ deposit cell with output_index " << outputIndex
+                        << " and amount " << m_currency.formatAmount(amount);
+      return true;
+    }
+    if (cell->is_used)
+    {
+      fail_msg_writer() << "deposit cell " << outputIndex << " is already spent";
+      return true;
+    }
+    if (cell->term == 0)
+    {
+      fail_msg_writer() << "cell " << outputIndex << " is a plain PQ multisig, not a deposit (term 0)";
+      return true;
+    }
+
+    // Maturity: consensus rejects a withdrawal until createdHeight + term <= currentHeight.
+    const uint32_t currentHeight = m_node->getLastLocalBlockHeight();
+    const uint64_t unlockHeight = static_cast<uint64_t>(cell->height) + cell->term;
+    if (unlockHeight > currentHeight)
+    {
+      fail_msg_writer() << "deposit not matured: unlocks at height " << unlockHeight
+                        << " (current " << currentHeight << ")";
+      return true;
+    }
+
+    // Interest = what the daemon credits = calculateInterest(amount, term, currentHeight - term),
+    // exactly mirroring Currency::getInterestForInput (verified by the interest-parity unit test).
+    const uint32_t lockHeight = currentHeight - cell->term;
+    const uint64_t interest = m_currency.calculateInterest(amount, cell->term, lockHeight);
+
+    // required_signature_count is uint32 on the wire but narrows to uint8 in the withdraw call; a
+    // hostile/garbage value > 255 would silently truncate into a malformed request. Reject it.
+    if (cell->required_signature_count > 0xFFu)
+    {
+      fail_msg_writer() << "deposit cell has unsupported required_signature_count="
+                        << cell->required_signature_count;
+      return true;
+    }
+
+    std::string txHash, status, err;
+    if (cn::pqWithdrawViaDaemon(m_dispatcher, m_daemon_host, m_daemon_port,
+                                amount, outputIndex, cell->term,
+                                static_cast<uint8_t>(cell->required_signature_count),
+                                interest, signingSecretKeys, payoutKemPubKey,
+                                txHash, status, err))
+    {
+      success_msg_writer() << "PQ withdraw relayed: " << txHash << " status=" << status
+                           << " (principal=" << m_currency.formatAmount(amount)
+                           << " interest=" << m_currency.formatAmount(interest) << ")";
+    }
+    else
+    {
+      fail_msg_writer() << err;
+    }
+  }
+  catch (const std::exception& e)
+  {
+    fail_msg_writer() << "pq_withdraw failed: " << e.what();
+  }
 
   return true;
 }
