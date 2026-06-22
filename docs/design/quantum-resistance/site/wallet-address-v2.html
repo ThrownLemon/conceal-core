@@ -75,6 +75,7 @@ main{margin-left:300px;padding:46px 6vw;}
 <li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
 <li class=""><a href="constant-time-status.html" data-title="constant-time / side-channel status">Constant-time / side-channel status</a></li>
 <li class=""><a href="security-audit-brief.html" data-title="security audit brief (for external researcher)">Security audit brief (for external researcher)</a></li>
+<li class=""><a href="audit-findings-register.html" data-title="audit findings register (all rounds + provenance)">Audit findings register (all rounds + provenance)</a></li>
 <li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
 </ul></div>
 <div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
@@ -154,7 +155,8 @@ the short secret <code>s</code> is re-derived).</li>
 (ML-KEM-768 PK), <code>ccx_pq_kem_seckey_bytes()</code> = <strong>2400
 B</strong> (SK), <code>ccx_pq_kem_ct_bytes()</code> = <strong>1088
 B</strong> (<code>kemCt</code>).</li>
-<li><code>ccx_pq_scheme_id()</code> = <code>0xC0DE_0003</code>.</li>
+<li><code>ccx_pq_scheme_id()</code> = <code>0x52415054</code>
+("RAPT").</li>
 </ul></li>
 </ul>
 <p>These sizes drive the address size (see §2) and storage (§4).</p>
@@ -292,7 +294,7 @@ serialized type)</h3>
   uint8_t  pqVersion;                 // = 2; format/versioning byte inside the payload
   uint8_t  flags;                     // bit0: hybrid, bit1: reserved …
   uint32_t kemSchemeId;               // pin = ccx_pq_kem scheme (ML-KEM-768) for agility
-  uint32_t ringSchemeId;              // pin = ccx_pq_scheme_id() (0xC0DE0003) for agility
+  uint32_t ringSchemeId;              // pin = ccx_pq_scheme_id() (0x52415054 &quot;RAPT&quot;) for agility
   std::vector&lt;uint8_t&gt; kemPublicKey;  // 1184 B (ML-KEM-768 PK) — length-validated on parse
   // hybrid only (present iff flags.hybrid):
   crypto::PublicKey legacySpendPublicKey; // 32 B
@@ -711,10 +713,10 @@ save→load→rekey→load.</li>
 <li><strong>Scheme-agility churn.</strong> Pinning
 <code>kemSchemeId</code>/<code>ringSchemeId</code> in the address is
 correct, but when CIP C1 recalibrates the ring sig (new
-<code>0xC0DE_xxxx</code>), all PQ-only addresses minted against the old
-ring scheme are conceptually fine (ring key isn't in the address) — but
-any <em>outputs/spends</em> are not; ensure the agility story is
-"address survives, spend rules height-gate." Document.</li>
+<code>PQ_RING_SCHEME_ID</code>), all PQ-only addresses minted against
+the old ring scheme are conceptually fine (ring key isn't in the
+address) — but any <em>outputs/spends</em> are not; ensure the agility
+story is "address survives, spend rules height-gate." Document.</li>
 <li><strong>Consensus blast radius.</strong> New address types touch
 <code>CryptoNoteConfig.h</code>, serialization, RPC. Keep strictly
 testnet-gated; no mainnet prefix until the ring sig is audited. The

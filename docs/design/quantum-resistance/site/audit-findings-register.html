@@ -1,0 +1,1022 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Audit findings register (all rounds + provenance) — Conceal PQ docs</title>
+<style>
+:root{--bg:#0f1220;--panel:#171a2b;--panel2:#1d2136;--text:#e6e8f0;--muted:#9aa3c0;--accent:#6ea8fe;--accent2:#7ee2c8;--border:#2a2f4a;--code:#11142a;}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;font:16px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:var(--bg);}
+#sidebar{position:fixed;top:0;left:0;bottom:0;width:300px;background:var(--panel);border-right:1px solid var(--border);overflow-y:auto;padding:20px 0;}
+.brand{font-weight:700;letter-spacing:.2px;padding:4px 22px 14px;font-size:15px;display:flex;align-items:center;gap:9px;}
+.brand .dot{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));box-shadow:0 0 10px var(--accent);}
+#filter{width:calc(100% - 44px);margin:0 22px 14px;padding:9px 12px;border-radius:9px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px;}
+#filter:focus{outline:none;border-color:var(--accent);}
+.nav-group{margin:2px 0 10px;}
+.nav-group-title{font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);padding:8px 22px 4px;font-weight:700;}
+nav ul{list-style:none;margin:0;padding:0;}
+nav li a{display:block;padding:7px 22px;color:var(--text);text-decoration:none;font-size:14px;border-left:3px solid transparent;}
+nav li a:hover{background:var(--panel2);color:#fff;}
+nav li.active a{border-left-color:var(--accent);background:var(--panel2);color:#fff;font-weight:600;}
+.sidebar-foot{color:var(--muted);font-size:11px;padding:16px 22px 4px;line-height:1.5;}
+.sidebar-foot code{font-size:10px;}
+main{margin-left:300px;padding:46px 6vw;}
+.content{max-width:860px;margin:0 auto;}
+.content h1{font-size:2em;line-height:1.2;margin:0 0 .5em;padding-bottom:.3em;border-bottom:1px solid var(--border);}
+.content h2{font-size:1.45em;margin:1.9em 0 .6em;padding-top:.3em;}
+.content h3{font-size:1.18em;margin:1.5em 0 .5em;color:#cfd5f0;}
+.content a{color:var(--accent);text-decoration:none;}
+.content a:hover{text-decoration:underline;}
+.content p,.content li{color:var(--text);}
+.content strong{color:#fff;}
+.content code{background:var(--code);padding:.15em .42em;border-radius:5px;font-size:.88em;font-family:"SF Mono",ui-monospace,Menlo,Consolas,monospace;color:#cfe1ff;}
+.content pre{background:var(--code);border:1px solid var(--border);border-radius:11px;padding:16px 18px;overflow:auto;}
+.content pre code{background:none;padding:0;color:#dfe6ff;}
+.content table{border-collapse:collapse;width:100%;margin:1.2em 0;font-size:.93em;display:block;overflow-x:auto;}
+.content th,.content td{border:1px solid var(--border);padding:9px 12px;text-align:left;vertical-align:top;}
+.content th{background:var(--panel2);color:#fff;font-weight:600;}
+.content tr:nth-child(even) td{background:rgba(255,255,255,.018);}
+.content blockquote{margin:1.2em 0;padding:.6em 1.1em;border-left:4px solid var(--accent);background:var(--panel2);border-radius:0 8px 8px 0;color:#dfe4f7;}
+.content hr{border:none;border-top:1px solid var(--border);margin:2em 0;}
+.toc-box{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:8px 20px 14px;margin:0 0 2em;}
+.toc-box::before{content:"On this page";display:block;font-size:11px;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);font-weight:700;margin:10px 0 2px;}
+.toc-box ul{list-style:none;margin:.2em 0;padding-left:14px;}
+.toc-box>ul{padding-left:0;}
+.toc-box a{color:var(--muted);text-decoration:none;font-size:.9em;display:block;padding:2px 0;}
+.toc-box a:hover{color:var(--accent);}
+#menu-toggle{display:none;position:fixed;top:14px;left:14px;z-index:20;background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:9px;width:42px;height:42px;font-size:20px;cursor:pointer;}
+@media(max-width:900px){
+  #sidebar{transform:translateX(-100%);transition:transform .2s;z-index:15;}
+  #sidebar.open{transform:none;}
+  main{margin-left:0;padding:70px 6vw 40px;}
+  #menu-toggle{display:block;}
+}
+</style>
+</head>
+<body>
+<button id="menu-toggle" aria-label="Menu">☰</button>
+<aside id="sidebar">
+  <div class="brand"><span class="dot"></span> Conceal &middot; Post-Quantum</div>
+  <input id="filter" type="search" placeholder="Filter docs…" autocomplete="off">
+  <nav><div class="nav-group"><div class="nav-group-title">Decisions</div><ul>
+<li class=""><a href="decisions-for-the-team.html" data-title="decisions for the team">Decisions for the team</a></li>
+<li class=""><a href="deposit-term-policy-decision.html" data-title="deposit-term policy (option 3)">Deposit-term policy (Option 3)</a></li>
+<li class=""><a href="strategy-decision.html" data-title="strategy decision">Strategy decision</a></li>
+<li class=""><a href="strategy-SUMMARY.html" data-title="strategy summary">Strategy summary</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Reports &amp; measurements</div><ul>
+<li class=""><a href="poc-vs-mainnet-report.html" data-title="poc vs mainnet report">PoC vs mainnet report</a></li>
+<li class=""><a href="pq-scheme-landscape.html" data-title="pq scheme landscape (research)">PQ scheme landscape (research)</a></li>
+<li class=""><a href="pq-ringsig-verdict.html" data-title="pq ring-sig verdict (elrs vs lattice)">PQ ring-sig verdict (ELRS vs lattice)</a></li>
+<li class=""><a href="gao-bench-notes.html" data-title="gao ringct benchmark (notes)">Gao RingCT benchmark (notes)</a></li>
+<li class=""><a href="measured-numbers.html" data-title="measured numbers">Measured numbers</a></li>
+<li class=""><a href="STATUS.html" data-title="status &amp; architecture">Status &amp; architecture</a></li>
+<li class=""><a href="constant-time-status.html" data-title="constant-time / side-channel status">Constant-time / side-channel status</a></li>
+<li class=""><a href="security-audit-brief.html" data-title="security audit brief (for external researcher)">Security audit brief (for external researcher)</a></li>
+<li class="active"><a href="audit-findings-register.html" data-title="audit findings register (all rounds + provenance)">Audit findings register (all rounds + provenance)</a></li>
+<li class=""><a href="REMAINING-WORK.html" data-title="remaining work">Remaining work</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Implementation</div><ul>
+<li class=""><a href="deposit-freeze-impl.html" data-title="deposit freeze (impl)">Deposit freeze (impl)</a></li>
+<li class=""><a href="deposits-mldsa.html" data-title="ml-dsa deposits (design)">ML-DSA deposits (design)</a></li>
+<li class=""><a href="deposits-mldsa-impl.html" data-title="ml-dsa deposits (impl)">ML-DSA deposits (impl)</a></li>
+<li class=""><a href="pq-deposit-wallet-blueprint.html" data-title="pq deposit wallet (blueprint)">PQ deposit wallet (blueprint)</a></li>
+<li class=""><a href="messages-mlkem.html" data-title="ml-kem messages (design)">ML-KEM messages (design)</a></li>
+<li class=""><a href="messages-mlkem-impl.html" data-title="ml-kem messages (impl)">ML-KEM messages (impl)</a></li>
+<li class=""><a href="ringsig-hardening.html" data-title="ring-sig hardening">Ring-sig hardening</a></li>
+<li class=""><a href="hardening-notes.html" data-title="hardening notes">Hardening notes</a></li>
+<li class=""><a href="wallet-v2-impl.html" data-title="wallet v2 (impl)">Wallet v2 (impl)</a></li>
+<li class=""><a href="wallet-address-v2.html" data-title="wallet address v2">Wallet address v2</a></li>
+<li class=""><a href="wallet-pq-transfers.html" data-title="wallet pq transfers">Wallet PQ transfers</a></li>
+<li class=""><a href="matrict-integration-plan.html" data-title="matrict-au integration plan">MatRiCT-Au integration plan</a></li>
+<li class=""><a href="raptor-integration-plan.html" data-title="raptor integration plan">Raptor integration plan</a></li>
+<li class=""><a href="rpc-get-pq-outputs.html" data-title="rpc: get_pq_outputs">RPC: get_pq_outputs</a></li>
+<li class=""><a href="serialization-format-spec.html" data-title="serialization format spec">Serialization format spec</a></li>
+<li class=""><a href="pow-grover-widening.html" data-title="pow grover widening">PoW Grover widening</a></li>
+</ul></div>
+<div class="nav-group"><div class="nav-group-title">Strategy notes</div><ul>
+<li class=""><a href="strategy-crypto-modernization.html" data-title="crypto modernization">Crypto modernization</a></li>
+<li class=""><a href="strategy-greenfield-design.html" data-title="greenfield design">Greenfield design</a></li>
+<li class=""><a href="strategy-rust-port.html" data-title="rust port">Rust port</a></li>
+</ul></div></nav>
+  <div class="sidebar-foot">CIP-0001 &middot; generated from <code>docs/design/quantum-resistance</code></div>
+</aside>
+<main>
+  <article class="content">
+    
+    <h1 id="pq-security-audit-findings-register">PQ Security-Audit Findings
+Register</h1>
+<blockquote>
+<p><strong>Status:</strong> UNAUDITED, testnet-only, height-gated PoC.
+<strong>Mainnet: NO-GO</strong> pending an external cryptographer's
+sign-off on the Raptor construction and its proofs. This register is an
+input to the mainnet go/no-go gate, <strong>not</strong> a
+clearance.</p>
+</blockquote>
+<p>This document is the consolidated, human-readable register of
+<strong>every</strong> security finding raised against the Conceal
+post-quantum (PQ) proof-of-concept across all internal review rounds. It
+is a <em>docs</em> artifact: it gathers and organizes findings that are
+already recorded in the review reports under <code>docs/reviews/</code>;
+it does not introduce new findings or fixes. Each row cites the source
+report and (where a fix landed) the commit(s) that closed it.</p>
+<h2 id="where-the-code-lives">Where the code lives</h2>
+<p>The PoC exists on <strong>two local branches; nothing is
+pushed</strong>:</p>
+<table>
+<thead>
+<tr>
+<th>Branch</th>
+<th>Repo / worktree</th>
+<th>What it is</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>pqc/testnet-poc</code></td>
+<td><code>/Users/travis/Projects/conceal-core</code></td>
+<td>The <strong>original / monolithic</strong> PoC tree (PQ ring-sig +
+deposits bolted onto the classic single-tree Conceal Core).</td>
+</tr>
+<tr>
+<td><code>pqc/mdbx-merge-poc</code></td>
+<td><code>/Users/travis/Projects/conceal-core-mdbx-merge</code></td>
+<td>The <strong>nullcryptodev MDBX-storage / <code>conceal-wallet</code>
+fork</strong>, with the PQ PoC merged in. The audit ran here
+(<code>411c848f</code>); modular <code>src/Blockchain/*</code>
+validators.</td>
+</tr>
+</tbody>
+</table>
+<p>Most fixes were applied to <strong>both</strong> branches for parity
+(commit hashes differ per branch; the register notes the per-branch hash
+where the task pinned them). The PQ live consensus spend path is the
+clean-room <strong>Raptor</strong> linkable ring signature over
+Falcon-512 (<code>pqc/ccx-pqc/src/raptor.rs</code>), wired through
+<code>ccx_pq_sign/verify/nullifier</code>. <code>ringsig.rs</code> (a
+<code>K=L=6</code> Module-SIS AOS ring signature) is <strong>self-test
+only</strong> and not on any consensus path (see F8).</p>
+<hr />
+<h2 id="provenance-legend">Provenance legend</h2>
+<p>Every finding carries <strong>exactly one</strong> provenance tag
+answering <em>"whose defect is this?"</em> — so that fork-introduced
+regressions, upstream-inherited issues, and genuine PQ-code defects are
+not conflated.</p>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>[our-pq]</code></strong></td>
+<td>The defect is in PQ code <strong>this project added</strong> — the
+Rust crate (<code>pqc/ccx-pqc</code>:
+<code>raptor.rs</code>/<code>ringsig.rs</code>/<code>lib.rs</code>/<code>raptor_abi.rs</code>),
+PQ serialization of <code>PqKey*</code>/<code>PqMultisig*</code>, PQ
+validation (<code>check_pq_*</code>, the PQ branches of
+<code>check_outs_valid</code>), PQ RPC (<code>get_pq_*</code>), the PQ
+deposit/spend builders, the PQ wallet commands, PQ messages 0x06/0x07,
+deterministic keygen, and the KAT tripwires.</td>
+</tr>
+<tr>
+<td><strong><code>[dev-fork]</code></strong></td>
+<td>Introduced by the <strong>nullcryptodev MDBX /
+<code>conceal-wallet</code> fork refactor</strong>, <em>not</em> present
+in the original <code>pqc/testnet-poc</code> tree. Evidence required:
+the fix was needed <strong>only</strong> on <code>mdbx-merge</code>;
+<code>testnet-poc</code> was already correct.</td>
+</tr>
+<tr>
+<td><strong><code>[inherited]</code></strong></td>
+<td>Pre-existing in the <strong>upstream / current-Conceal
+lineage</strong>, <em>surfaced</em> (not introduced) by the PQ work;
+affects all transaction types, not PQ-specific.</td>
+</tr>
+<tr>
+<td><strong><code>[verify]</code></strong></td>
+<td>Provenance is <strong>genuinely unclear or contradicted</strong> by
+the source docs vs. the git history. Listed separately at the end for
+the maintainer to resolve — <strong>not guessed</strong>.</td>
+</tr>
+</tbody>
+</table>
+<p>Where a report carries its own <code>Provenance:</code> line (e.g.
+H-new-1), this register uses it verbatim.</p>
+<hr />
+<h2
+id="round-1--original-audit-claude-opusmd--external-audit-packagemd">Round
+1 — Original audit (<code>claude-opus.md</code> +
+<code>external-audit-package.md</code>)</h2>
+<p>Two independent internal audits (Claude/Opus + GLM/z.ai) converged on
+the top finding. The consolidated register below is F1–F14 plus the
+GLM-side items (HIGH-2, MED-1) and the Codex per-spend-randomness item
+(C-1). Severities are shown as <strong>live /
+mainnet-or-primitive</strong> where the audit distinguished them.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Severity</th>
+<th>Title</th>
+<th>Status</th>
+<th>Provenance</th>
+<th>Fix (file / mechanism) + commit(s)</th>
+<th>Source doc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>F1</strong></td>
+<td>HIGH (live) / CRITICAL (primitive)</td>
+<td>Ring keys not bound into the Fiat-Shamir challenge → standalone
+forgery (committed PoC)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td><code>raptor.rs:hash_transcript_to_b</code> now absorbs
+<code>ring.len()</code> + every ring public key before the
+<code>c_i</code>; wired through <code>sign</code>/<code>verify</code>;
+forgery test inverted to assert rejection
+(<code>programmed_key_forgery_is_rejected</code>). <code>32b87095</code>
+(mdbx)</td>
+<td>claude-opus.md §2; external-pkg §2</td>
+</tr>
+<tr>
+<td><strong>F2</strong></td>
+<td>CRITICAL (mainnet-blocker)</td>
+<td>Unforgeability unproven for the as-built construction; norm bound
+<code>B1</code> never re-derived; concrete bits unknown</td>
+<td><strong>Open</strong> (closed for the <em>PoC gate</em> only)</td>
+<td><code>[our-pq]</code></td>
+<td><code>B1</code> re-derived = <code>4·β²</code>
+(<code>raptor-b1-derivation.md</code>); lattice-estimator run (NTRU uSVP
+≈ 2^141 = NIST L1; forgery R-SIS vacuous); extractor + anonymity ε-bound
+sketched (<code>raptor-formal-proofs.md</code>,
+<code>ε ≤ L·2^-128</code>). <strong>Formal reduction + anonymity
+statistical bound remain an external-cryptographer deliverable.</strong>
+Docs: <code>ce712cbc</code>, <code>b766e4c0</code></td>
+<td>claude-opus.md §2; external-pkg §3–4</td>
+</tr>
+<tr>
+<td><strong>F3</strong></td>
+<td>HIGH</td>
+<td>Keygen-determinism KAT + det-keygen interop selftest are dead code
+(dormant funds-loss / chain-split guard)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>PQ selftest gate (incl. keygen KAT + det-keygen) at
+<strong>daemon</strong> startup (<code>Daemon.cpp</code>) and
+<strong>wallet</strong> startup (<code>ConcealWallet/main.cpp</code>),
+aborts on KAT drift. <code>32b87095</code> (mdbx)</td>
+<td>claude-opus.md §5; external-pkg §2</td>
+</tr>
+<tr>
+<td><strong>F4</strong></td>
+<td>HIGH</td>
+<td>PQ <strong>spends</strong>
+(<code>PqKeyInput</code>/<code>PqKeyOutput</code>) lack an explicit
+<code>UPGRADE_HEIGHT_V10</code> height gate (deposits had one)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td><code>transactionContainsPqSpend</code> helper (promoted to
+<code>CryptoNoteFormatUtils.{h,cpp}</code>) +
+<strong>mainnet-only</strong> <code>&lt; V10 → reject</code> gate in
+per-tx + coinbase paths (<code>BlockchainStorage.cpp</code>). Test
+<code>TestPqSpendGate.cpp</code> (7/7). <code>32b87095</code>
+(mdbx)</td>
+<td>claude-opus.md §5; external-pkg §2</td>
+</tr>
+<tr>
+<td><strong>F5</strong></td>
+<td>HIGH (memo layer)</td>
+<td>0x07 authenticated-message AEAD: derived nonce, no AAD → keystream
+reuse iff tx-key reused</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td><code>ccx_pq_msg_seal_v2</code>/<code>open_v2</code>
+(<code>lib.rs</code>): caller-supplied 24-byte random XChaCha20 nonce +
+bound AAD (tx-pubkey‖output-index), v2-domain key; wired into
+<code>TransactionExtra.cpp</code> with a v2-then-v1 decrypt fallback
+(old memos stay readable). <code>32b87095</code> (mdbx). <strong>Mainnet
+emission height-gate = caller decision (still open).</strong></td>
+<td>claude-opus.md §4; external-pkg §2; msg-aead-0x07-nonce-fix.md</td>
+</tr>
+<tr>
+<td><strong>F6</strong></td>
+<td>MEDIUM (wallet) / HIGH (mainnet)</td>
+<td>Signing Gaussian sampler + ML-KEM FO-decap constant-time unverified;
+CI ctgrind tripwire guards only the C glue</td>
+<td><strong>Open</strong></td>
+<td><code>[our-pq]</code></td>
+<td>dudect harness added (<code>falcon_ffi::ct_dudect</code>,
+<code>lib.rs::f6_mlkem_dudect</code>); runs show no timing dependence
+(Falcon <code>t≈-0.05…-0.67</code>; ML-KEM <code>t(full)≈0</code> after
+matched pools). <code>32b87095</code>. <strong>Researcher-grade
+million-sample, dedicated-host campaign still required.</strong></td>
+<td>claude-opus.md §3; external-pkg §5; reports 09 (M-new-1), 13</td>
+</tr>
+<tr>
+<td><strong>F7 / LOW-3</strong></td>
+<td>MEDIUM / LOW</td>
+<td><code>PqKeyInput.ringSig</code> canonicality delegated to FFI (no
+C++ assertion) → possible txid malleability; parse-time length bound
+loose</td>
+<td><strong>Fixed</strong> (mitigated)</td>
+<td><code>[our-pq]</code></td>
+<td>Double-bounded by <code>ccx_pq_verify</code>
+(<code>sig_len ≤ ring_sig_size</code>) +
+<code>CRYPTONOTE_MAX_TX_SIZE</code>; added a 1 MiB parse-time bound on
+<code>ringSig</code> in <code>CryptoNoteSerialization.cpp</code>.
+<code>32b87095</code> (LOW-3 part)</td>
+<td>claude-opus.md §5; external-pkg §2</td>
+</tr>
+<tr>
+<td><strong>F8</strong></td>
+<td>INFO (dead) / MEDIUM (false assurance)</td>
+<td>Self-test-only <code>ringsig.rs</code> (<code>K=L=6</code>,
+<code>t=A·s</code>, no error term) is structurally broken — secret
+trivially recoverable from the public key; its selftests certify a
+broken scheme</td>
+<td><strong>Fixed</strong> (quarantined + proven)</td>
+<td><code>[our-pq]</code></td>
+<td>DANGER header + key-recovery PoC test
+<code>secret_is_recoverable_from_public_key</code> (PASSES, proves the
+break); whole module + its <code>ccx_pqr_*</code> exports feature-gated
+behind non-default <code>legacy-ringsig-demo</code>. Not live on either
+branch. <code>32b87095</code> (mdbx)</td>
+<td>claude-opus.md §2; external-pkg §2</td>
+</tr>
+<tr>
+<td><strong>F9</strong></td>
+<td>LOW / MEDIUM (mainnet)</td>
+<td><code>paramch_h</code> nothing-up-my-sleeve value lacks a documented
+derivation ceremony</td>
+<td><strong>Open</strong> (documented)</td>
+<td><code>[our-pq]</code></td>
+<td>Frozen-spec digest pinned + test
+(<code>raptor.rs:paramch_h_matches_frozen_spec</code>); ceremony options
+documented (<code>paramch-h-spec.md</code>). <strong>Pick a
+beacon/MPC/frozen-spec ceremony before mainnet.</strong></td>
+<td>claude-opus.md §2; external-pkg §2</td>
+</tr>
+<tr>
+<td><strong>F10</strong></td>
+<td>LOW</td>
+<td><code>NETWORK_TAG="ccx-testnet"</code> pre-launch tripwire (flipping
+it changes every derived address); deprecated RustCrypto entry
+points</td>
+<td><strong>Open</strong> (checklist)</td>
+<td><code>[our-pq]</code></td>
+<td>Pre-mainnet checklist item; the det-keygen selftest that guards the
+encodings now runs at startup (via F3).</td>
+<td>claude-opus.md §4; external-pkg §2</td>
+</tr>
+<tr>
+<td><strong>F11</strong></td>
+<td>INFO / LOW</td>
+<td>Spend artifacts carry no scheme/version tag;
+<code>dsaSchemeId</code> not committed on-chain → agility is a
+height-gated flag-day, not per-output</td>
+<td><strong>Open</strong> (documented)</td>
+<td><code>[our-pq]</code></td>
+<td>Documented agility gap; per-output scheme byte recommended for true
+agility. (Address-layer scheme IDs <em>are</em> serialized + fail-closed
+validated.)</td>
+<td>claude-opus.md §6; external-pkg §2; report 09 (M-new-5)</td>
+</tr>
+<tr>
+<td><strong>F12</strong></td>
+<td>MEDIUM</td>
+<td><code>raptor_abi::unpack</code> integer overflow
+(<code>*pos + len</code> with an untrusted varint) → panic (debug) /
+silent wrap (release)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td><code>get_blob</code> uses <code>checked_add</code> → clean reject;
+contained on the live path by <code>ffi_guard</code>
+<code>catch_unwind</code>. Found by the (now-fixed) Phase-5 fuzz
+harness; re-fuzzed 19.3M runs crash-free. <code>32b87095</code>
+(mdbx)</td>
+<td>external-pkg §2; CHANGELOG Wave 2</td>
+</tr>
+<tr>
+<td><strong>F13</strong></td>
+<td>LOW</td>
+<td><code>PqKeyOutput</code> not tx-version-gated (<code>&gt;= 4</code>)
+unlike <code>PqKeyInput</code>/<code>PqMultisigOutput</code> — a
+non-coinbase pre-v4 tx could carry one</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>v4 gate in <code>check_outs_valid</code> <strong>with a coinbase
+exemption</strong> (the v1 testnet coinbase legitimately carries the PQ
+stealth output). Test
+<code>PqSpendGate.PqKeyOutputRejectedInNonCoinbasePreV4Tx</code>.
+Defense-in-depth over the F4 block gate. <code>32b87095</code>
+(mdbx)</td>
+<td>external-pkg §2; CHANGELOG Wave 4; HANDOFF Item 9</td>
+</tr>
+<tr>
+<td><strong>F14</strong></td>
+<td>LOW</td>
+<td><code>Blockchain::pushBlock</code> mid-loop rollback leak: on
+<code>tx[i]</code> validation failure only the coinbase was popped,
+leaking <code>tx[0..i-1]</code>'s key-image/nullifier/output mutations
+into in-memory indices (false double-spend on retry until resync)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[inherited]</code> <em>(CHANGELOG / external-pkg call it
+"pre-existing / non-PQ"; PQ nullifier conflicts merely reproduce
+it)</em></td>
+<td>Targeted <strong>reverse rollback</strong> of
+<code>tx[0..i-1]</code> + coinbase (<code>BlockchainStorage.cpp</code>)
+— <strong>not</strong> <code>popTransactions()</code> (which would erase
+the failed tx's own key image). UnitTests 100% + CoreTests.
+<code>32b87095</code> (mdbx)</td>
+<td>external-pkg §2; CHANGELOG Wave 4; HANDOFF Blocker 6</td>
+</tr>
+<tr>
+<td><strong>HIGH-2</strong> (GLM)</td>
+<td>HIGH</td>
+<td><code>m_spent_pq_nullifiers</code> not persisted in the mempool
+serialize</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td><code>KV_MEMBER</code> added to mempool serialization
+(<code>TransactionPool.cpp</code>). GLM-found; verified.</td>
+<td>external-pkg §2; HANDOFF §1</td>
+</tr>
+<tr>
+<td><strong>MED-1</strong> (GLM)</td>
+<td>MEDIUM</td>
+<td><code>BlockTemplate</code> lacked <code>PqKeyInput</code> nullifier
+tracking</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td><code>m_pqNullifiers</code> template-set
+(<code>TransactionPool.cpp</code>). GLM-found; verified.</td>
+<td>external-pkg §2; HANDOFF §1</td>
+</tr>
+<tr>
+<td><strong>C-1</strong> (Codex)</td>
+<td>(advisory)</td>
+<td>Per-spend signing randomness = raw concat (lattice nonce-reuse
+risk)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>HKDF-like extract-then-expand over SHAKE256 (PRK =
+SHAKE(sk‖os_rand); seed = SHAKE(PRK‖msg)) in
+<code>lib.rs:ccx_pq_sign</code> — no nonce reuse even under OsRng
+compromise.</td>
+<td>external-pkg §2; claude-opus.md §0.5</td>
+</tr>
+<tr>
+<td><strong>B1</strong></td>
+<td>(mainnet-blocker; part of F2)</td>
+<td>Acceptance norm bound <code>FALCON512_SQNORM_BOUND</code> reused
+from single-Falcon β², never re-derived for the ring setting</td>
+<td><strong>Fixed</strong> (derived)</td>
+<td><code>[our-pq]</code></td>
+<td>Extractor gives <code>4·β²</code> slack; verify enforces the tight
+single-Falcon β² (no false rejections). §5.1 quantitative error
+corrected; §5.3 estimator run added.
+<code>raptor-b1-derivation.md</code>; docs <code>ce712cbc</code></td>
+<td>claude-opus.md §0.5/§2; external-pkg §3</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Note on F2/B1 "Fixed":</strong> the <em>derivation, estimator
+run, and proof sketches</em> are complete, but the source docs are
+explicit that the <strong>formal unforgeability reduction and the
+anonymity statistical-distance bound are still pending an external
+cryptographer</strong> — they are inputs, not a substitute. F2 is
+therefore tracked as <strong>Open</strong> at the mainnet gate (see
+Still-open). Report 09 (M-new-2, M-new-3) additionally flags the
+proof/B1 documents as not-yet-complete reductions.</p>
+</blockquote>
+<hr />
+<h2
+id="round-2--post-remediation-delta-audit-09-post-remediation-delta-auditmd">Round
+2 — Post-remediation delta audit
+(<code>09-post-remediation-delta-audit.md</code>)</h2>
+<p>Independent re-audit of the remediated worktree at
+<code>411c848f</code>. Confirmed F1/F3/F5 fixes and the
+malformed-PQ-output rejection; raised new residual items.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Severity</th>
+<th>Title</th>
+<th>Status</th>
+<th>Provenance</th>
+<th>Fix (file / mechanism) + commit(s)</th>
+<th>Source doc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>M-new-4</strong></td>
+<td>MEDIUM</td>
+<td>Cross-architecture KAT matrix covers Raptor/Falcon keygen only — not
+ML-KEM, ML-DSA, address-v2, wallet PQ-section, or serialized PQ
+transactions</td>
+<td><strong>Open</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Raptor keygen KAT (<code>8f24…745e</code>) reproduces on aarch64 /
+i686 / s390x(BE); a <code>pq-determinism</code> CI job pins that one
+digest. <strong>Pinned fixtures for the other seed-derived artifacts
+still missing.</strong> Partial step in <code>830c97be</code> (mdbx) /
+<code>459be83e</code> (testnet-poc).</td>
+<td>report 09 (M-new-4); reports 11, 13</td>
+</tr>
+<tr>
+<td><strong>M-new-5</strong></td>
+<td>MEDIUM</td>
+<td>PQ deposit outputs do not serialize a DSA scheme ID
+(<code>dsaSchemeId</code>) → deposit agility is height/tag-based
+only</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td><code>dsaSchemeId</code> is now serialized into
+<code>PqMultisigOutput</code>; PQ artifact KAT + DSA scheme IDs pinned.
+<code>830c97be</code> (mdbx) / <code>459be83e</code> (testnet-poc).
+<strong>Consensus/wire change — see below.</strong></td>
+<td>report 09 (M-new-5); report 11</td>
+</tr>
+<tr>
+<td><strong>L-new-1</strong></td>
+<td>LOW</td>
+<td>0x07 AEAD v2 reuses the same extra tag without an explicit
+sub-version; old v1 memos parse-valid but not decryptable by v2</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>v1 <code>0x07</code> decrypt fallback kept (v2-then-v1, unambiguous
+via distinct SHAKE-domain keys) for historical memo readability.
+<code>b766e4c0</code></td>
+<td>report 09 (L-new-1); report 11</td>
+</tr>
+<tr>
+<td><strong>L-new-2</strong></td>
+<td>LOW</td>
+<td>Raptor <code>verify</code> fuzz target usually returns before
+reaching verification (poor malformed-ring coverage)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Fuzz target reworked to synthesize a valid-length ring so every
+iteration reaches <code>ccx_pq_verify</code>. <code>b766e4c0</code></td>
+<td>report 09 (L-new-2); report 11</td>
+</tr>
+<tr>
+<td><strong>L-new-3</strong></td>
+<td>LOW</td>
+<td>Raptor scheme-ID documentation stale (<code>0xC0DE0003/0004</code>
+vs. code's <code>"RAPT"</code>/<code>0x52415054</code>)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Stale design docs corrected to <code>0x52415054</code> /
+<code>"RAPT"</code>. <code>b766e4c0</code></td>
+<td>report 09 (L-new-3); report 11</td>
+</tr>
+<tr>
+<td><strong>L-new-4</strong></td>
+<td>LOW</td>
+<td>ML-DSA / FIPS wording implies a validated verifier stack (deposit
+sign/verify still uses <code>pqcrypto-dilithium</code>)</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Wording qualified to "Dilithium3 / ML-DSA-65-compatible via
+pqcrypto"; det-keygen RustCrypto claim kept separate from the pqcrypto
+sign/verify claim. <code>b766e4c0</code></td>
+<td>report 09 (L-new-4); report 11</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Report 09 also raised <strong>M-new-1</strong> (dudect threshold
+<code>|t|&lt;500</code> too loose to be a CT gate),
+<strong>M-new-2</strong> (the formal-proofs doc is proof
+<em>exploration</em>, not a completed reduction), and
+<strong>M-new-3</strong> (the B1 doc is internally inconsistent /
+overstates completion). These are documentation-quality /
+proof-completeness observations on the F2/F6 work rather than separate
+code defects; they roll up into the Still-open F2 (external proof
+sign-off) and F6 (side-channel) gates. All <code>[our-pq]</code>.</p>
+</blockquote>
+<hr />
+<h2
+id="round-3--adversarial-parser-audit-10-adversarial-parser-auditmd">Round
+3 — Adversarial parser audit
+(<code>10-adversarial-parser-audit.md</code>)</h2>
+<p>Targeted at the C++ PQ transaction-extra and transaction
+serialization parser surfaces.</p>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Severity</th>
+<th>Title</th>
+<th>Status</th>
+<th>Provenance</th>
+<th>Fix (file / mechanism) + commit(s)</th>
+<th>Source doc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>M-new-6</strong></td>
+<td>MEDIUM</td>
+<td>PQ multisig deserialization materializes oversized inner PQ blobs
+(<code>PqKeyInput.ringSig</code>,
+<code>PqMultisigInput.signatures[]</code>,
+<code>PqMultisigOutput.keys[]</code>) before semantic size checks →
+parse-time heap-exhaustion</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Bounded binary reads that reject the length prefix
+<strong>before</strong> allocation
+(<code>PqKeyInputOverDeclaredRingSigPrefixRejectedBeforeMaterialization</code>).
+Initial bound <code>c3c5b751</code>; per-element/ring hardening
+<code>162b12ca</code> + <code>f6eb6de8</code>;
+<strong>pre-materialization closure <code>c9ab9e4b</code></strong>
+(mdbx)</td>
+<td>report 10 (M-new-6); report 11</td>
+</tr>
+<tr>
+<td><strong>M-new-7</strong></td>
+<td>MEDIUM</td>
+<td><code>PqKeyInput.outputIndexes</code> (the ring-index vector)
+materialized via generic <code>serializeVarintVector</code> before
+<code>PQ_MAX_RING_SIZE</code> is enforced → parse-time allocation of an
+impossible ring</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Rejects PQ ring counts above <code>PQ_MAX_RING_SIZE</code> before
+<code>vector.resize</code>. <code>162b12ca</code> (mdbx)</td>
+<td>report 10 (M-new-7); report 11</td>
+</tr>
+<tr>
+<td><strong>M-new-8</strong></td>
+<td>MEDIUM</td>
+<td>PQ multisig outputs accept malformed (wrong-length) ML-DSA deposit
+public keys into validated output state (<code>check_outs_valid</code> +
+block-connect visitor) → unspendable cells / burnt funds / index
+pollution</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Rejects wrong-length deposit keys in both
+<code>check_outs_valid</code> and the block-connect visitor
+(<code>PqMultisigOutputWrongKeyLengthRejectedByCheckOutsValid</code>).
+<code>162b12ca</code> (mdbx)</td>
+<td>report 10 (M-new-8); report 11</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Report 10 also recorded <strong>clean</strong> results: unknown
+adjacent PQ variant tags (<code>0x0a</code>) reject;
+<code>PqMultisigOutput</code> count over
+<code>PQ_MULTISIG_MAX_KEYS</code> rejects before inner blobs are read;
+truncated 0x06 PQ tx-extra rejects cleanly. Parity hardening was ported
+to testnet-poc in <code>ede63416</code> / <code>2bd547e2</code>.</p>
+</blockquote>
+<hr />
+<h2 id="round-4--reorg--pool--kat-follow-ups-11-12-13">Round 4 — Reorg /
+pool / KAT follow-ups (<code>11</code>, <code>12</code>,
+<code>13</code>)</h2>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Severity</th>
+<th>Title</th>
+<th>Status</th>
+<th>Provenance</th>
+<th>Fix (file / mechanism) + commit(s)</th>
+<th>Source doc</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>M-new-9</strong></td>
+<td>MEDIUM</td>
+<td>PQ output-enumeration RPCs lacked pagination / bounded the
+locked-bucket walk → unbounded scan DoS</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Bounded blockchain queries +
+<code>start_index</code>/<code>limit</code>/<code>next_index</code> +
+shared wallet/client pagination. <code>95f8352b</code> (mdbx)</td>
+<td>report 11 (closure table)</td>
+</tr>
+<tr>
+<td><strong>Checkpoint structural/crypto decouple</strong></td>
+<td>(consensus correctness)</td>
+<td>Inside the checkpoint-trusted zone, PQ structural/reference
+validation was being skipped together with signature verification</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code></td>
+<td>Always execute PQ structural/reference validation; skip
+<strong>only</strong> cryptographic verification when checkpoint trust
+applies. <code>3a5c07a9</code> (mdbx) / <code>2bd547e2</code>
+(testnet-poc parity; <code>skipSignatureVerify</code> present in both
+<code>Blockchain.cpp</code>). <strong>Consensus-validation change — see
+below.</strong></td>
+<td>report 11 (closure table)</td>
+</tr>
+<tr>
+<td><strong>H-new-1</strong></td>
+<td>HIGH (BLOCKER)</td>
+<td>A heavier valid fork is rejected unless it repeats every displaced
+main-chain transaction (<code>verifyAlternativeChainTransactions</code>
+subset rule) → nodes can stick on incompatible tips; PQ nullifier
+conflicts reproduce it but it affects <strong>all</strong> tx types</td>
+<td><strong>Fixed</strong></td>
+<td><code>[inherited]</code> <em>(report 12, verbatim: "the same
+main-transaction subset rule exists in the monolithic pre-MDBX
+implementation at <code>aa4dbe96^</code>; the MDBX refactor preserved
+rather than introduced it")</em></td>
+<td>Removed the displaced-main-tx subset rule; verify each alt block's
+referenced txs are available instead. <code>59f8425f</code> (mdbx) /
+<code>601ede69</code> (testnet-poc parity). <strong>Reorg-semantics
+consensus change — see below.</strong></td>
+<td>report 12 (H-new-1); report 11</td>
+</tr>
+<tr>
+<td><strong>M-new-10</strong></td>
+<td>MEDIUM</td>
+<td>Fixed testnet difficulty (<code>TESTNET_PQ_POC_DIFFICULTY</code>)
+not applied to <strong>alternative</strong> blocks
+(<code>get_next_difficulty_for_alternative_chain</code> runs the normal
+retarget) → testnet nodes reject each other's validly-mined fork
+blocks</td>
+<td><strong>Fixed</strong></td>
+<td><code>[our-pq]</code> <em>(defect is in the PoC's testnet
+fixed-difficulty path the project added)</em></td>
+<td>Return <code>TESTNET_PQ_POC_DIFFICULTY</code> from the alt-chain
+difficulty path when <code>isTestnet()</code>. <code>59f8425f</code>
+(mdbx) / <code>601ede69</code> (testnet-poc parity). <strong>Testnet
+alt-difficulty change — see below.</strong></td>
+<td>report 12 (M-new-10)</td>
+</tr>
+<tr>
+<td><strong>M-new-11</strong></td>
+<td>MEDIUM</td>
+<td>Removing a <code>keptByBlock</code> PQ withdrawal clears a
+<strong>different</strong> normal withdrawal's deposit-cell reservation
+(<code>removeTransactionInputs</code> erased
+<code>m_spent_pq_deposit_cells</code> unconditionally, unlike the add
+path and the classical <code>MultisignatureInput</code> branch) →
+conflicting withdrawals admitted/relayed (mempool/relay invariant break,
+not a consensus inflation path)</td>
+<td><strong>Fixed</strong></td>
+<td><strong><code>[dev-fork]</code></strong> <em>(verified:
+<code>1d4f4b81</code> is on <strong>mdbx-merge only</strong> —
+<code>git branch --contains</code>; there is <strong>no</strong>
+M-new-11 commit on testnet-poc, and testnet-poc's
+<code>m_spentPqDeposits</code> erase is already inside an
+<code>if (!keptByBlock)</code> guard. So the original tree was always
+correct; the <strong>MDBX fork's <code>TransactionPool</code> refactor
+dropped the guard</strong> — i.e. fork-introduced)</em></td>
+<td>Guard the erase on <code>!keptByBlock</code>, mirroring the add path
++ classical branch (<code>TransactionPool.cpp</code>). Reproducer
+<code>PqTransactionPool.RemovingKeptByBlockWithdrawalPreservesNormalReservation</code>.
+<code>1d4f4b81</code> (mdbx-merge only; testnet-poc unaffected).</td>
+<td>report 13 (M-new-11); report 11</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>Report 13 also recorded a <strong>clean</strong> path: a partial
+alternative-chain push rolls back atomically
+(<code>PqChainState.FailedAlternativePushRestoresMainPqState</code>
+passes) — no state-atomicity defect in the missing-transaction failure
+path.</p>
+</blockquote>
+<hr />
+<h2 id="consensus--wire-format-changes">Consensus / wire-format
+changes</h2>
+<p>These remediations alter what nodes <strong>accept</strong>
+(validation) or how data is <strong>serialized</strong> — i.e. they are
+not behaviour-preserving bug fixes. Each has a testnet-reset /
+coordination implication.</p>
+<table>
+<thead>
+<tr>
+<th>Change</th>
+<th>Finding(s) / commit(s)</th>
+<th>Nature</th>
+<th>Reset / coordination implication</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>dsaSchemeId</code> serialized into
+<code>PqMultisigOutput</code></td>
+<td>M-new-5 — <code>830c97be</code> (mdbx) / <code>459be83e</code>
+(testnet-poc)</td>
+<td><strong>Wire/on-disk format change</strong> — deposit cells now
+carry the DSA scheme ID on-chain</td>
+<td>Old deposit-cell bytes are not forward-compatible. Requires a
+testnet reset (or a documented height/tag rule for spending pre-change
+deposits after a DSA swap).</td>
+</tr>
+<tr>
+<td>PQ-spend &amp; <code>PqKeyOutput</code> tx-version / height
+gates</td>
+<td>F4 (<code>&lt; V10 → reject</code>, mainnet-only) + F13
+(<code>PqKeyOutput</code> requires <code>tx.version &gt;= 4</code>,
+coinbase-exempt) — <code>32b87095</code> / parity</td>
+<td><strong>Validation-rule change</strong> — defines when PQ
+spends/outputs are admissible</td>
+<td>Activation is height-gated behind <code>UPGRADE_HEIGHT_V10</code>
+(mainnet); on testnet PQ is active from height 1, so no reset needed,
+but the mainnet gate must be coordinated as a fork. The F4 mainnet gate
+is <strong>not exercised by the testnet suite</strong> — a
+mainnet-params unit test is required before mainnet.</td>
+</tr>
+<tr>
+<td>Reorg semantics: drop the displaced-main-tx subset rule</td>
+<td>H-new-1 — <code>59f8425f</code> (mdbx) / <code>601ede69</code>
+(testnet-poc)</td>
+<td><strong>Consensus chain-selection change</strong> — nodes can now
+switch to a heavier valid fork with a different tx set</td>
+<td>All nodes must run the new rule before a contentious reorg, or they
+will disagree on the canonical tip. Coordinate the upgrade network-wide;
+testnet should be reset/announced.</td>
+</tr>
+<tr>
+<td>Checkpoint structural-vs-cryptographic decouple</td>
+<td>Checkpoint coupling — <code>3a5c07a9</code> (mdbx) /
+<code>2bd547e2</code> (testnet-poc)</td>
+<td><strong>Validation-rule change</strong> — structural/reference PQ
+checks now always run inside the checkpoint zone</td>
+<td>Changes which blocks pass inside the checkpoint zone. Land before
+any non-resettable testnet. Parity present on both trees.</td>
+</tr>
+<tr>
+<td>Testnet alternative-block fixed difficulty</td>
+<td>M-new-10 — <code>59f8425f</code> (mdbx) / <code>601ede69</code>
+(testnet-poc)</td>
+<td><strong>Testnet difficulty-rule change</strong> (testnet-only)</td>
+<td>Makes alt-block difficulty match the active-chain template on
+testnet. Requires a coordinated testnet restart so all nodes apply the
+same rule to forks.</td>
+</tr>
+<tr>
+<td>0x07 AEAD v2 (nonce + AAD)</td>
+<td>F5 / L-new-1 — <code>32b87095</code></td>
+<td><strong>Message-format change</strong> (tx-extra,
+<strong>non-consensus</strong>)</td>
+<td>New 0x07 memos are not decryptable by pre-change wallets; a
+v2-then-v1 decrypt fallback keeps old memos readable. Mainnet
+<strong>emission</strong> must be height-gated (caller decision — still
+open). Testnet is resettable, so v2-always is fine there.</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="still-open-mainnet-gating">Still open (mainnet gating)</h2>
+<p>These are deliberately <strong>not closeable in code by this
+project</strong> — they need external review, dedicated hardware, or a
+product decision. Mainnet stays <strong>NO-GO</strong> until all are
+resolved.</p>
+<ol type="1">
+<li><strong>External cryptographer sign-off on the Raptor proofs
+(F2).</strong> A human lattice specialist must review (a) the Raptor
+construction itself (a clean-room reimplementation of eprint 2018/857
+§6.5, never deployed in production), (b) the unforgeability reduction
+(rewinding extractor + forking lemma), (c) the anonymity
+statistical-distance / Rényi bound (<code>ε ≤ L·2^-128</code>), and (d)
+the lattice-estimator output (NTRU ≈ 2^141 classical) against current
+sieving variants. The in-tree proof sketches and estimator run are
+<strong>inputs, not a clearance</strong> (reports 09 M-new-2/M-new-3
+explicitly flag them as not-yet-complete reductions).</li>
+<li><strong>Full cross-architecture KAT fixture matrix
+(M-new-4).</strong> Only the Raptor/Falcon keygen digest
+(<code>8f24…745e</code>) is pinned and run across aarch64 / i686 /
+s390x(BE). Pinned digest fixtures are still needed for ML-KEM keygen,
+ML-DSA keygen, address-v2 bytes, the wallet PQ-section, and complete
+seed-derived signed PQ deposit/spend transactions — then run on the same
+targets. A determinism gap here is a chain-split risk.</li>
+<li><strong>Million-sample side-channel campaign (F6).</strong> dudect
+runs (4k–50k samples, single shared host) show no leakage but do not
+meet the brief's bar: the Falcon signing Gaussian sampler and the ML-KEM
+FO-decap (which runs on the long-term KEM key every wallet scan) need a
+dedicated quiesced core, <code>performance</code> governor, SMT
+disabled, ≥10^6 samples per class, and 3+ runs — plus ctgrind/TIMECOP
+and a specialist review of the secret-dependent paths. A masking
+decision must be recorded.</li>
+<li><strong><code>dsaSchemeId</code> agility disposition (M-new-5 / F11)
+and <code>paramch_h</code> ceremony (F9).</strong> Decide whether
+per-output scheme tags (true crypto-agility) are required before public
+persistence, and execute a documented NUMS ceremony (beacon / MPC /
+frozen-spec) for <code>paramch_h</code>.</li>
+<li><strong>F5 mainnet rollout decision.</strong> Height-gate 0x07 v2
+<strong>emission</strong> (and keep v1 decrypt forever); a
+non-resettable chain cannot break pre-upgrade memos.</li>
+<li><strong>Mainnet rollout gating.</strong>
+<code>UPGRADE_HEIGHT_V10</code> stays a far-future sentinel until the
+above pass; the F4 mainnet-only gate needs a mainnet-params unit test;
+extended fuzzing (≥24h on a dedicated host, plus a C++ libFuzzer/AFL++
+target on the transaction deserializer) and scale/reorg stress testing
+remain outstanding (HANDOFF Items 7–8).</li>
+</ol>
+<hr />
+<h2 id="verify--resolved"><code>[verify]</code> — resolved</h2>
+<p>The draft tagged <strong>M-new-11</strong> <code>[verify]</code> on a
+mistaken reading that the fix commit <code>1d4f4b81</code> touched both
+branches. Resolved to <strong><code>[dev-fork]</code></strong> against
+the git evidence:</p>
+<ul>
+<li><code>git branch --contains 1d4f4b81</code> →
+<strong><code>pqc/mdbx-merge-poc</code> only</strong>;
+<code>git log --all | grep M-new-11</code> returns only that one mdbx
+commit. There is <strong>no</strong> M-new-11 commit on
+<code>pqc/testnet-poc</code>.</li>
+<li>testnet-poc's <code>removeTransactionInputs</code> already guards
+the deposit-cell erase — the <code>m_spentPqDeposits.erase(...)</code>
+sits inside an <code>if (!keptByBlock)</code> block (predating this
+work; no fix was needed there).</li>
+<li>So the original/monolithic tree was always correct; the
+<strong>unconditional</strong> erase exists <strong>only</strong> on the
+MDBX fork, whose <code>TransactionPool</code> refactor renamed the set
+(<code>m_spent_pq_deposit_cells</code>) and dropped the
+<code>!keptByBlock</code> guard → <strong>fork-introduced
+(<code>[dev-fork]</code>)</strong>.</li>
+</ul>
+<p>No findings remain in <code>[verify]</code>.</p>
+<hr />
+<h2 id="provenance-summary">Provenance summary</h2>
+<table>
+<thead>
+<tr>
+<th>Tag</th>
+<th>Count</th>
+<th>Findings</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>[our-pq]</code></td>
+<td>27</td>
+<td>F1, F2, F3, F4, F5, F6, F7/LOW-3, F8, F9, F10, F11, F12, F13,
+HIGH-2, MED-1, C-1, B1, M-new-4, M-new-5, M-new-9, M-new-10, M-new-6,
+M-new-7, M-new-8, L-new-1, L-new-2, L-new-3, L-new-4, checkpoint
+decouple <em>(see note)</em></td>
+</tr>
+<tr>
+<td><code>[dev-fork]</code></td>
+<td>1</td>
+<td>M-new-11 (the MDBX <code>TransactionPool</code> refactor dropped the
+<code>!keptByBlock</code> deposit-cell-reservation guard; testnet-poc
+unaffected)</td>
+</tr>
+<tr>
+<td><code>[inherited]</code></td>
+<td>2</td>
+<td>F14 (pushBlock mid-loop rollback leak), H-new-1 (alt-chain subset
+rule)</td>
+</tr>
+<tr>
+<td><code>[verify]</code></td>
+<td>0</td>
+<td>— (M-new-11 resolved to <code>[dev-fork]</code>)</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p>The counts above treat L-new-1..4, M-new-6/7/8, M-new-9, the
+checkpoint decouple, and B1 as distinct <code>[our-pq]</code> rows
+alongside F1–F14 / HIGH-2 / MED-1 / C-1 / M-new-4/5/10. The
+documentation-quality observations M-new-1/2/3 (report 09) are not
+counted as separate rows — they roll into the F2 and F6 still-open
+gates.</p>
+</blockquote>
+
+  </article>
+</main>
+<script>
+  // sidebar filter
+  var f = document.getElementById('filter');
+  if (f) f.addEventListener('input', function() {
+    var q = this.value.toLowerCase();
+    document.querySelectorAll('#sidebar nav li').forEach(function(li) {
+      var a = li.querySelector('a');
+      var hit = !q || (a && a.getAttribute('data-title').indexOf(q) !== -1);
+      li.style.display = hit ? '' : 'none';
+    });
+    document.querySelectorAll('#sidebar .nav-group').forEach(function(g) {
+      var any = Array.from(g.querySelectorAll('li')).some(function(li){return li.style.display !== 'none';});
+      g.style.display = any ? '' : 'none';
+    });
+  });
+  // mobile menu
+  var t = document.getElementById('menu-toggle'), sb = document.getElementById('sidebar');
+  if (t) t.addEventListener('click', function(){ sb.classList.toggle('open'); });
+</script>
+</body>
+</html>

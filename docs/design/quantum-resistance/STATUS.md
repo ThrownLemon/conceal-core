@@ -6,6 +6,15 @@ merged, NOT mainnet). For the decision/economics view
 see [`poc-vs-mainnet-report.md`](poc-vs-mainnet-report.md); for the accepted-limitations list see
 [`hardening-notes.md`](hardening-notes.md).*
 
+> **Security-audit findings:** every finding across all review rounds (F1–F14, B1, L-new-1..4,
+> M-new-4..11, H-new-1) — with status, fix + commit, and a **provenance tag** (`[our-pq]` = this
+> project's PQ code · `[dev-fork]` = the nullcryptodev MDBX-fork refactor · `[inherited]` =
+> pre-existing current-Conceal lineage) — is consolidated in the
+> [**audit findings register**](audit-findings-register.md). It also lists the **consensus / wire-format
+> changes** (notably the M-new-5 `dsaSchemeId` serialized into `PqMultisigOutput`, plus the H-new-1
+> reorg-semantics and checkpoint structural/crypto decouple) and what each implies for a testnet reset.
+> Headline provenance: 27 `[our-pq]`, 1 `[dev-fork]` (M-new-11), 2 `[inherited]` (F14, H-new-1).
+
 ## What's implemented (all merged, integrated `UnitTests` green)
 
 | Capability | What | Key files |
