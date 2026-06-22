@@ -297,7 +297,7 @@ change, the serializer output changed — investigate before touching the expect
 | `KeyOutput` (key 32B@0x20) | `02` + key32 |
 | `MultisignatureOutput` (2 keys @0x30/@0x40, reqSig=2, term=5) | `03022…2…0205` |
 | `PqKeyOutput` (key 10B@0x50, kemCt 14B@0x60) | `040a…0e…` |
-| `PqMultisigOutput` (keys 5B@0x70 + 6B@0x80, reqSig=3, term=17) | `0502057071727374068081828384850311` |
+| `PqMultisigOutput` (scheme `PQ_DSA_SCHEME_ID`, keys 5B@0x70 + 6B@0x80, reqSig=3, term=17) | `058484f8860c02057071727374068081828384850311` |
 
 The authoritative, full-length strings live in `TestTransactionSerializationGolden.cpp`; the table
 above is a human-readable digest. The test is the source of truth.

@@ -2503,6 +2503,12 @@ bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
                         << " and amount " << m_currency.formatAmount(amount);
       return true;
     }
+    if (cell->dsa_scheme_id != cn::PQ_DSA_SCHEME_ID)
+    {
+      fail_msg_writer() << "deposit cell " << outputIndex << " has unsupported DSA scheme id 0x"
+                        << std::hex << cell->dsa_scheme_id << std::dec;
+      return true;
+    }
     if (cell->is_used)
     {
       fail_msg_writer() << "deposit cell " << outputIndex << " is already spent";

@@ -433,6 +433,12 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
         return false;
       }
       const PqMultisigOutput& pqms = boost::get<PqMultisigOutput>(out.target);
+      if (pqms.dsaSchemeId != PQ_DSA_SCHEME_ID) {
+        if (error) {
+          *error = "PQ multisignature output with unsupported DSA scheme id";
+        }
+        return false;
+      }
       if (pqms.keys.empty() || pqms.keys.size() > PQ_MULTISIG_MAX_KEYS) {
         if (error) {
           *error = "PQ multisignature output with out-of-bounds key count";

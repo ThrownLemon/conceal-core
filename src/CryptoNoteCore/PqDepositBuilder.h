@@ -10,8 +10,9 @@
 //
 // CREATE  (buildPqDepositTransaction):
 //   Spends ONE on-chain PqKeyOutput (the wallet's PQ funds) inside a lattice ring — EXACTLY the input
-//   construction PqSpendBuilder proved — and locks `amount` into a PqMultisigOutput{ keys=[dsaPubKey],
-//   requiredSignatureCount=1, term } deposit cell. Any remainder (input - amount - fee) is returned to
+//   construction PqSpendBuilder proved — and locks `amount` into a PqMultisigOutput{
+//   dsaSchemeId=PQ_DSA_SCHEME_ID, keys=[dsaPubKey], requiredSignatureCount=1, term } deposit cell.
+//   Any remainder (input - amount - fee) is returned to
 //   the wallet as a PqKeyOutput change (encapsulated to its KEM key so the scanner re-finds it).
 //
 // WITHDRAW (buildPqWithdrawTransaction):

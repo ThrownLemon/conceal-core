@@ -386,6 +386,7 @@ void serialize(PqMultisigInput& in, ISerializer& serializer) {
 }
 
 void serialize(PqMultisigOutput& out, ISerializer& serializer) {
+  serializer(out.dsaSchemeId, "dsa_scheme_id");
   serializePqMultisigArray(out.keys, serializer, "keys");
   serializer(out.requiredSignatureCount, "required_signatures");
   serializer(out.term, "term");

@@ -60,6 +60,7 @@ struct PqOutputEntry {
 // .outputIndex the consensus check resolves against.
 struct PqMultisigOutputEntry {
   uint32_t outputIndex;                       // position in m_pqMultisigOutputs[amount] (== PqMultisigInput.outputIndex)
+  uint32_t dsaSchemeId;                       // PqMultisigOutput.dsaSchemeId (verifier agility pin)
   std::vector<std::vector<uint8_t>> keys;     // PqMultisigOutput.keys (n ML-DSA-65 public keys)
   uint8_t requiredSignatureCount;             // m
   uint32_t term;                              // deposit term (0 = plain multisig; != 0 = deposit)

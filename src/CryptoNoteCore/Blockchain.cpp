@@ -2392,6 +2392,7 @@ namespace cn
 
       PqMultisigOutputEntry entry;
       entry.outputIndex = static_cast<uint32_t>(i);
+      entry.dsaSchemeId = out.dsaSchemeId;
       entry.keys = out.keys;
       entry.requiredSignatureCount = out.requiredSignatureCount;
       entry.term = out.term;
@@ -3954,6 +3955,12 @@ namespace cn
       return false;
     }
     const PqMultisigOutput &output = ::boost::get<PqMultisigOutput>(target);
+
+    if (output.dsaSchemeId != PQ_DSA_SCHEME_ID)
+    {
+      logger(DEBUGGING) << "Transaction << " << transactionHash << " references PQ multisignature output with unsupported DSA scheme id.";
+      return false;
+    }
 
     if (input.signatureCount != output.requiredSignatureCount)
     {

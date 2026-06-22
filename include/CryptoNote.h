@@ -66,6 +66,7 @@ struct PqMultisigInput {
 };
 
 struct PqMultisigOutput {
+  uint32_t dsaSchemeId = 0;                    // = PQ_DSA_SCHEME_ID; serialized agility pin for deposit verifier
   std::vector<std::vector<uint8_t>> keys;          // n ML-DSA-65 public keys (each ccx_pq_multisig_pubkey_bytes())
   uint8_t requiredSignatureCount;                  // m
   uint32_t term;                                   // 0 = plain PQ multisig; != 0 = deposit

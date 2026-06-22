@@ -32,6 +32,7 @@
 
 #include "CryptoNote.h"
 #include "CryptoNoteConfig.h"
+#include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/CryptoNoteTools.h"     // getObjectHash
 #include "CryptoNoteCore/PqDepositBuilder.h"
@@ -184,6 +185,7 @@ TEST_F(PqDepositTxTest, CreateBuildsWellFormedDepositOutput)
   ASSERT_EQ(1u, dep.keys.size());
   ASSERT_EQ(ccx_pq_multisig_pubkey_bytes(), dep.keys[0].size());
   ASSERT_EQ(acct.dsaPublicKey, dep.keys[0]);
+  ASSERT_EQ(PQ_DSA_SCHEME_ID, dep.dsaSchemeId);
   ASSERT_EQ(1, dep.requiredSignatureCount);
   ASSERT_EQ(fixed_term, dep.term);
   ASSERT_EQ(fixed_amount, tx.outputs[0].amount);
@@ -194,6 +196,28 @@ TEST_F(PqDepositTxTest, CreateBuildsWellFormedDepositOutput)
 
   // The daemon's output-acceptance must ACCEPT this deposit cell (term band + depositMinAmount).
   EXPECT_TRUE(fixedCurrency.validateOutput(tx.outputs[0].amount, dep, /*height*/ 100));
+}
+
+TEST(PqOutputValidation, RejectsUnsupportedPqMultisigDsaScheme)
+{
+  auto mkTx = [](uint32_t schemeId) {
+    Transaction tx;
+    tx.version = TRANSACTION_VERSION_3;
+    PqMultisigOutput pqout;
+    pqout.dsaSchemeId = schemeId;
+    pqout.keys.push_back(std::vector<uint8_t>(ccx_pq_multisig_pubkey_bytes(), 0x42));
+    pqout.requiredSignatureCount = 1;
+    pqout.term = 0;
+    TransactionOutput out;
+    out.amount = 1000;
+    out.target = pqout;
+    tx.outputs.push_back(out);
+    return tx;
+  };
+
+  std::string err;
+  ASSERT_FALSE(check_outs_valid(mkTx(0xDEADBEEF), &err));
+  ASSERT_TRUE(check_outs_valid(mkTx(PQ_DSA_SCHEME_ID), &err)) << err;
 }
 
 TEST_F(PqDepositTxTest, CreateRejectsWrongLengthDsaKey)

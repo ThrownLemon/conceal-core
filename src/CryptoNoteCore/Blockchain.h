@@ -534,6 +534,12 @@ namespace cn
         return false;
       }
 
+      if (out.dsaSchemeId != PQ_DSA_SCHEME_ID)
+      {
+        m_error = "contains PQ multisignature output with unsupported DSA scheme id";
+        return false;
+      }
+
       if (out.requiredSignatureCount == 0 || out.requiredSignatureCount > out.keys.size())
       {
         m_error = "contains PQ multisignature with invalid required signature count";
