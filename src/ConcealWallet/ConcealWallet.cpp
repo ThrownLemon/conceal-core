@@ -32,6 +32,7 @@
 #include "Common/PathTools.h"
 #include "Common/Util.h"
 #include "Common/DnsTools.h"
+#include "CryptoNoteConfig.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteProtocol/CryptoNoteProtocolHandler.h"
 #include "NodeRpcProxy/NodeRpcProxy.h"
@@ -2487,6 +2488,12 @@ bool conceal_wallet::pq_withdraw(const std::vector<std::string> &args)
       }
       fail_msg_writer() << "no PQ deposit cell with output_index " << outputIndex
                         << " and amount " << m_currency.formatAmount(amount);
+      return true;
+    }
+    if (cell->dsa_scheme_id != cn::PQ_DSA_SCHEME_ID)
+    {
+      fail_msg_writer() << "deposit cell " << outputIndex << " has unsupported DSA scheme id 0x"
+                        << std::hex << cell->dsa_scheme_id << std::dec;
       return true;
     }
     if (cell->is_used)

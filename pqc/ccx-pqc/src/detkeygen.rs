@@ -223,3 +223,82 @@ pub extern "C" fn ccx_pq_detkeygen_selftest() -> CcxPqSizes {
     CcxPqSizes { pk: DET_KEM_PK, sk: DET_KEM_SK, ct_or_sig: DET_DSA_PK, ss: DET_DSA_SK, ok }
   })
 }
+
+#[cfg(test)]
+mod determinism_kat {
+    use super::*;
+    use sha3::digest::{ExtendableOutput, Update, XofReader};
+    use sha3::Shake256;
+
+    fn append_field(out: &mut Vec<u8>, label: &str, bytes: &[u8]) {
+        out.extend_from_slice(&(label.len() as u32).to_le_bytes());
+        out.extend_from_slice(label.as_bytes());
+        out.extend_from_slice(&(bytes.len() as u64).to_le_bytes());
+        out.extend_from_slice(bytes);
+    }
+
+    fn shake256_32(bytes: &[u8]) -> [u8; 32] {
+        let mut x = Shake256::default();
+        Update::update(&mut x, bytes);
+        let mut out = [0u8; 32];
+        x.finalize_xof().read(&mut out);
+        out
+    }
+
+    fn hex(bytes: &[u8]) -> String {
+        bytes.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+
+    /// Cross-arch keygen artifact guard. The CI `pq-determinism` job filters on `keygen_kat`, so this
+    /// test runs under aarch64, i686, and s390x QEMU along with the Raptor KAT. It pins the actual
+    /// byte encodings exported over the C ABI for ML-KEM-768, ML-DSA-65, and the existing Raptor
+    /// keygen digest.
+    #[test]
+    fn keygen_kat_mlkem_mldsa_artifact_matrix_matches_reference() {
+        let seed = b"ccx-pq-full-artifact-kat-seed-v1 -- 32+ bytes";
+
+        let mut kem_pk = vec![0u8; DET_KEM_PK];
+        let mut kem_sk = vec![0u8; DET_KEM_SK];
+        assert_eq!(
+            0,
+            ccx_pq_kem_keygen_det(
+                seed.as_ptr(),
+                seed.len(),
+                kem_pk.as_mut_ptr(),
+                kem_pk.len(),
+                kem_sk.as_mut_ptr(),
+                kem_sk.len(),
+            )
+        );
+
+        let mut dsa_pk = vec![0u8; DET_DSA_PK];
+        let mut dsa_sk = vec![0u8; DET_DSA_SK];
+        assert_eq!(
+            0,
+            ccx_pq_multisig_keygen_det(
+                seed.as_ptr(),
+                seed.len(),
+                dsa_pk.as_mut_ptr(),
+                dsa_pk.len(),
+                dsa_sk.as_mut_ptr(),
+                dsa_sk.len(),
+            )
+        );
+
+        let raptor_digest = crate::raptor::keygen_kat_digest();
+        let mut transcript = Vec::new();
+        append_field(&mut transcript, "ml-kem-768-public-key", &kem_pk);
+        append_field(&mut transcript, "ml-kem-768-secret-key", &kem_sk);
+        append_field(&mut transcript, "ml-dsa-65-public-key", &dsa_pk);
+        append_field(&mut transcript, "ml-dsa-65-secret-key", &dsa_sk);
+        append_field(&mut transcript, "raptor-keygen-kat-digest", &raptor_digest);
+
+        let actual = hex(&shake256_32(&transcript));
+        println!("PQ_KEYGEN_ARTIFACT_KAT_DIGEST={}", actual);
+        assert_eq!(
+            actual.as_str(),
+            "494d647f7fb0892902670ea2daba352d11b8b8c699e60de2fb1301d8c65061f8",
+            "PQ keygen artifact digest drifted from the pinned reference",
+        );
+    }
+}

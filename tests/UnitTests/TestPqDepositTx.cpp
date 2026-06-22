@@ -420,3 +420,25 @@ TEST(PqOutputValidation, RejectsMalformedPqKeyOutput)
   ASSERT_EQ(0, ccx_pq_keygen(seed, sizeof(seed), pk.data(), pk.size(), sk.data(), sk.size()));
   ASSERT_TRUE(check_outs_valid(mkTx(pk), &err)) << err;
 }
+
+TEST(PqOutputValidation, RejectsUnsupportedPqMultisigDsaScheme)
+{
+  auto mkTx = [](uint32_t schemeId) {
+    Transaction tx;
+    tx.version = TRANSACTION_VERSION_4;
+    PqMultisigOutput pqout;
+    pqout.dsaSchemeId = schemeId;
+    pqout.keys.push_back(std::vector<uint8_t>(ccx_pq_multisig_pubkey_bytes(), 0x42));
+    pqout.requiredSignatureCount = 1;
+    pqout.term = 0;
+    TransactionOutput out;
+    out.amount = 1000;
+    out.target = pqout;
+    tx.outputs.push_back(out);
+    return tx;
+  };
+
+  std::string err;
+  ASSERT_FALSE(check_outs_valid(mkTx(0xDEADBEEF), &err));
+  ASSERT_TRUE(check_outs_valid(mkTx(PQ_DSA_SCHEME_ID), &err)) << err;
+}

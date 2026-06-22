@@ -262,6 +262,7 @@ namespace cn
 
     // ---- deposit output: a PqMultisigOutput cell naming the wallet's account ML-DSA key (n=m=1) ---
     PqMultisigOutput deposit;
+    deposit.dsaSchemeId = PQ_DSA_SCHEME_ID;
     deposit.keys.push_back(req.depositDsaPubKey);
     deposit.requiredSignatureCount = 1;
     deposit.term = req.term;

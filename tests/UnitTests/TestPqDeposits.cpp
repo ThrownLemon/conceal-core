@@ -140,6 +140,7 @@ TEST(PqDepositSerialization, InputRoundtrip) {
 
 TEST(PqDepositSerialization, OutputRoundtrip) {
   PqMultisigOutput out;
+  out.dsaSchemeId = PQ_DSA_SCHEME_ID;
   out.keys.push_back(std::vector<uint8_t>(ccx_pq_multisig_pubkey_bytes(), 0x11));
   out.keys.push_back(std::vector<uint8_t>(ccx_pq_multisig_pubkey_bytes(), 0x22));
   out.keys.push_back(std::vector<uint8_t>(ccx_pq_multisig_pubkey_bytes(), 0x33));
@@ -152,6 +153,7 @@ TEST(PqDepositSerialization, OutputRoundtrip) {
 
   ASSERT_EQ(back.type(), typeid(PqMultisigOutput));
   const PqMultisigOutput& got = boost::get<PqMultisigOutput>(back);
+  EXPECT_EQ(got.dsaSchemeId, out.dsaSchemeId);
   ASSERT_EQ(got.keys.size(), out.keys.size());
   EXPECT_EQ(got.keys[0], out.keys[0]);
   EXPECT_EQ(got.keys[2], out.keys[2]);
@@ -177,6 +179,7 @@ TEST(PqDepositSerialization, OversizedInputArrayRejected) {
 
 TEST(PqDepositSerialization, OversizedOutputArrayRejected) {
   PqMultisigOutput out;
+  out.dsaSchemeId = PQ_DSA_SCHEME_ID;
   for (size_t i = 0; i < PQ_MULTISIG_MAX_KEYS + 1; ++i) {
     out.keys.push_back(std::vector<uint8_t>(8, 0xdd));
   }
@@ -285,6 +288,7 @@ TEST_F(PqDepositCurrencyTest, ValidateOutputParityTermBand) {
     edOut.requiredSignatureCount = 1;
     edOut.term = term;
     PqMultisigOutput pqOut;
+    pqOut.dsaSchemeId = PQ_DSA_SCHEME_ID;
     pqOut.requiredSignatureCount = 1;
     pqOut.term = term;
 
@@ -303,6 +307,7 @@ TEST_F(PqDepositCurrencyTest, ValidateOutputParityMinAmount) {
     edOut.requiredSignatureCount = 1;
     edOut.term = fixed_term;
     PqMultisigOutput pqOut;
+    pqOut.dsaSchemeId = PQ_DSA_SCHEME_ID;
     pqOut.requiredSignatureCount = 1;
     pqOut.term = fixed_term;
 

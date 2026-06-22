@@ -36,7 +36,7 @@ independently FIPS-204-validated module.
 
 ### Types + serialization
 - `include/CryptoNote.h`: `PqMultisigInput { amount, signatureCount, outputIndex, term, signatures }`
-  and `PqMultisigOutput { keys, requiredSignatureCount, term }`, appended to both variants
+  and `PqMultisigOutput { dsaSchemeId, keys, requiredSignatureCount, term }`, appended to both variants
   (`TransactionInput`, `TransactionOutputTarget`) — append-only, tag **0x5**.
 - `CryptoNoteSerialization.cpp`: tag 0x5 in `BinaryVariantTagGetter` + both `getVariantValue`
   dispatches; `getSignaturesCount(PqMultisigInput) == 0` (inline sigs, like `PqKeyInput`);
@@ -58,7 +58,8 @@ independently FIPS-204-validated module.
   advancing `inputIndex` like `PqKeyInput` (mixed-input alignment).
 - `getTransactionPqSigningHash()` extended to also clear inline `PqMultisigInput.signatures` before
   hashing (a signature cannot commit to itself).
-- `check_tx_outputs_visitor::operator()(PqMultisigOutput)` — v3 + `validateOutput` + `m in [1,n]`.
+- `check_tx_outputs_visitor::operator()(PqMultisigOutput)` — v3 + `validateOutput` +
+  `dsaSchemeId == PQ_DSA_SCHEME_ID` + `m in [1,n]`.
 - Height gate in `pushBlock` rejects any tx containing a PQ multisig variant below `UPGRADE_HEIGHT_V9`.
 
 ### Index, reorg, mempool
@@ -232,7 +233,7 @@ New tests (`tests/UnitTests/TestPqDeposits.cpp`):
 | `PqDepositPrimitive.SelftestPasses` | FFI selftest ok=1 (roundtrip + tamper/wrong-key/wrong-msg) |
 | `PqDepositPrimitive.SignVerifyRoundtripAndRejections` | direct sign/verify + tamper + wrong-key + wrong-message reject |
 | `PqDepositSerialization.InputRoundtrip` | PqMultisigInput binary in→out→in equality |
-| `PqDepositSerialization.OutputRoundtrip` | PqMultisigOutput binary in→out→in equality |
+| `PqDepositSerialization.OutputRoundtrip` | PqMultisigOutput binary in->out->in equality, including `dsaSchemeId` |
 | `PqDepositSerialization.OversizedInputArrayRejected` | sig array > PQ_MULTISIG_MAX_KEYS rejected at boundary |
 | `PqDepositSerialization.OversizedOutputArrayRejected` | key array > PQ_MULTISIG_MAX_KEYS rejected at boundary |
 | `PqDepositCurrencyTest.InputAmountParityWithEd25519` | PQ deposit value == Ed25519 deposit value (amount + interest) |

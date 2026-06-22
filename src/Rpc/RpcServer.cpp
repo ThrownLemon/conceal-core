@@ -2273,6 +2273,7 @@ bool RpcServer::on_get_pq_multisig_outputs(const COMMAND_RPC_GET_PQ_MULTISIG_OUT
       const PqMultisigOutputEntry &e = entries[i];
       COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS::pq_msig_out_entry out;
       out.output_index = e.outputIndex;
+      out.dsa_scheme_id = e.dsaSchemeId;
       out.keys.reserve(e.keys.size());
       for (const auto &k : e.keys)
       {

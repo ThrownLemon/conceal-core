@@ -51,7 +51,7 @@ Mirror classical `createDeposit` shape (`WalletGreen.cpp:447-574`) but emit a `P
 
 1. `tx.version = TRANSACTION_VERSION_3` (required by the visitor, `Blockchain.h:513-533`), `unlockTime = 0`.
 2. **Funding input:** select normal funds for `amount + fee` (fee=1000) and add as KeyInput(s) with mixin — reuse WalletGreen's `selectTransfers`/`prepareInputs`/`signInputKey` (`:489-568`). (Alternatively a PqKeyInput ring-spend, but classical-funded is simplest and matches `classical_deposit_injector.cpp:157-170` shape.)
-3. **Deposit output** = `PqMultisigOutput{ keys = [walletDsaPubKey] (n=1), requiredSignatureCount = 1 (m=1), term }`, amount = `neededMoney - fee`. Each key MUST be `ccx_pq_multisig_pubkey_bytes()`=1952B (`CryptoNoteFormatUtils.cpp:435-456`), `keys.size() <= PQ_MULTISIG_MAX_KEYS`=16, `requiredSignatureCount ∈ [1, keys.size()]`.
+3. **Deposit output** = `PqMultisigOutput{ dsaSchemeId = PQ_DSA_SCHEME_ID, keys = [walletDsaPubKey] (n=1), requiredSignatureCount = 1 (m=1), term }`, amount = `neededMoney - fee`. Each key MUST be `ccx_pq_multisig_pubkey_bytes()`=1952B (`CryptoNoteFormatUtils.cpp:435-456`), `keys.size() <= PQ_MULTISIG_MAX_KEYS`=16, `requiredSignatureCount ∈ [1, keys.size()]`, and the DSA scheme id MUST match `PQ_DSA_SCHEME_ID`.
 4. Change outputs → source address, split/shuffled (as `:511-535`).
 5. Sign the KeyInputs; relay.
 

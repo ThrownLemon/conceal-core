@@ -97,6 +97,7 @@ namespace
     for (size_t i = 0; i < left.size(); ++i)
     {
       if (left[i].outputIndex != right[i].outputIndex ||
+          left[i].dsaSchemeId != right[i].dsaSchemeId ||
           left[i].keys != right[i].keys ||
           left[i].requiredSignatureCount != right[i].requiredSignatureCount ||
           left[i].term != right[i].term ||

@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "CryptoNoteConfig.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h"
 #include "CryptoNoteCore/Currency.h"
 #include "CryptoNoteCore/NewOutputTypes.h"
@@ -184,6 +185,11 @@ namespace cn
       if (!m_currency.validateOutput(m_amount, out, m_height))
       {
         m_error = "contains invalid PQ multisignature output";
+        return false;
+      }
+      if (out.dsaSchemeId != PQ_DSA_SCHEME_ID)
+      {
+        m_error = "contains PQ multisignature output with unsupported DSA scheme id";
         return false;
       }
       if (out.requiredSignatureCount == 0 || out.requiredSignatureCount > out.keys.size())

@@ -16,6 +16,7 @@
 
 #include "Blockchain.h"
 
+#include "CryptoNoteConfig.h"
 #include "CryptoNoteCore/CryptoNoteFormatUtils.h" // relative_output_offsets_to_absolute
 #include "CryptoNoteCore/CryptoNoteTools.h"        // getObjectHash
 
@@ -240,6 +241,12 @@ namespace cn
     }
     const PqMultisigOutput &output = ::boost::get<PqMultisigOutput>(target);
 
+    if (output.dsaSchemeId != PQ_DSA_SCHEME_ID)
+    {
+      logger(logging::DEBUGGING) << "Transaction << " << transactionHash << " references PQ multisignature output with unsupported DSA scheme id.";
+      return false;
+    }
+
     if (input.signatureCount != output.requiredSignatureCount)
     {
       logger(logging::DEBUGGING) << "Transaction << " << transactionHash << " contains PQ multisignature input with invalid signature count.";
@@ -447,6 +454,7 @@ namespace cn
 
       PqMultisigOutputEntry entry;
       entry.outputIndex = static_cast<uint32_t>(i);
+      entry.dsaSchemeId = out.dsaSchemeId;
       entry.keys = out.keys;
       entry.requiredSignatureCount = out.requiredSignatureCount;
       entry.term = out.term;

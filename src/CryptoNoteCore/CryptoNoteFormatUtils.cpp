@@ -475,6 +475,10 @@ bool check_outs_valid(const TransactionPrefix& tx, std::string* error) {
         return false;
       }
       const PqMultisigOutput &pqMsig = ::boost::get<PqMultisigOutput>(out.target);
+      if (pqMsig.dsaSchemeId != PQ_DSA_SCHEME_ID) {
+        if (error) { *error = "PQ multisignature output with unsupported DSA scheme id"; }
+        return false;
+      }
       if (pqMsig.requiredSignatureCount == 0 || pqMsig.requiredSignatureCount > pqMsig.keys.size()) {
         if (error) { *error = "PQ multisignature output with invalid required signature count"; }
         return false;

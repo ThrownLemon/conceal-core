@@ -127,6 +127,7 @@ namespace
   {
     BinaryArray raw;
     appendByte(raw, 0x09); // PqMultisigOutput variant tag
+    appendVarint(raw, PQ_DSA_SCHEME_ID);
     appendVarint(raw, 1);  // keys array length
     appendBinaryBlob(raw, keyBytes, 0x80);
     appendVarint(raw, 1);  // requiredSignatureCount
@@ -168,6 +169,7 @@ TEST(PqAdversarialParser, PqMultisigArrayCountOverMaxRejects)
 {
   BinaryArray raw;
   appendByte(raw, 0x09); // PqMultisigOutput variant tag
+  appendVarint(raw, PQ_DSA_SCHEME_ID);
   appendVarint(raw, PQ_MULTISIG_MAX_KEYS + 1);
 
   TransactionOutputTarget output;
@@ -225,6 +227,7 @@ TEST(PqAdversarialParser, PqMultisigOutputWrongKeyLengthRejectedByCheckOutsValid
   // M-new-8 fixed: a deposit cell whose public key is the wrong length is rejected by check_outs_valid,
   // so malformed PQ multisig outputs can no longer enter validated output state.
   PqMultisigOutput pqout;
+  pqout.dsaSchemeId = PQ_DSA_SCHEME_ID;
   pqout.keys.push_back(std::vector<uint8_t>(1, 0x01));
   pqout.requiredSignatureCount = 1;
   pqout.term = 0;

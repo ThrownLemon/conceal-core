@@ -1426,6 +1426,7 @@ struct COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS {
 
   struct pq_msig_out_entry {
     uint32_t output_index;            // position in m_pqMultisigOutputs[amount] (== PqMultisigInput.outputIndex)
+    uint32_t dsa_scheme_id;           // PqMultisigOutput.dsaSchemeId (currently PQ_DSA_SCHEME_ID)
     std::vector<std::string> keys;    // hex of each PqMultisigOutput.keys[i] (n ML-DSA-65 public keys)
     uint32_t required_signature_count;// m
     uint32_t term;                    // deposit term (0 = plain multisig; != 0 = deposit)
@@ -1436,6 +1437,7 @@ struct COMMAND_RPC_GET_PQ_MULTISIG_OUTPUTS {
 
     void serialize(ISerializer& s) {
       KV_MEMBER(output_index)
+      KV_MEMBER(dsa_scheme_id)
       KV_MEMBER(keys)
       KV_MEMBER(required_signature_count)
       KV_MEMBER(term)
